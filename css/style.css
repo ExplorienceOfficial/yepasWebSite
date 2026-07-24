@@ -1,0 +1,1366 @@
+/* ==========================================================================
+   YEPAŞ - Yenimahalle Ekmek Pazarlama A.Ş. Design System
+   Corporate Colors: Orange (#F26522) & Navy Blue (#0A2540)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    /* Corporate Palette */
+    --primary-orange: #F26522;
+    --primary-orange-hover: #D9520E;
+    --primary-orange-light: #FFF0E6;
+    --primary-orange-glow: rgba(242, 101, 34, 0.25);
+
+    --primary-blue: #1F2937;
+    --primary-blue-hover: #111827;
+    --primary-blue-light: #F3F4F6;
+    --primary-blue-glow: rgba(31, 41, 55, 0.15);
+
+    --accent-blue: #374151;
+    --accent-gold: #F59E0B;
+    
+    /* Neutral Shades */
+    --bg-main: #FAFCFE;
+    --bg-card: #FFFFFF;
+    --bg-secondary: #F1F5F9;
+    --border-color: #E2E8F0;
+    --border-hover: #CBD5E1;
+
+    --text-dark: #0F172A;
+    --text-body: #334155;
+    --text-muted: #64748B;
+    --text-white: #FFFFFF;
+
+    /* Typography */
+    --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+    /* Spacing & Layout */
+    --container-max: 1280px;
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 24px;
+    --radius-full: 9999px;
+
+    /* Transitions & Shadows */
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --shadow-sm: 0 2px 8px rgba(10, 37, 64, 0.04);
+    --shadow-md: 0 8px 24px rgba(10, 37, 64, 0.08);
+    --shadow-lg: 0 16px 40px rgba(10, 37, 64, 0.12);
+    --shadow-orange: 0 10px 25px rgba(242, 101, 34, 0.3);
+}
+
+/* Reset & Global */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+    font-size: 16px;
+}
+
+body {
+    font-family: var(--font-main);
+    background-color: var(--bg-main);
+    color: var(--text-body);
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+ul {
+    list-style: none;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* Layout Utilities */
+.container {
+    width: 100%;
+    max-width: var(--container-max);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+.section-padding {
+    padding: 5rem 0;
+}
+
+.bg-secondary {
+    background-color: var(--bg-secondary);
+}
+
+.text-orange {
+    color: var(--primary-orange);
+}
+
+.text-blue {
+    color: var(--primary-blue);
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* Section Header Component */
+.section-header {
+    text-align: center;
+    max-width: 720px;
+    margin: 0 auto 3.5rem auto;
+}
+
+.section-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    background-color: var(--primary-orange-light);
+    color: var(--primary-orange);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-radius: var(--radius-full);
+    margin-bottom: 1rem;
+}
+
+.section-title {
+    font-size: 2.3rem;
+    font-weight: 800;
+    color: var(--primary-blue);
+    line-height: 1.25;
+    margin-bottom: 1rem;
+}
+
+.section-subtitle {
+    font-size: 1.05rem;
+    color: var(--text-muted);
+}
+
+/* Buttons Component */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 0.85rem 1.8rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    border-radius: var(--radius-full);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: var(--transition);
+    text-align: center;
+}
+
+.btn-primary {
+    background-color: var(--primary-orange);
+    color: var(--text-white);
+    box-shadow: var(--shadow-orange);
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-orange-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px rgba(242, 101, 34, 0.4);
+}
+
+.btn-secondary {
+    background-color: var(--primary-blue);
+    color: var(--text-white);
+}
+
+.btn-secondary:hover {
+    background-color: var(--primary-blue-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-outline {
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+    background: transparent;
+}
+
+.btn-outline:hover {
+    background-color: var(--primary-blue);
+    color: var(--text-white);
+}
+
+.btn-outline-orange {
+    border-color: var(--primary-orange);
+    color: var(--primary-orange);
+    background: transparent;
+}
+
+.btn-outline-orange:hover {
+    background-color: var(--primary-orange);
+    color: var(--text-white);
+}
+
+/* ==========================================================================
+   Top Notification & Header Navigation
+   ========================================================================== */
+
+/* Top Bar */
+.top-bar {
+    background-color: var(--primary-blue);
+    color: var(--text-white);
+    font-size: 0.85rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.top-bar-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.top-info {
+    display: flex;
+    gap: 1.8rem;
+    align-items: center;
+}
+
+.top-info-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.top-info-item svg {
+    color: var(--primary-orange);
+}
+
+.top-socials {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center;
+}
+
+.social-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-white);
+    transition: var(--transition);
+}
+
+.social-icon:hover {
+    background-color: var(--primary-orange);
+    transform: translateY(-2px);
+}
+
+/* Main Navbar */
+.navbar {
+    position: sticky;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    z-index: 1000;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition);
+}
+
+.navbar-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 115px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+
+.brand-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 800;
+    font-size: 1.8rem;
+    color: var(--primary-blue);
+}
+
+.brand-badge {
+    background-color: var(--primary-orange);
+    color: var(--text-white);
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.nav-menu {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+}
+
+.nav-link {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #1a1a1a;
+    padding: 0.5rem 0;
+    position: relative;
+    transition: color 0.3s ease;
+    white-space: nowrap;
+}
+
+.nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background-color: var(--primary-orange);
+    border-radius: var(--radius-full);
+    transition: var(--transition);
+}
+
+.nav-link:hover::after,
+.nav-link.active::after {
+    width: 100%;
+}
+
+.nav-link:hover {
+    color: var(--primary-orange);
+}
+
+.nav-link.active {
+    color: var(--primary-orange);
+    font-weight: 600;
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.nav-actions .btn {
+    white-space: nowrap;
+    padding: 0.5rem 1rem !important;
+    font-size: 0.9rem !important;
+}
+
+.nav-actions .btn span {
+    font-size: 0.9rem !important;
+}
+
+.nav-actions .btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.mobile-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--primary-blue);
+    cursor: pointer;
+    padding: 0.5rem;
+}
+
+/* ==========================================================================
+   Hero Section & Photo Slider (Requirement 2: 3-4 factory photos)
+   ========================================================================== */
+.hero-slider {
+    position: relative;
+    width: 100%;
+    height: 620px;
+    background-color: var(--primary-blue);
+    overflow: hidden;
+}
+
+.slides-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.8s ease-in-out, transform 0.8s ease-in-out;
+    transform: scale(1.05);
+}
+
+.slide.active {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+}
+
+.slide-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(0.65);
+}
+
+.slide-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(10, 37, 64, 0.88) 0%, rgba(10, 37, 64, 0.4) 60%, rgba(10, 37, 64, 0.2) 100%);
+    display: flex;
+    align-items: center;
+}
+
+.slide-content {
+    max-width: 680px;
+    color: var(--text-white);
+    padding: 2rem 0;
+}
+
+.slide-tag {
+    display: inline-block;
+    padding: 0.4rem 1rem;
+    background-color: var(--primary-orange);
+    color: var(--text-white);
+    font-size: 0.85rem;
+    font-weight: 700;
+    border-radius: var(--radius-full);
+    margin-bottom: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.slide-title {
+    font-size: 3.2rem;
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 1.2rem;
+}
+
+.slide-desc {
+    font-size: 1.15rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.slide-buttons {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+/* Slider Controls */
+.slider-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: var(--text-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    z-index: 10;
+}
+
+.slider-arrow:hover {
+    background-color: var(--primary-orange);
+    border-color: var(--primary-orange);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.slider-prev {
+    left: 2rem;
+}
+
+.slider-next {
+    right: 2rem;
+}
+
+.slider-indicators {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.75rem;
+    z-index: 10;
+}
+
+.indicator {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.indicator.active {
+    width: 38px;
+    border-radius: 10px;
+    background-color: var(--primary-orange);
+}
+
+/* Quick Features Bar */
+.features-bar {
+    background-color: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    margin-top: -3rem;
+    position: relative;
+    z-index: 20;
+    border-radius: var(--radius-md);
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+}
+
+.feature-box {
+    padding: 1.8rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+}
+
+.feature-icon-wrapper {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-md);
+    background-color: var(--primary-orange-light);
+    color: var(--primary-orange);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.feature-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    margin-bottom: 0.2rem;
+}
+
+.feature-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Section 2: Kurumsal / About Us Section
+   ========================================================================== */
+.about-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+}
+
+.about-image-wrapper {
+    position: relative;
+}
+
+.about-main-img {
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    height: 480px;
+    object-fit: cover;
+}
+
+.about-experience-badge {
+    position: absolute;
+    bottom: -1.5rem;
+    right: -1.5rem;
+    background: linear-gradient(135deg, var(--primary-orange) 0%, var(--primary-orange-hover) 100%);
+    color: var(--text-white);
+    padding: 1.8rem;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-orange);
+    text-align: center;
+}
+
+.badge-number {
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.badge-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.about-content-list {
+    margin: 1.8rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.about-list-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+}
+
+.about-list-item svg {
+    color: var(--primary-orange);
+    flex-shrink: 0;
+    margin-top: 0.2rem;
+}
+
+/* ==========================================================================
+   Section 3: Ürünlerimiz / Product Catalog (Requirement 6: 9-12 items)
+   ========================================================================== */
+.product-filters {
+    display: flex;
+    justify-content: center;
+    gap: 0.8rem;
+    margin-bottom: 2.8rem;
+    flex-wrap: wrap;
+}
+
+.filter-btn {
+    padding: 0.65rem 1.4rem;
+    border-radius: var(--radius-full);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-body);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.filter-btn:hover,
+.filter-btn.active {
+    background-color: var(--primary-orange);
+    color: var(--text-white);
+    border-color: var(--primary-orange);
+    box-shadow: var(--shadow-orange);
+}
+
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 2rem;
+}
+
+.product-card {
+    background-color: var(--bg-card);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    transition: var(--transition);
+    display: flex;
+    flex-direction: column;
+}
+
+.product-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-orange);
+}
+
+.product-img-box {
+    height: 220px;
+    background-color: var(--bg-secondary);
+    position: relative;
+    overflow: hidden;
+}
+
+.product-img-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: var(--transition);
+}
+
+.product-card:hover .product-img-box img {
+    transform: scale(1.08);
+}
+
+.product-badge {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    background-color: var(--primary-blue);
+    color: var(--text-white);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.7rem;
+    border-radius: var(--radius-full);
+}
+
+.product-content {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.product-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    margin-bottom: 0.5rem;
+}
+
+.product-desc {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    margin-bottom: 1.2rem;
+    flex-grow: 1;
+}
+
+.product-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.product-spec {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--primary-orange);
+}
+
+/* ==========================================================================
+   Section 4: Helal Gıda Politikamız (SEO Content & PDF Requirement)
+   ========================================================================== */
+.halal-policy-card {
+    background: linear-gradient(135deg, #FFFFFF 0%, #FFF8F5 100%);
+    border: 2px solid var(--primary-orange-light);
+    border-radius: var(--radius-lg);
+    padding: 3.5rem;
+    box-shadow: var(--shadow-md);
+}
+
+.halal-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px dashed var(--primary-orange-light);
+}
+
+.halal-badge-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background-color: var(--primary-orange);
+    color: var(--text-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-orange);
+}
+
+.halal-content-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 3rem;
+}
+
+.halal-text-box h3 {
+    font-size: 1.4rem;
+    color: var(--primary-blue);
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
+
+.halal-text-box p {
+    margin-bottom: 1.2rem;
+    color: var(--text-body);
+    font-size: 1rem;
+    line-height: 1.7;
+}
+
+.halal-points {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 1.8rem 0;
+}
+
+.halal-point-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+    padding: 0.8rem;
+    background-color: var(--bg-card);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.halal-pdf-box {
+    background-color: var(--primary-blue);
+    color: var(--text-white);
+    border-radius: var(--radius-md);
+    padding: 2.5rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-lg);
+}
+
+.pdf-icon-large {
+    width: 64px;
+    height: 64px;
+    color: var(--primary-orange);
+    margin-bottom: 1rem;
+}
+
+/* ==========================================================================
+   Section 5: Sertifikalarımız / Quality Badges (Requirement 5)
+   ========================================================================== */
+.certificates-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+}
+
+.cert-card {
+    background-color: var(--bg-card);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    transition: var(--transition);
+}
+
+.cert-card:hover {
+    border-color: var(--primary-orange);
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-md);
+}
+
+.cert-logo-box {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 1.2rem auto;
+    border-radius: 50%;
+    background-color: var(--primary-blue-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-blue);
+    font-weight: 800;
+    font-size: 1.1rem;
+    border: 2px solid var(--primary-blue);
+}
+
+.cert-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    margin-bottom: 0.4rem;
+}
+
+.cert-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Section 6: İletişim / Contact Section
+   ========================================================================== */
+.contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 3.5rem;
+}
+
+.contact-info-card {
+    background-color: var(--primary-blue);
+    color: var(--text-white);
+    border-radius: var(--radius-lg);
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.contact-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.2rem;
+    margin-bottom: 2rem;
+}
+
+.contact-item-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    background-color: rgba(242, 101, 34, 0.2);
+    color: var(--primary-orange);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.contact-item-title {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.contact-item-value {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-white);
+}
+
+.contact-form-card {
+    background-color: var(--bg-card);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+    padding: 3rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--primary-blue);
+    margin-bottom: 0.5rem;
+}
+
+.form-input, .form-textarea {
+    width: 100%;
+    padding: 0.85rem 1.2rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--text-dark);
+    transition: var(--transition);
+    background-color: var(--bg-main);
+}
+
+.form-input:focus, .form-textarea:focus {
+    outline: none;
+    border-color: var(--primary-orange);
+    box-shadow: 0 0 0 3px var(--primary-orange-glow);
+    background-color: #FFFFFF;
+}
+
+/* ==========================================================================
+   Section 7: Sık Sorulan Sorular (FAQ / Accordion)
+   ========================================================================== */
+.faq-container {
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.faq-item {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: var(--transition);
+}
+
+.faq-item:hover {
+    border-color: var(--primary-orange);
+}
+
+.faq-question {
+    width: 100%;
+    text-align: left;
+    padding: 1.5rem;
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--primary-blue);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-family: inherit;
+    transition: var(--transition);
+}
+
+.faq-icon {
+    color: var(--primary-orange);
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+}
+
+.faq-answer {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    background-color: var(--bg-main);
+}
+
+.faq-answer p {
+    color: var(--text-body);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    padding: 0 1.5rem 1.5rem 1.5rem;
+}
+
+.faq-item.active .faq-icon {
+    transform: rotate(180deg);
+}
+
+.faq-item.active .faq-question {
+    color: var(--primary-orange);
+}
+
+/* ==========================================================================
+   Classic Wooden Footer Component (Match Screenshot)
+   ========================================================================== */
+.footer-classic {
+    background-color: #F8E2B2; /* Fallback wooden tan color */
+    background-image: repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(0,0,0,0.03) 40px, rgba(0,0,0,0.03) 80px),
+                      radial-gradient(ellipse at center, #F8E2B2 0%, #E6C58B 100%);
+    color: #4A4A4A;
+    padding: 3.5rem 0 4rem 0;
+    border-top: 2px solid #D4B07B;
+    font-family: Arial, sans-serif; /* Give it the slightly classic vibe from image */
+}
+
+.footer-classic-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr;
+    gap: 2rem;
+}
+
+.fc-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.fc-title {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: #333333;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+}
+
+.fc-line {
+    width: 100%;
+    height: 1px;
+    background-color: rgba(0, 0, 0, 0.15);
+    margin-bottom: 1.2rem;
+}
+
+.fc-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-bottom: 0.8rem;
+    font-size: 0.95rem;
+    color: #4A4A4A;
+    line-height: 1.4;
+}
+
+.fc-icon {
+    color: #333333;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.fc-socials {
+    display: flex;
+    gap: 0.8rem;
+}
+
+.fc-social-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    transition: var(--transition);
+}
+
+.fc-social-box:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+@media (max-width: 768px) {
+    .footer-classic-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   Floating Action Buttons (Phone + WhatsApp)
+   ========================================================================== */
+.floating-actions {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    z-index: 9999;
+}
+
+.fab-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    transition: transform 0.3s ease;
+    position: relative;
+}
+
+.fab-btn:hover {
+    transform: scale(1.08);
+}
+
+.fab-phone {
+    background-color: var(--primary-orange);
+}
+
+.fab-phone svg {
+    width: 28px;
+    height: 28px;
+    fill: white;
+}
+
+.fab-wa {
+    background-color: #25D366;
+}
+
+.fab-wa svg {
+    width: 32px;
+    height: 32px;
+    fill: white;
+}
+
+.fab-badge {
+    position: absolute;
+    top: -2px;
+    right: 2px;
+    width: 14px;
+    height: 14px;
+    background-color: #FF3B30;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+/* ==========================================================================
+   Modal Component (Product Details & Halal PDF Viewer)
+   ========================================================================== */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(6, 24, 43, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: var(--transition);
+}
+
+.modal.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background-color: var(--bg-card);
+    border-radius: var(--radius-lg);
+    max-width: 700px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    padding: 2.5rem;
+    box-shadow: var(--shadow-lg);
+    transform: scale(0.9);
+    transition: var(--transition);
+}
+
+.modal.active .modal-content {
+    transform: scale(1);
+}
+
+.modal-close {
+    position: absolute;
+    top: 1.2rem;
+    right: 1.2rem;
+    background: var(--bg-secondary);
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-dark);
+    transition: var(--transition);
+}
+
+.modal-close:hover {
+    background-color: var(--primary-orange);
+    color: var(--text-white);
+}
+
+/* Floating WhatsApp Button */
+.floating-whatsapp {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #25D366;
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 25px rgba(37, 211, 102, 0.4);
+    z-index: 999;
+    transition: var(--transition);
+}
+
+.floating-whatsapp:hover {
+    transform: scale(1.1);
+    box-shadow: 0 14px 30px rgba(37, 211, 102, 0.6);
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 992px) {
+    .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .about-grid, .contact-grid, .halal-content-grid {
+        grid-template-columns: 1fr;
+    }
+    .certificates-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .footer-grid, .footer-classic-grid, .contact-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .slide-title {
+        font-size: 2.3rem;
+    }
+    .hero-slider {
+        height: 520px;
+    }
+}
+
+@media (max-width: 768px) {
+    .nav-menu {
+        position: fixed;
+        top: 80px;
+        left: -100%;
+        width: 100%;
+        height: calc(100vh - 80px);
+        background-color: var(--bg-card);
+        flex-direction: column;
+        justify-content: flex-start;
+        padding: 2rem;
+        transition: var(--transition);
+        box-shadow: var(--shadow-lg);
+    }
+    .nav-menu.active {
+        left: 0;
+    }
+    .mobile-toggle {
+        display: block;
+    }
+    .nav-actions .btn-outline {
+        display: none;
+    }
+    .features-grid, .certificates-grid, .footer-grid, .footer-classic-grid, .contact-grid, .halal-content-grid, .about-grid {
+        grid-template-columns: 1fr;
+    }
+    .top-bar-content {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
+    .top-info {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .section-title {
+        font-size: 1.8rem;
+    }
+    .hero-slider {
+        height: 450px;
+    }
+}
