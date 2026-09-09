@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { ChevronRight } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronDown, Pencil } from "lucide-react";
 
 import { useOperations } from "@/context/OperationsContext";
 import { cn, formatQty, initials } from "@/lib/format";
@@ -14,8 +14,9 @@ const groupMeta: { status: OrderStatus; label: string; dot: string; empty: strin
 ];
 
 /**
- * Siparişleri 3 duruma göre gruplayıp Bayi · Ürün Cinsi · Adet olarak listeler.
- * Hem admin sipariş ekranı hem şoför görünümü tarafından kullanılır.
+ * Siparişleri 3 duruma göre gruplar. Her bayi bir açılır kart (accordion):
+ * kapalıyken bayi + toplam, tıklanınca kalem kalem açılır. Aynı anda birden
+ * fazla kart açık kalabilir. Hem admin hem şoför görünümü kullanır.
  */
 export function ConsolidatedOrders({
   orders,
@@ -25,10 +26,15 @@ export function ConsolidatedOrders({
   orders: DailyOrder[];
   /** Verilirse yalnızca bu müşteriler gösterilir (şoför görünümü) */
   customerIds?: string[];
-  /** Satıra tıklanınca (admin düzenleme) */
+  /** "Düzenle" ile sipariş düzenleme (yalnızca admin) */
   onSelect?: (customerId: string) => void;
 }) {
   const { getCustomer, getProduct } = useOperations();
+  const [open, setOpen] = useState<string[]>([]);
+  const editable = Boolean(onSelect);
+
+  const toggle = (id: string) =>
+    setOpen((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
 
   const grouped = useMemo(() => {
     const scope = orders.filter((o) => !customerIds || customerIds.includes(o.customerId));
@@ -63,29 +69,19 @@ export function ConsolidatedOrders({
               {group.rows.map(({ order, customer }) => {
                 if (!customer) return null;
                 const total = order.lines.reduce((s, l) => s + l.qty, 0);
-                const clickable = Boolean(onSelect);
+                const isOpen = open.includes(customer.id);
                 return (
                   <div
                     key={customer.id}
-                    role={clickable ? "button" : undefined}
-                    tabIndex={clickable ? 0 : undefined}
-                    onClick={clickable ? () => onSelect?.(customer.id) : undefined}
-                    onKeyDown={
-                      clickable
-                        ? (e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              onSelect?.(customer.id);
-                            }
-                          }
-                        : undefined
-                    }
-                    className={cn(
-                      "rounded-[14px] bg-surface ring-1 ring-hairline transition-shadow",
-                      clickable && "cursor-pointer hover:shadow-[var(--shadow-sm)]",
-                    )}
+                    className="overflow-hidden rounded-[14px] bg-surface ring-1 ring-hairline"
                   >
-                    <div className="flex items-center gap-3 px-4 py-3">
+                    {/* Başlık — tıkla aç/kapa */}
+                    <button
+                      type="button"
+                      onClick={() => toggle(customer.id)}
+                      aria-expanded={isOpen}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2/50"
+                    >
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[12px] font-semibold text-ink-2">
                         {initials(customer.name)}
                       </span>
@@ -101,31 +97,64 @@ export function ConsolidatedOrders({
                           <span className="ml-1 text-[12px] text-ink-3">adet</span>
                         </span>
                       )}
-                      {clickable && <ChevronRight className="size-4 shrink-0 text-ink-3" />}
-                    </div>
+                      <ChevronDown
+                        className={cn(
+                          "size-4 shrink-0 text-ink-3 transition-transform duration-200",
+                          isOpen && "rotate-180",
+                        )}
+                      />
+                    </button>
 
-                    {order.status === "ordered" && order.lines.length > 0 && (
-                      <div className="border-t border-hairline px-4 py-1">
-                        {order.lines.map((line) => {
-                          const product = getProduct(line.productId);
-                          if (!product) return null;
-                          return (
-                            <div
-                              key={line.productId}
-                              className="flex items-center justify-between gap-3 border-b border-hairline py-2 last:border-b-0"
+                    {/* İçerik — kalem kalem */}
+                    {isOpen && (
+                      <div className="border-t border-hairline px-4 py-2">
+                        {order.status === "ordered" && order.lines.length > 0 && (
+                          <div>
+                            {order.lines.map((line) => {
+                              const product = getProduct(line.productId);
+                              if (!product) return null;
+                              return (
+                                <div
+                                  key={line.productId}
+                                  className="flex items-center justify-between gap-3 border-b border-hairline py-2 last:border-b-0"
+                                >
+                                  <span className="text-[13px] text-ink-2">{product.name}</span>
+                                  <span className="text-[13px] font-medium tabular-nums text-ink">
+                                    {formatQty(line.qty)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {order.status === "ordered" && order.lines.length === 0 && (
+                          <p className="py-2 text-[13px] text-ink-3">Bu siparişte kalem yok.</p>
+                        )}
+
+                        {order.status === "pending" && (
+                          <p className="py-2 text-[13px] text-ink-3">Bayi henüz sipariş girişi yapmadı.</p>
+                        )}
+
+                        {order.status === "declined" && (
+                          <p className="py-2 text-[13px] text-ink-3">
+                            Bayi bugün ürün istemedi.{order.note ? ` (${order.note})` : ""}
+                          </p>
+                        )}
+
+                        {editable && (
+                          <div className="pt-1.5">
+                            <button
+                              type="button"
+                              onClick={() => onSelect?.(customer.id)}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-3"
                             >
-                              <span className="text-[13px] text-ink-2">{product.name}</span>
-                              <span className="text-[13px] font-medium tabular-nums text-ink">
-                                {formatQty(line.qty)}
-                              </span>
-                            </div>
-                          );
-                        })}
+                              <Pencil className="size-3.5" strokeWidth={1.8} />
+                              Düzenle
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    )}
-
-                    {order.status === "declined" && order.note && (
-                      <p className="border-t border-hairline px-4 py-2.5 text-[12px] text-ink-3">{order.note}</p>
                     )}
                   </div>
                 );

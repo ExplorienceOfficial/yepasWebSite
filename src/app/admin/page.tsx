@@ -6,7 +6,6 @@ import {
   Activity,
   Calendar,
   Check,
-  ChevronDown,
   ChevronRight,
   Circle,
   Clock4,
@@ -21,12 +20,11 @@ import { PerformanceCard } from "@/components/dash/PerformanceCard";
 import { CustomerInspector } from "@/components/dash/CustomerInspector";
 import { PageHeading, Panel } from "@/components/admin/Panel";
 import { StatusBadge } from "@/components/ui/Badge";
-import { DatePickerPopover } from "@/components/ui/DatePickerPopover";
 import { useAuth } from "@/context/AuthContext";
 import { useOperations } from "@/context/OperationsContext";
+import { OPERATION_DATE } from "@/data/mockData";
 import { periodDelta } from "@/data/trends";
 import { cn, formatQty, initials } from "@/lib/format";
-import type { OrderDay } from "@/types";
 
 const statusOrder = { ordered: 0, pending: 1, declined: 2 } as const;
 
@@ -46,17 +44,10 @@ const activityColor = {
 
 export default function OverviewPage() {
   const { session } = useAuth();
-  const { metrics, productionTotals, categories, activity, customers, orders, deliveryOrders, nextOrders, orderTotals } =
+  const { metrics, productionTotals, categories, activity, customers, orders, orderTotals } =
     useOperations();
 
-  const [selectedDay, setSelectedDay] = useState<OrderDay>("today");
   const [selected, setSelected] = useState<string | null>(null);
-
-  const activeOrdersList = useMemo(() => {
-    if (selectedDay === "delivery") return deliveryOrders;
-    if (selectedDay === "next") return nextOrders;
-    return orders;
-  }, [deliveryOrders, nextOrders, orders, selectedDay]);
 
   const firstName = session?.role === "admin" ? session.name.split(" ")[0] : "Yönetici";
 
@@ -77,7 +68,7 @@ export default function OverviewPage() {
   const rows = useMemo(() => {
     return customers
       .map((c) => {
-        const order = activeOrdersList.find((o) => o.customerId === c.id);
+        const order = orders.find((o) => o.customerId === c.id);
         const totals = order ? orderTotals(order) : { units: 0 };
         return { customer: c, order, totals };
       })
@@ -87,7 +78,7 @@ export default function OverviewPage() {
           (statusOrder[b.order?.status ?? "pending"] ?? 1),
       )
       .slice(0, 8);
-  }, [activeOrdersList, customers, orderTotals]);
+  }, [customers, orderTotals, orders]);
 
   return (
     <div className="yp-rise">
@@ -95,7 +86,10 @@ export default function OverviewPage() {
         title={`Günaydın, ${firstName}.`}
         description="Platformunuzda bugün olup bitenlerin özeti."
         action={
-          <DatePickerPopover value={selectedDay} onChange={setSelectedDay} />
+          <span className="inline-flex h-9 items-center gap-2 rounded-full bg-surface px-3.5 text-[13px] font-medium text-ink ring-1 ring-hairline">
+            <Calendar className="size-4 text-ink-2" strokeWidth={1.8} />
+            {OPERATION_DATE}
+          </span>
         }
       />
 

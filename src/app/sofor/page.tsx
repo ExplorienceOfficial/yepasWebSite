@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 
 import { ConsolidatedOrders } from "@/components/orders/ConsolidatedOrders";
-import { DatePickerPopover } from "@/components/ui/DatePickerPopover";
 import { useAuth } from "@/context/AuthContext";
 import { useOperations } from "@/context/OperationsContext";
 import { cn } from "@/lib/format";
@@ -11,13 +10,12 @@ import type { OrderDay } from "@/types";
 
 const days: { key: OrderDay; label: string; sub: string }[] = [
   { key: "delivery", label: "Bugün Dağıtılacak", sub: "Dün verilen siparişler" },
-  { key: "today", label: "Bugün Verilen", sub: "Yeni siparişler" },
-  { key: "next", label: "1 Sonraki Gün", sub: "Yarın dağıtılacaklar" },
+  { key: "today", label: "Bugün Verilen", sub: "Yarın dağıtılacaklar" },
 ];
 
 export default function DriverRoutePage() {
   const { session } = useAuth();
-  const { customers, orders, deliveryOrders, nextOrders } = useOperations();
+  const { customers, orders, deliveryOrders } = useOperations();
 
   const [day, setDay] = useState<OrderDay>("delivery");
 
@@ -27,7 +25,7 @@ export default function DriverRoutePage() {
     [customers, driverId],
   );
 
-  const activeOrders = day === "delivery" ? deliveryOrders : day === "next" ? nextOrders : orders;
+  const activeOrders = day === "delivery" ? deliveryOrders : orders;
 
   return (
     <div className="yp-rise">
@@ -36,26 +34,23 @@ export default function DriverRoutePage() {
         <p className="mt-1 text-[14px] text-ink-2">Bayi · ürün cinsi · adet</p>
       </div>
 
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex items-center gap-1 rounded-[12px] bg-surface-2 p-1">
-          {days.map((d) => (
-            <button
-              key={d.key}
-              type="button"
-              onClick={() => setDay(d.key)}
-              className={cn(
-                "flex flex-col items-start rounded-[9px] px-3.5 py-1.5 text-left transition-all duration-150",
-                day === d.key ? "bg-surface shadow-[var(--shadow-sm)]" : "hover:bg-surface/50",
-              )}
-            >
-              <span className={cn("text-[13px] font-medium sm:text-[14px]", day === d.key ? "text-ink" : "text-ink-2")}>
-                {d.label}
-              </span>
-              <span className="text-[11px] text-ink-3">{d.sub}</span>
-            </button>
-          ))}
-        </div>
-        <DatePickerPopover value={day} onChange={setDay} />
+      <div className="mb-5 inline-flex items-center gap-1 rounded-[12px] bg-surface-2 p-1">
+        {days.map((d) => (
+          <button
+            key={d.key}
+            type="button"
+            onClick={() => setDay(d.key)}
+            className={cn(
+              "flex flex-col items-start rounded-[9px] px-4 py-1.5 text-left transition-all duration-150",
+              day === d.key ? "bg-surface shadow-[var(--shadow-sm)]" : "hover:bg-surface/50",
+            )}
+          >
+            <span className={cn("text-[14px] font-medium", day === d.key ? "text-ink" : "text-ink-2")}>
+              {d.label}
+            </span>
+            <span className="text-[11px] text-ink-3">{d.sub}</span>
+          </button>
+        ))}
       </div>
 
       <ConsolidatedOrders orders={activeOrders} customerIds={ownIds} />

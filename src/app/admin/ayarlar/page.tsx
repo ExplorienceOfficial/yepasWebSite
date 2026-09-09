@@ -6,7 +6,7 @@ import { PageHeading } from "@/components/admin/Panel";
 import { NumberInput } from "@/components/ui/Field";
 import { Switch } from "@/components/ui/Switch";
 import { useOperations } from "@/context/OperationsContext";
-import { OPERATION_DATE, ORDER_CUTOFF } from "@/data/mockData";
+import { OPERATION_DATE } from "@/data/mockData";
 import { cn } from "@/lib/format";
 import { useTheme } from "@/lib/useTheme";
 import type { OrderRule } from "@/types";
@@ -63,6 +63,8 @@ export default function SettingsPage() {
     toggleOrderSystem,
     autoCloseEnabled,
     setAutoCloseEnabled,
+    cutoffTime,
+    setCutoffTime,
     orderRule,
     setOrderRule,
     maxQtyLimit,
@@ -92,9 +94,22 @@ export default function SettingsPage() {
           />
           <SettingRow
             title="Kapanış saatinde otomatik kapat"
-            description={`Sistem her gün ${ORDER_CUTOFF} olduğunda otomatik kapansın.`}
+            description={`Açıkken sistem her gün ${cutoffTime}'de otomatik kapanır; kapalıyken elle kapatırsınız.`}
             control={
               <Switch checked={autoCloseEnabled} onChange={setAutoCloseEnabled} label="Saat bazlı otomatik kapatma" />
+            }
+          />
+          <SettingRow
+            title="Kapanış saati"
+            description="Otomatik kapanışın uygulanacağı saat (varsayılan 18:00)."
+            control={
+              <input
+                type="time"
+                value={cutoffTime}
+                onChange={(e) => setCutoffTime(e.target.value)}
+                aria-label="Kapanış saati"
+                className="rounded-[10px] border border-hairline bg-surface-2 px-3 py-2 text-[14px] tabular-nums text-ink outline-none transition-colors focus:border-transparent focus:ring-4 focus:ring-[var(--ring)]"
+              />
             }
           />
           <SettingRow

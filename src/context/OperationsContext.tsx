@@ -79,6 +79,8 @@ interface OperationsContextValue {
   orderRule: OrderRule;
   maxQtyLimit: number;
   autoCloseEnabled: boolean;
+  /** Otomatik kapanış saati (HH:mm) */
+  cutoffTime: string;
 
   // ---- aksiyonlar ----
   toggleOrderSystem: () => void;
@@ -94,6 +96,7 @@ interface OperationsContextValue {
   setOrderRule: (rule: OrderRule) => void;
   setMaxQtyLimit: (value: number) => void;
   setAutoCloseEnabled: (value: boolean) => void;
+  setCutoffTime: (value: string) => void;
 
   // ---- seçiciler ----
   getProduct: (productId: string) => Product | undefined;
@@ -128,6 +131,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   const [orderRule, setOrderRuleState] = useState<OrderRule>(DEFAULT_ORDER_RULE);
   const [maxQtyLimit, setMaxQtyLimitState] = useState<number>(DEFAULT_MAX_QTY);
   const [autoCloseEnabled, setAutoCloseEnabled] = useState(false);
+  const [cutoffTime, setCutoffTime] = useState("18:00");
   const [activity, setActivity] = useState<ActivityItem[]>([
     { id: 3, at: "10:20", text: "Elvankent Kebap Salonu siparişini güncelledi", tone: "neutral" },
     { id: 2, at: "09:30", text: "Kuğulu Kafe yarın için ürün istemedi", tone: "danger" },
@@ -444,6 +448,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     orderRule,
     maxQtyLimit,
     autoCloseEnabled,
+    cutoffTime,
     toggleOrderSystem,
     syncToErp,
     setLineQty,
@@ -457,6 +462,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     setOrderRule,
     setMaxQtyLimit,
     setAutoCloseEnabled,
+    setCutoffTime,
     getProduct,
     getOrder,
     getCustomer,
