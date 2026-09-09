@@ -83,5 +83,5 @@ export interface ActivityItem {
 /** Maksimum sipariş adedi kuralı: sabit limit mi yoksa geçmiş ortalama mı? */
 export type OrderRule = "limit" | "average";
 
-/** Siparişler ekranındaki iki günlük görünüm */
-export type OrderDay = "delivery" | "today";
+/** Siparişler ekranındaki üç günlük görünüm */
+export type OrderDay = "delivery" | "today" | "next";

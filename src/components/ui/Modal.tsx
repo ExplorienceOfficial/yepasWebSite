@@ -38,43 +38,48 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 sm:p-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Arka plan karartması */}
       <div
-        className="fixed inset-0 bg-black/30 backdrop-blur-md"
+        className="fixed inset-0 bg-black/40 backdrop-blur-md transition-opacity"
         onClick={onClose}
         aria-hidden
       />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className={cn(
-          "yp-scale-in relative z-10 w-full overflow-hidden rounded-[22px] bg-surface shadow-[var(--shadow-lg)] ring-1 ring-hairline",
-          width,
-        )}
-      >
-        <header className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
-          <div>
-            <h2 className="text-[17px] font-semibold text-ink">{title}</h2>
-            {subtitle && <p className="mt-1 text-[13px] text-ink-2">{subtitle}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Kapat"
-            className="-mr-1.5 -mt-0.5 flex size-8 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
-          >
-            <X className="size-4" />
-          </button>
-        </header>
 
-        <div className="px-6 pb-5">{children}</div>
+      {/* Ekran ortalama kapsayıcısı */}
+      <div className="flex min-h-full items-center justify-center p-4 sm:p-6 text-left">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          className={cn(
+            "yp-scale-in relative z-10 w-full overflow-hidden rounded-[22px] bg-surface shadow-[var(--shadow-lg)] ring-1 ring-hairline",
+            width,
+          )}
+        >
+          <header className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
+            <div>
+              <h2 className="text-[17px] font-semibold text-ink">{title}</h2>
+              {subtitle && <p className="mt-1 text-[13px] text-ink-2">{subtitle}</p>}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Kapat"
+              className="-mr-1.5 -mt-0.5 flex size-8 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+            >
+              <X className="size-4" />
+            </button>
+          </header>
 
-        {footer && (
-          <footer className="flex items-center justify-end gap-2.5 border-t border-hairline px-6 py-4">
-            {footer}
-          </footer>
-        )}
+          <div className="px-6 pb-5">{children}</div>
+
+          {footer && (
+            <footer className="flex items-center justify-end gap-2.5 border-t border-hairline px-6 py-4">
+              {footer}
+            </footer>
+          )}
+        </div>
       </div>
     </div>
   );

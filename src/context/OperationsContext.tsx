@@ -15,6 +15,7 @@ import {
   customers as seedCustomers,
   dailyOrders as seedOrders,
   deliveryOrders as seedDeliveryOrders,
+  nextOrders as seedNextOrders,
   drivers as seedDrivers,
   initialSync,
   initialSystemToggleAt,
@@ -62,6 +63,8 @@ interface OperationsContextValue {
   orders: DailyOrder[];
   /** Bugün dağıtılacak (dün verilen) siparişler — salt okunur */
   deliveryOrders: DailyOrder[];
+  /** 1 sonraki gün (yarın verilen) siparişler */
+  nextOrders: DailyOrder[];
 
   // ---- sistem durumu ----
   orderSystemOpen: boolean;
@@ -430,6 +433,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     drivers: seedDrivers,
     orders,
     deliveryOrders: seedDeliveryOrders,
+    nextOrders: seedNextOrders,
     orderSystemOpen,
     systemToggledAt,
     lastSync,

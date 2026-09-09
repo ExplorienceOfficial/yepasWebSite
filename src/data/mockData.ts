@@ -13,6 +13,8 @@ import type {
 export const DELIVERY_DATE = "9 Eylül 2026, Çarşamba";
 /** Bugün verilen (yarın dağıtılacak) siparişlerin günü */
 export const ORDER_DATE = "10 Eylül 2026, Perşembe";
+/** 1 sonraki gün (gelecek siparişler) */
+export const NEXT_DATE = "11 Eylül 2026, Cuma";
 /** Genel operasyon günü etiketi */
 export const OPERATION_DATE = ORDER_DATE;
 export const ORDER_CUTOFF = "17:30";
@@ -172,6 +174,25 @@ export const deliveryOrders: DailyOrder[] = dailyOrders.map((order, index) => {
   return {
     ...order,
     updatedAt: order.updatedAt,
+    lines: order.lines.map((line) => ({
+      ...line,
+      qty: Math.max(10, Math.round((line.qty * factor) / 5) * 5),
+    })),
+  };
+});
+
+/**
+ * 1 sonraki gün (11 Eylül Cuma) için taslak sipariş verileri.
+ */
+export const nextOrders: DailyOrder[] = dailyOrders.map((order, index) => {
+  if (order.status === "declined") {
+    return { ...order, status: "pending", lines: [] };
+  }
+  const factor = 1.05 + (index % 4) * 0.08;
+  return {
+    ...order,
+    updatedAt: index % 3 === 0 ? "08:10" : null,
+    status: index % 3 === 0 ? "ordered" : "pending",
     lines: order.lines.map((line) => ({
       ...line,
       qty: Math.max(10, Math.round((line.qty * factor) / 5) * 5),

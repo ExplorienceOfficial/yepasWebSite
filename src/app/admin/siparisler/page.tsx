@@ -8,26 +8,26 @@ import { OrderDrawer } from "@/components/admin/OrderDrawer";
 import { PageHeading } from "@/components/admin/Panel";
 import { ConsolidatedOrders } from "@/components/orders/ConsolidatedOrders";
 import { Button } from "@/components/ui/Button";
+import { DatePickerPopover } from "@/components/ui/DatePickerPopover";
 import { useOperations } from "@/context/OperationsContext";
-import { DELIVERY_DATE, ORDER_DATE } from "@/data/mockData";
 import { cn } from "@/lib/format";
 import type { OrderDay } from "@/types";
 
 const days: { key: OrderDay; label: string; sub: string }[] = [
   { key: "delivery", label: "Bugün Dağıtılacak", sub: "Dün verilen siparişler" },
   { key: "today", label: "Bugün Verilen", sub: "Yeni siparişler" },
+  { key: "next", label: "1 Sonraki Gün", sub: "Yarın dağıtılacaklar" },
 ];
 
 export default function OrdersPage() {
-  const { orders, deliveryOrders } = useOperations();
+  const { orders, deliveryOrders, nextOrders } = useOperations();
 
   const [day, setDay] = useState<OrderDay>("today");
   const [openCustomer, setOpenCustomer] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
-  const isToday = day === "today";
-  const activeOrders = isToday ? orders : deliveryOrders;
-  const dateLabel = isToday ? ORDER_DATE : DELIVERY_DATE;
+  const isEditable = day === "today" || day === "next";
+  const activeOrders = day === "delivery" ? deliveryOrders : day === "next" ? nextOrders : orders;
 
   return (
     <div className="yp-rise">
@@ -42,7 +42,7 @@ export default function OrdersPage() {
         }
       />
 
-      {/* 2 günlük geçiş */}
+      {/* 3 günlük geçiş & Takvim Seçici */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="inline-flex items-center gap-1 rounded-[12px] bg-surface-2 p-1">
           {days.map((d) => (
@@ -51,28 +51,28 @@ export default function OrdersPage() {
               type="button"
               onClick={() => setDay(d.key)}
               className={cn(
-                "flex flex-col items-start rounded-[9px] px-4 py-1.5 text-left transition-all duration-150",
+                "flex flex-col items-start rounded-[9px] px-3.5 py-1.5 text-left transition-all duration-150",
                 day === d.key ? "bg-surface shadow-[var(--shadow-sm)]" : "hover:bg-surface/50",
               )}
             >
-              <span className={cn("text-[14px] font-medium", day === d.key ? "text-ink" : "text-ink-2")}>
+              <span className={cn("text-[13px] font-medium sm:text-[14px]", day === d.key ? "text-ink" : "text-ink-2")}>
                 {d.label}
               </span>
               <span className="text-[11px] text-ink-3">{d.sub}</span>
             </button>
           ))}
         </div>
-        <p className="text-[13px] tabular-nums text-ink-3">{dateLabel}</p>
+        <DatePickerPopover value={day} onChange={setDay} />
       </div>
 
       <ConsolidatedOrders
         orders={activeOrders}
-        onSelect={isToday ? (id) => setOpenCustomer(id) : undefined}
+        onSelect={isEditable ? (id) => setOpenCustomer(id) : undefined}
       />
 
-      {!isToday && (
+      {!isEditable && (
         <p className="mt-5 text-center text-[12px] text-ink-3">
-          Bu liste kesinleşmiştir ve düzenlenemez. Değişiklik için “Bugün Verilen” gününe geçin.
+          Bu liste kesinleşmiştir ve düzenlenemez. Değişiklik için “Bugün Verilen” veya “1 Sonraki Gün”e geçin.
         </p>
       )}
 

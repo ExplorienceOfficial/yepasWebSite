@@ -3,20 +3,21 @@
 import { useMemo, useState } from "react";
 
 import { ConsolidatedOrders } from "@/components/orders/ConsolidatedOrders";
+import { DatePickerPopover } from "@/components/ui/DatePickerPopover";
 import { useAuth } from "@/context/AuthContext";
 import { useOperations } from "@/context/OperationsContext";
-import { DELIVERY_DATE, ORDER_DATE } from "@/data/mockData";
 import { cn } from "@/lib/format";
 import type { OrderDay } from "@/types";
 
 const days: { key: OrderDay; label: string; sub: string }[] = [
   { key: "delivery", label: "Bugün Dağıtılacak", sub: "Dün verilen siparişler" },
   { key: "today", label: "Bugün Verilen", sub: "Yeni siparişler" },
+  { key: "next", label: "1 Sonraki Gün", sub: "Yarın dağıtılacaklar" },
 ];
 
 export default function DriverRoutePage() {
   const { session } = useAuth();
-  const { customers, orders, deliveryOrders } = useOperations();
+  const { customers, orders, deliveryOrders, nextOrders } = useOperations();
 
   const [day, setDay] = useState<OrderDay>("delivery");
 
@@ -26,9 +27,7 @@ export default function DriverRoutePage() {
     [customers, driverId],
   );
 
-  const isToday = day === "today";
-  const activeOrders = isToday ? orders : deliveryOrders;
-  const dateLabel = isToday ? ORDER_DATE : DELIVERY_DATE;
+  const activeOrders = day === "delivery" ? deliveryOrders : day === "next" ? nextOrders : orders;
 
   return (
     <div className="yp-rise">
@@ -45,18 +44,18 @@ export default function DriverRoutePage() {
               type="button"
               onClick={() => setDay(d.key)}
               className={cn(
-                "flex flex-col items-start rounded-[9px] px-4 py-1.5 text-left transition-all duration-150",
+                "flex flex-col items-start rounded-[9px] px-3.5 py-1.5 text-left transition-all duration-150",
                 day === d.key ? "bg-surface shadow-[var(--shadow-sm)]" : "hover:bg-surface/50",
               )}
             >
-              <span className={cn("text-[14px] font-medium", day === d.key ? "text-ink" : "text-ink-2")}>
+              <span className={cn("text-[13px] font-medium sm:text-[14px]", day === d.key ? "text-ink" : "text-ink-2")}>
                 {d.label}
               </span>
               <span className="text-[11px] text-ink-3">{d.sub}</span>
             </button>
           ))}
         </div>
-        <p className="text-[13px] tabular-nums text-ink-3">{dateLabel}</p>
+        <DatePickerPopover value={day} onChange={setDay} />
       </div>
 
       <ConsolidatedOrders orders={activeOrders} customerIds={ownIds} />
