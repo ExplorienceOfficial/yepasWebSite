@@ -10,13 +10,13 @@ import { Button } from "@/components/ui/Button";
 import { Drawer } from "@/components/ui/Drawer";
 import { Select } from "@/components/ui/Field";
 import { useOperations } from "@/context/OperationsContext";
-import { cn, formatCurrency, formatQty } from "@/lib/format";
+import { cn, formatQty } from "@/lib/format";
 import type { OrderStatus } from "@/types";
 
 const statusOptions: { value: OrderStatus; label: string; active: string }[] = [
-  { value: "ordered", label: "Sipariş Verildi", active: "bg-emerald-600 text-white border-emerald-600" },
-  { value: "declined", label: "Ürün İstemedi", active: "bg-rose-600 text-white border-rose-600" },
-  { value: "pending", label: "Beklemede", active: "bg-amber-500 text-white border-amber-500" },
+  { value: "ordered", label: "Sipariş Verildi", active: "bg-[var(--ok)] text-white" },
+  { value: "declined", label: "İstemedi", active: "bg-[var(--bad)] text-white" },
+  { value: "pending", label: "Beklemede", active: "bg-[var(--warn)] text-white" },
 ];
 
 export function OrderDrawer({
@@ -29,8 +29,8 @@ export function OrderDrawer({
   const {
     getCustomer,
     getOrder,
-    getDriver,
     getProduct,
+    getMaxQty,
     products,
     setLineQty,
     addLine,
@@ -46,10 +46,9 @@ export function OrderDrawer({
 
   if (!customer || !order) return null;
 
-  const driver = getDriver(customer.driverId);
   const totals = orderTotals(order);
   const available = products.filter(
-    (product) => product.active && !order.lines.some((line) => line.productId === product.id),
+    (product) => !order.lines.some((line) => line.productId === product.id),
   );
 
   const handleAdd = () => {
@@ -64,26 +63,17 @@ export function OrderDrawer({
       onClose={onClose}
       title={customer.name}
       badge={<StatusBadge status={order.status} />}
-      subtitle={`${customer.code} · ${customer.type} · ${customer.district} · ${driver?.name ?? "-"} (${driver?.plate ?? "-"})`}
+      subtitle={`${customer.code} · ${customer.type} · ${customer.district}`}
       footer={
         <>
-          <div className="flex items-baseline gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                Toplam
-              </p>
-              <p className="font-mono text-sm font-semibold tabular-nums text-zinc-900">
-                {formatQty(totals.units)} adet
-              </p>
-            </div>
-            <span className="font-mono text-sm tabular-nums text-zinc-500">
-              {formatCurrency(totals.amount)}
-            </span>
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Toplam</p>
+            <p className="text-[15px] font-semibold tabular-nums text-ink">
+              {formatQty(totals.units)} adet
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden text-[11px] text-zinc-500 sm:block">
-              Değişiklikler anında uygulanır
-            </span>
+            <span className="hidden text-[12px] text-ink-3 sm:block">Değişiklikler anında uygulanır</span>
             <Button variant="primary" onClick={onClose}>
               Tamam
             </Button>
@@ -93,10 +83,8 @@ export function OrderDrawer({
     >
       {/* Durum seçimi */}
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-          Sipariş Durumu
-        </p>
-        <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <p className="text-[13px] font-medium text-ink-2">Sipariş Durumu</p>
+        <div className="mt-2 grid grid-cols-3 gap-1.5 rounded-[12px] bg-surface-2 p-1">
           {statusOptions.map((option) => {
             const active = order.status === option.value;
             return (
@@ -105,10 +93,8 @@ export function OrderDrawer({
                 type="button"
                 onClick={() => setOrderStatus(customer.id, option.value)}
                 className={cn(
-                  "rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
-                  active
-                    ? option.active
-                    : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50",
+                  "rounded-[9px] px-2 py-1.5 text-[13px] font-medium transition-colors",
+                  active ? option.active : "text-ink-2 hover:text-ink",
                 )}
               >
                 {option.label}
@@ -118,38 +104,28 @@ export function OrderDrawer({
         </div>
       </div>
 
-      {/* Müşteri notu */}
       {order.note && (
-        <div className="mt-3 flex gap-2 rounded-md border border-sky-200 bg-sky-50/70 px-3 py-2">
-          <Info className="mt-0.5 size-3.5 shrink-0 text-sky-600" />
-          <p className="text-xs leading-5 text-sky-900">{order.note}</p>
+        <div className="mt-3 flex gap-2 rounded-[12px] bg-accent-soft px-3 py-2.5">
+          <Info className="mt-0.5 size-4 shrink-0 text-accent" strokeWidth={1.8} />
+          <p className="text-[13px] leading-5 text-ink">{order.note}</p>
         </div>
       )}
 
       {order.editedByAdmin && (
-        <div className="mt-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2">
-          <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
-          <p className="text-xs leading-5 text-amber-900">
-            Bu sipariş admin tarafından düzenlendi. Aktarım sırasında müşteri girişinin üzerine
-            yazılacak.
+        <div className="mt-3 flex gap-2 rounded-[12px] bg-[var(--warn-soft)] px-3 py-2.5">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-[var(--warn)]" strokeWidth={1.8} />
+          <p className="text-[13px] leading-5 text-ink">
+            Bu sipariş admin tarafından düzenlendi. Aktarım sırasında müşteri girişinin üzerine yazılacak.
           </p>
         </div>
       )}
 
-      {/* Kalemler */}
       {order.status === "declined" ? (
-        <div className="mt-4 rounded-md border border-dashed border-rose-200 bg-rose-50/40 px-4 py-8 text-center">
-          <CircleSlash className="mx-auto size-6 text-rose-400" />
-          <p className="mt-2 text-sm font-medium text-rose-800">Müşteri bu gün ürün istemedi</p>
-          <p className="mt-0.5 text-xs text-rose-600">
-            Rota planında bu durak atlanacak, üretim emrine dahil edilmeyecek.
-          </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="mt-3"
-            onClick={() => setOrderStatus(customer.id, "ordered")}
-          >
+        <div className="mt-4 rounded-[14px] bg-[var(--bad-soft)] px-4 py-8 text-center">
+          <CircleSlash className="mx-auto size-6 text-[var(--bad)]" strokeWidth={1.6} />
+          <p className="mt-2 text-[15px] font-medium text-ink">Müşteri bu gün ürün istemedi</p>
+          <p className="mt-0.5 text-[13px] text-ink-2">Üretim emrine dahil edilmeyecek.</p>
+          <Button variant="secondary" size="sm" className="mt-3" onClick={() => setOrderStatus(customer.id, "ordered")}>
             <PackageCheck className="size-3.5" />
             Siparişe geri al
           </Button>
@@ -157,67 +133,50 @@ export function OrderDrawer({
       ) : (
         <div className="mt-4">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-              Sipariş Kalemleri
-            </p>
-            <span className="font-mono text-[11px] tabular-nums text-zinc-500">
-              {order.lines.length} kalem
-            </span>
+            <p className="text-[13px] font-medium text-ink-2">Sipariş Kalemleri</p>
+            <span className="text-[12px] tabular-nums text-ink-3">{order.lines.length} kalem</span>
           </div>
 
-          <div className="mt-2 divide-y divide-zinc-100 rounded-md border border-zinc-200">
+          <div className="mt-2 divide-y divide-hairline rounded-[14px] bg-surface-2">
             {order.lines.length === 0 && (
-              <p className="px-3 py-6 text-center text-xs text-zinc-500">
-                Henüz kalem eklenmemiş. Aşağıdan ürün ekleyerek sipariş oluşturabilirsiniz.
+              <p className="px-3 py-6 text-center text-[13px] text-ink-2">
+                Henüz kalem yok. Aşağıdan ürün ekleyin.
               </p>
             )}
 
             {order.lines.map((line) => {
               const product = getProduct(line.productId);
               if (!product) return null;
-              const atLimit = line.qty >= product.maxOrderLimit;
+              const max = getMaxQty(product.id);
+              const atLimit = line.qty >= max;
               return (
                 <div key={line.productId} className="flex items-center gap-3 px-3 py-2.5">
                   <ProductThumb src={product.imageUrl} name={product.name} className="size-9" />
-
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-zinc-900">{product.name}</p>
-                    <p className="font-mono text-[11px] text-zinc-500">
-                      {product.code} · {formatCurrency(product.unitPrice)} · limit{" "}
-                      {formatQty(product.maxOrderLimit)}
+                    <p className="truncate text-[14px] font-medium text-ink">{product.name}</p>
+                    <p className="text-[12px] text-ink-3">
+                      {product.code} · limit {formatQty(max)}
                     </p>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <QtyStepper
-                      value={line.qty}
-                      max={product.maxOrderLimit}
-                      onChange={(next) => setLineQty(customer.id, product.id, next)}
-                    />
-                    <span className="w-20 text-right font-mono text-xs tabular-nums text-zinc-600">
-                      {formatCurrency(line.qty * product.unitPrice)}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`${product.name} kalemini kaldır`}
-                      onClick={() => removeLine(customer.id, product.id)}
-                      className="rounded p-1 text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </div>
-
-                  {atLimit && (
-                    <Badge tone="amber" className="ml-1">
-                      limit
-                    </Badge>
-                  )}
+                  <QtyStepper
+                    value={line.qty}
+                    max={max}
+                    onChange={(next) => setLineQty(customer.id, product.id, next)}
+                  />
+                  {atLimit && <Badge tone="amber">limit</Badge>}
+                  <button
+                    type="button"
+                    aria-label={`${product.name} kalemini kaldır`}
+                    onClick={() => removeLine(customer.id, product.id)}
+                    className="flex size-8 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-[var(--bad-soft)] hover:text-[var(--bad)]"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
                 </div>
               );
             })}
           </div>
 
-          {/* Ürün ekle */}
           <div className="mt-3 flex items-center gap-2">
             <Select
               value={productToAdd}
@@ -225,10 +184,10 @@ export function OrderDrawer({
               aria-label="Eklenecek ürün"
               className="flex-1"
             >
-              <option value="">Kataloğdan ürün ekle...</option>
+              <option value="">Kataloğdan ürün ekle…</option>
               {available.map((product) => (
                 <option key={product.id} value={product.id}>
-                  {product.name} · {product.code} (öneri {product.avgOrder})
+                  {product.name} · {product.code}
                 </option>
               ))}
             </Select>
@@ -240,35 +199,23 @@ export function OrderDrawer({
         </div>
       )}
 
-      {/* Müşteri künyesi */}
-      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-md border border-zinc-200 bg-zinc-50/60 px-3 py-3 text-xs">
+      {/* Künye */}
+      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-[14px] bg-surface-2 px-4 py-3.5 text-[13px]">
         <div>
-          <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Yetkili
-          </dt>
-          <dd className="mt-0.5 text-zinc-800">{customer.contact}</dd>
+          <dt className="text-[12px] text-ink-3">Yetkili</dt>
+          <dd className="mt-0.5 text-ink">{customer.contact}</dd>
         </div>
         <div>
-          <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Telefon
-          </dt>
-          <dd className="mt-0.5 font-mono tabular-nums text-zinc-800">{customer.phone}</dd>
+          <dt className="text-[12px] text-ink-3">Telefon</dt>
+          <dd className="mt-0.5 tabular-nums text-ink">{customer.phone}</dd>
         </div>
         <div>
-          <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Rota / Durak
-          </dt>
-          <dd className="mt-0.5 text-zinc-800">
-            {driver?.region} · {customer.stopNo}. durak
-          </dd>
+          <dt className="text-[12px] text-ink-3">Son Giriş</dt>
+          <dd className="mt-0.5 tabular-nums text-ink">{order.updatedAt ?? "Giriş yapılmadı"}</dd>
         </div>
         <div>
-          <dt className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Son Giriş
-          </dt>
-          <dd className="mt-0.5 font-mono tabular-nums text-zinc-800">
-            {order.updatedAt ?? "Giriş yapılmadı"}
-          </dd>
+          <dt className="text-[12px] text-ink-3">İlçe</dt>
+          <dd className="mt-0.5 text-ink">{customer.district}</dd>
         </div>
       </dl>
     </Drawer>

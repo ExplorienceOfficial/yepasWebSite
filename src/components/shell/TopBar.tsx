@@ -13,7 +13,6 @@ const routeMeta: Record<string, { crumb: string; title: string }> = {
   "/admin": { crumb: "Genel", title: "Kontrol Paneli" },
   "/admin/siparisler": { crumb: "Operasyon", title: "Siparişler" },
   "/admin/urunler": { crumb: "Operasyon", title: "Ürünler" },
-  "/admin/soforler": { crumb: "Operasyon", title: "Şoförler" },
   "/admin/ayarlar": { crumb: "Sistem", title: "Ayarlar" },
 };
 
@@ -87,6 +86,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
             type="button"
             onClick={syncToErp}
             disabled={syncing}
+            title="Verileri sipariş programına aktar"
             className="relative hidden h-9 items-center gap-2 rounded-full bg-accent px-3.5 text-[13px] font-medium text-white transition-all hover:bg-accent-hover active:scale-[0.98] disabled:opacity-50 sm:inline-flex"
           >
             {syncing ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4" strokeWidth={2} />}

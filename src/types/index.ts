@@ -13,14 +13,11 @@ export interface Product {
   /** Alt varyasyon adı: "3 Çizgili Üstü", "Kepekli" ... */
   name: string;
   code: string;
-  gram: number;
-  unitPrice: number;
   /** Bir müşterinin tek seferde geçebileceği maksimum adet */
   maxOrderLimit: number;
-  /** Adminin belirlediği önerilen/ortalama sipariş adedi */
+  /** Geçmiş ortalama sipariş adedi — "Geçmiş Ortalama" kuralında üst sınır olarak kullanılır */
   avgOrder: number;
   imageUrl: string;
-  active: boolean;
 }
 
 export interface Driver {
@@ -30,8 +27,6 @@ export interface Driver {
   phone: string;
   plate: string;
   region: string;
-  /** Araç soğutmalı mı, kasa kapasitesi (kasa adedi) */
-  crateCapacity: number;
   /** Şoför portalına giriş için 4 haneli PIN (demo amaçlı) */
   pin: string;
 }
@@ -84,3 +79,9 @@ export interface ActivityItem {
   text: string;
   tone: "neutral" | "success" | "warning" | "danger";
 }
+
+/** Maksimum sipariş adedi kuralı: sabit limit mi yoksa geçmiş ortalama mı? */
+export type OrderRule = "limit" | "average";
+
+/** Siparişler ekranındaki iki günlük görünüm */
+export type OrderDay = "delivery" | "today";

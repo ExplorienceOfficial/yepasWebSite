@@ -6,7 +6,7 @@
  */
 
 export type ChartRange = "7D" | "30D" | "3M" | "6M" | "1Y";
-export type ChartMetric = "revenue" | "units" | "orders";
+export type ChartMetric = "units" | "orders";
 
 export interface SeriesPoint {
   label: string;
@@ -14,7 +14,6 @@ export interface SeriesPoint {
 }
 
 const BASE: Record<ChartMetric, number> = {
-  revenue: 46385,
   units: 6940,
   orders: 17,
 };

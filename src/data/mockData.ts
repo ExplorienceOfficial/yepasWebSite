@@ -3,14 +3,23 @@ import type {
   DailyOrder,
   Driver,
   OrderLine,
+  OrderRule,
   Product,
   ProductCategory,
   SyncRecord,
 } from "@/types";
 
-/** Panelin yönettiği operasyon günü (ertesi gün üretimi) */
-export const OPERATION_DATE = "8 Eylül 2026, Salı";
+/** Bugün dağıtılacak (dün verilen) siparişlerin günü */
+export const DELIVERY_DATE = "9 Eylül 2026, Çarşamba";
+/** Bugün verilen (yarın dağıtılacak) siparişlerin günü */
+export const ORDER_DATE = "10 Eylül 2026, Perşembe";
+/** Genel operasyon günü etiketi */
+export const OPERATION_DATE = ORDER_DATE;
 export const ORDER_CUTOFF = "17:30";
+
+/** Maksimum sipariş adedi kuralı varsayılanları */
+export const DEFAULT_ORDER_RULE: OrderRule = "limit";
+export const DEFAULT_MAX_QTY = 1200;
 
 export const categories: ProductCategory[] = [
   { id: "cat-gunluk", name: "Günlük Ekmek", line: "Tava Hattı · Fırın 1" },
@@ -21,34 +30,34 @@ export const categories: ProductCategory[] = [
 
 export const products: Product[] = [
   // --- Günlük Ekmek ---
-  { id: "p01", categoryId: "cat-gunluk", name: "3 Çizgili Üstü", code: "EKM-301", gram: 250, unitPrice: 8.5, maxOrderLimit: 600, avgOrder: 140, imageUrl: "/urunler/9.jpg", active: true },
-  { id: "p02", categoryId: "cat-gunluk", name: "Kepekli", code: "EKM-302", gram: 250, unitPrice: 9.5, maxOrderLimit: 400, avgOrder: 60, imageUrl: "/urunler/2.jpg", active: true },
-  { id: "p03", categoryId: "cat-gunluk", name: "Tam Buğday", code: "EKM-303", gram: 300, unitPrice: 11, maxOrderLimit: 300, avgOrder: 45, imageUrl: "/urunler/3.jpg", active: true },
-  { id: "p04", categoryId: "cat-gunluk", name: "Tava Ekmek", code: "EKM-304", gram: 200, unitPrice: 8, maxOrderLimit: 500, avgOrder: 90, imageUrl: "/urunler/9.jpg", active: true },
+  { id: "p01", categoryId: "cat-gunluk", name: "3 Çizgili Üstü", code: "EKM-301", maxOrderLimit: 600, avgOrder: 140, imageUrl: "/urunler/9.jpg" },
+  { id: "p02", categoryId: "cat-gunluk", name: "Kepekli", code: "EKM-302", maxOrderLimit: 400, avgOrder: 60, imageUrl: "/urunler/2.jpg" },
+  { id: "p03", categoryId: "cat-gunluk", name: "Tam Buğday", code: "EKM-303", maxOrderLimit: 300, avgOrder: 45, imageUrl: "/urunler/3.jpg" },
+  { id: "p04", categoryId: "cat-gunluk", name: "Tava Ekmek", code: "EKM-304", maxOrderLimit: 500, avgOrder: 90, imageUrl: "/urunler/9.jpg" },
   // --- Roll Ekmek ---
-  { id: "p05", categoryId: "cat-roll", name: "Sade Roll", code: "ROL-101", gram: 50, unitPrice: 4.25, maxOrderLimit: 1200, avgOrder: 250, imageUrl: "/urunler/1.jpg", active: true },
-  { id: "p06", categoryId: "cat-roll", name: "Kepekli Roll", code: "ROL-102", gram: 50, unitPrice: 4.75, maxOrderLimit: 800, avgOrder: 120, imageUrl: "/urunler/2.jpg", active: true },
-  { id: "p07", categoryId: "cat-roll", name: "Tam Buğday Roll", code: "ROL-103", gram: 50, unitPrice: 5, maxOrderLimit: 800, avgOrder: 100, imageUrl: "/urunler/3.jpg", active: true },
-  { id: "p08", categoryId: "cat-roll", name: "Çavdarlı Roll", code: "ROL-104", gram: 50, unitPrice: 5.25, maxOrderLimit: 600, avgOrder: 80, imageUrl: "/urunler/4.jpg", active: true },
-  { id: "p09", categoryId: "cat-roll", name: "Tuzsuz Roll", code: "ROL-105", gram: 50, unitPrice: 4.75, maxOrderLimit: 400, avgOrder: 40, imageUrl: "/urunler/5.jpg", active: true },
-  { id: "p10", categoryId: "cat-roll", name: "Ayçekirdekli Roll", code: "ROL-106", gram: 60, unitPrice: 5.5, maxOrderLimit: 600, avgOrder: 70, imageUrl: "/urunler/6.jpg", active: true },
+  { id: "p05", categoryId: "cat-roll", name: "Sade Roll", code: "ROL-101", maxOrderLimit: 1200, avgOrder: 250, imageUrl: "/urunler/1.jpg" },
+  { id: "p06", categoryId: "cat-roll", name: "Kepekli Roll", code: "ROL-102", maxOrderLimit: 800, avgOrder: 120, imageUrl: "/urunler/2.jpg" },
+  { id: "p07", categoryId: "cat-roll", name: "Tam Buğday Roll", code: "ROL-103", maxOrderLimit: 800, avgOrder: 100, imageUrl: "/urunler/3.jpg" },
+  { id: "p08", categoryId: "cat-roll", name: "Çavdarlı Roll", code: "ROL-104", maxOrderLimit: 600, avgOrder: 80, imageUrl: "/urunler/4.jpg" },
+  { id: "p09", categoryId: "cat-roll", name: "Tuzsuz Roll", code: "ROL-105", maxOrderLimit: 400, avgOrder: 40, imageUrl: "/urunler/5.jpg" },
+  { id: "p10", categoryId: "cat-roll", name: "Ayçekirdekli Roll", code: "ROL-106", maxOrderLimit: 600, avgOrder: 70, imageUrl: "/urunler/6.jpg" },
   // --- Sandviç & Burger ---
-  { id: "p11", categoryId: "cat-sandvic", name: "Susamlı Sandviç", code: "SND-201", gram: 75, unitPrice: 6.5, maxOrderLimit: 700, avgOrder: 130, imageUrl: "/urunler/7.jpg", active: true },
-  { id: "p12", categoryId: "cat-sandvic", name: "Susamlı Hamburger", code: "SND-202", gram: 80, unitPrice: 7, maxOrderLimit: 900, avgOrder: 180, imageUrl: "/urunler/8.jpg", active: true },
-  { id: "p13", categoryId: "cat-sandvic", name: "Cepli Pita", code: "SND-203", gram: 70, unitPrice: 6.75, maxOrderLimit: 500, avgOrder: 60, imageUrl: "/urunler/12.jpg", active: true },
+  { id: "p11", categoryId: "cat-sandvic", name: "Susamlı Sandviç", code: "SND-201", maxOrderLimit: 700, avgOrder: 130, imageUrl: "/urunler/7.jpg" },
+  { id: "p12", categoryId: "cat-sandvic", name: "Susamlı Hamburger", code: "SND-202", maxOrderLimit: 900, avgOrder: 180, imageUrl: "/urunler/8.jpg" },
+  { id: "p13", categoryId: "cat-sandvic", name: "Cepli Pita", code: "SND-203", maxOrderLimit: 500, avgOrder: 60, imageUrl: "/urunler/12.jpg" },
   // --- Geleneksel & Özel ---
-  { id: "p14", categoryId: "cat-ozel", name: "Baston Somun", code: "OZL-401", gram: 250, unitPrice: 12, maxOrderLimit: 300, avgOrder: 55, imageUrl: "/urunler/9.jpg", active: true },
-  { id: "p15", categoryId: "cat-ozel", name: "Taş Fırın Köy Ekmeği", code: "OZL-402", gram: 400, unitPrice: 24, maxOrderLimit: 200, avgOrder: 35, imageUrl: "/urunler/10.jpg", active: true },
-  { id: "p16", categoryId: "cat-ozel", name: "Zeytinli & Otlu Ciabatta", code: "OZL-403", gram: 120, unitPrice: 14.5, maxOrderLimit: 250, avgOrder: 30, imageUrl: "/urunler/11.jpg", active: true },
-  { id: "p17", categoryId: "cat-ozel", name: "Ekşi Mayalı Somun", code: "OZL-404", gram: 500, unitPrice: 28, maxOrderLimit: 150, avgOrder: 18, imageUrl: "/urunler/10.jpg", active: false },
+  { id: "p14", categoryId: "cat-ozel", name: "Baston Somun", code: "OZL-401", maxOrderLimit: 300, avgOrder: 55, imageUrl: "/urunler/9.jpg" },
+  { id: "p15", categoryId: "cat-ozel", name: "Taş Fırın Köy Ekmeği", code: "OZL-402", maxOrderLimit: 200, avgOrder: 35, imageUrl: "/urunler/10.jpg" },
+  { id: "p16", categoryId: "cat-ozel", name: "Zeytinli & Otlu Ciabatta", code: "OZL-403", maxOrderLimit: 250, avgOrder: 30, imageUrl: "/urunler/11.jpg" },
+  { id: "p17", categoryId: "cat-ozel", name: "Ekşi Mayalı Somun", code: "OZL-404", maxOrderLimit: 150, avgOrder: 18, imageUrl: "/urunler/10.jpg" },
 ];
 
 export const drivers: Driver[] = [
-  { id: "d1", code: "SFR-01", name: "Hakan Demir", phone: "0532 411 08 22", plate: "06 YPS 401", region: "Kızılay · Ulus", crateCapacity: 40, pin: "1401" },
-  { id: "d2", code: "SFR-02", name: "Mustafa Yılmaz", phone: "0533 260 77 14", plate: "06 YPS 118", region: "Bahçelievler · Balgat", crateCapacity: 36, pin: "1118" },
-  { id: "d3", code: "SFR-03", name: "Erkan Şahin", phone: "0542 815 33 90", plate: "06 YPS 232", region: "Keçiören · Etlik", crateCapacity: 44, pin: "1232" },
-  { id: "d4", code: "SFR-04", name: "Serkan Aydın", phone: "0505 774 12 63", plate: "06 YPS 305", region: "Sincan · Etimesgut", crateCapacity: 50, pin: "1305" },
-  { id: "d5", code: "SFR-05", name: "Bülent Koç", phone: "0536 903 45 71", plate: "06 YPS 417", region: "Mamak · Natoyolu", crateCapacity: 34, pin: "1417" },
+  { id: "d1", code: "SFR-01", name: "Hakan Demir", phone: "0532 411 08 22", plate: "06 YPS 401", region: "Kızılay · Ulus", pin: "1401" },
+  { id: "d2", code: "SFR-02", name: "Mustafa Yılmaz", phone: "0533 260 77 14", plate: "06 YPS 118", region: "Bahçelievler · Balgat", pin: "1118" },
+  { id: "d3", code: "SFR-03", name: "Erkan Şahin", phone: "0542 815 33 90", plate: "06 YPS 232", region: "Keçiören · Etlik", pin: "1232" },
+  { id: "d4", code: "SFR-04", name: "Serkan Aydın", phone: "0505 774 12 63", plate: "06 YPS 305", region: "Sincan · Etimesgut", pin: "1305" },
+  { id: "d5", code: "SFR-05", name: "Bülent Koç", phone: "0536 903 45 71", plate: "06 YPS 417", region: "Mamak · Natoyolu", pin: "1417" },
 ];
 
 export const customers: Customer[] = [
@@ -84,6 +93,7 @@ export const customers: Customer[] = [
 
 const l = (productId: string, qty: number): OrderLine => ({ productId, qty });
 
+/** Bugün verilen siparişler (yarın dağıtılacak) — admin bunları düzenler */
 export const dailyOrders: DailyOrder[] = [
   { customerId: "c01", status: "ordered", updatedAt: "07:42", lines: [l("p01", 180), l("p02", 40), l("p05", 60)] },
   { customerId: "c02", status: "ordered", updatedAt: "08:05", lines: [l("p01", 60), l("p04", 40)] },
@@ -139,11 +149,41 @@ export const dailyOrders: DailyOrder[] = [
   { customerId: "c24", status: "pending", updatedAt: null, lines: [] },
 ];
 
+/**
+ * Dün verilen (bugün dağıtılacak) siparişler. Kesinleşmiş, salt-okunur kabul edilir.
+ * dailyOrders'tan deterministik olarak türetilir: dün giriş yapmayanlar tamamlanmış,
+ * adetler dünkü talebe göre biraz farklıdır.
+ */
+const fallbackLines: OrderLine[] = [l("p01", 120), l("p05", 90), l("p04", 40)];
+
+export const deliveryOrders: DailyOrder[] = dailyOrders.map((order, index) => {
+  if (order.status === "pending") {
+    return {
+      customerId: order.customerId,
+      status: "ordered",
+      updatedAt: "16:40",
+      lines: fallbackLines.map((line) => ({ ...line })),
+    };
+  }
+  if (order.status === "declined") {
+    return { ...order, lines: [] };
+  }
+  const factor = 0.82 + (index % 5) * 0.06; // 0.82 .. 1.06 (deterministik)
+  return {
+    ...order,
+    updatedAt: order.updatedAt,
+    lines: order.lines.map((line) => ({
+      ...line,
+      qty: Math.max(10, Math.round((line.qty * factor) / 5) * 5),
+    })),
+  };
+});
+
 export const initialSync: SyncRecord = {
-  at: "06 Eylül 2026 · 18:04",
+  at: "08 Eylül 2026 · 18:04",
   customerCount: 21,
   unitCount: 6480,
 };
 
 /** Sipariş sisteminin son açılma/kapanma zamanı */
-export const initialSystemToggleAt = "07 Eylül 2026 · 05:30";
+export const initialSystemToggleAt = "09 Eylül 2026 · 05:30";

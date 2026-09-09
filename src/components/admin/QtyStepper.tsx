@@ -25,7 +25,7 @@ export function QtyStepper({
   return (
     <div
       className={cn(
-        "inline-flex h-8 items-stretch overflow-hidden rounded-md border border-zinc-300 bg-white",
+        "inline-flex h-9 items-stretch overflow-hidden rounded-[10px] bg-surface-2",
         disabled && "opacity-60",
         className,
       )}
@@ -35,7 +35,7 @@ export function QtyStepper({
         disabled={disabled || value <= 0}
         onClick={() => onChange(clamp(value - step))}
         aria-label="Azalt"
-        className="flex w-7 items-center justify-center text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:cursor-not-allowed disabled:text-zinc-300 disabled:hover:bg-transparent"
+        className="flex w-8 items-center justify-center text-ink-2 transition-colors hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3/50"
       >
         <Minus className="size-3.5" />
       </button>
@@ -48,9 +48,8 @@ export function QtyStepper({
         max={max}
         onChange={(event) => onChange(clamp(Number(event.target.value) || 0))}
         className={cn(
-          "w-14 border-x border-zinc-200 text-center font-mono text-sm tabular-nums outline-none",
-          "focus:bg-amber-50/60",
-          atMax ? "text-amber-700" : "text-zinc-900",
+          "w-14 bg-transparent text-center text-sm tabular-nums outline-none",
+          atMax ? "text-[var(--warn)]" : "text-ink",
         )}
       />
 
@@ -59,8 +58,8 @@ export function QtyStepper({
         disabled={disabled || atMax}
         onClick={() => onChange(clamp(value + step))}
         aria-label="Artır"
-        title={atMax ? `Maksimum sipariş limiti: ${max}` : undefined}
-        className="flex w-7 items-center justify-center text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:cursor-not-allowed disabled:text-zinc-300 disabled:hover:bg-transparent"
+        title={atMax ? `Maksimum limit: ${max}` : undefined}
+        className="flex w-8 items-center justify-center text-ink-2 transition-colors hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3/50"
       >
         <Plus className="size-3.5" />
       </button>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 
 import { Toaster } from "@/components/ui/Toaster";
 import { OperationsProvider } from "@/context/OperationsContext";
@@ -9,12 +9,6 @@ import "./globals.css";
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
   variable: "--font-inter",
-  display: "swap",
-});
-
-const jetbrains = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono-face",
   display: "swap",
 });
 
@@ -29,7 +23,7 @@ const themeInit = `(function(){try{var t=localStorage.getItem("yepas.theme");var
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr" className={`${inter.variable} ${jetbrains.variable}`} suppressHydrationWarning>
+    <html lang="tr" className={inter.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>

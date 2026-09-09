@@ -14,16 +14,21 @@ import {
   categories as seedCategories,
   customers as seedCustomers,
   dailyOrders as seedOrders,
+  deliveryOrders as seedDeliveryOrders,
   drivers as seedDrivers,
   initialSync,
   initialSystemToggleAt,
   products as seedProducts,
+  DEFAULT_MAX_QTY,
+  DEFAULT_ORDER_RULE,
 } from "@/data/mockData";
 import type {
   ActivityItem,
   Customer,
   DailyOrder,
   Driver,
+  OrderLine,
+  OrderRule,
   OrderStatus,
   Product,
   ProductCategory,
@@ -55,6 +60,8 @@ interface OperationsContextValue {
   customers: Customer[];
   drivers: Driver[];
   orders: DailyOrder[];
+  /** Bugün dağıtılacak (dün verilen) siparişler — salt okunur */
+  deliveryOrders: DailyOrder[];
 
   // ---- sistem durumu ----
   orderSystemOpen: boolean;
@@ -64,8 +71,11 @@ interface OperationsContextValue {
   hasUnsyncedChanges: boolean;
   activity: ActivityItem[];
   toasts: ToastMessage[];
-  /** customerId -> teslim saati (HH:mm). Şoför portalından işaretlenir. */
-  deliveries: Record<string, string>;
+
+  // ---- ayarlar ----
+  orderRule: OrderRule;
+  maxQtyLimit: number;
+  autoCloseEnabled: boolean;
 
   // ---- aksiyonlar ----
   toggleOrderSystem: () => void;
@@ -74,18 +84,22 @@ interface OperationsContextValue {
   addLine: (customerId: string, productId: string) => void;
   removeLine: (customerId: string, productId: string) => void;
   setOrderStatus: (customerId: string, status: OrderStatus) => void;
+  createOrder: (customerId: string, lines: OrderLine[]) => void;
   saveProduct: (product: Product) => void;
-  toggleProductActive: (productId: string) => void;
   deleteProduct: (productId: string) => void;
   dismissToast: (id: number) => void;
-  toggleDelivery: (customerId: string) => void;
+  setOrderRule: (rule: OrderRule) => void;
+  setMaxQtyLimit: (value: number) => void;
+  setAutoCloseEnabled: (value: boolean) => void;
 
   // ---- seçiciler ----
   getProduct: (productId: string) => Product | undefined;
   getOrder: (customerId: string) => DailyOrder | undefined;
   getCustomer: (customerId: string) => Customer | undefined;
   getDriver: (driverId: string) => Driver | undefined;
-  orderTotals: (order: DailyOrder) => { units: number; amount: number };
+  /** Ürünün aktif kurala göre üst sınırı */
+  getMaxQty: (productId: string) => number;
+  orderTotals: (order: DailyOrder) => { units: number };
   productionTotals: ProductionTotal[];
   metrics: {
     total: number;
@@ -93,7 +107,6 @@ interface OperationsContextValue {
     declined: number;
     pending: number;
     units: number;
-    amount: number;
     responseRate: number;
   };
 }
@@ -109,7 +122,9 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const [hasUnsyncedChanges, setHasUnsyncedChanges] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [deliveries, setDeliveries] = useState<Record<string, string>>({});
+  const [orderRule, setOrderRuleState] = useState<OrderRule>(DEFAULT_ORDER_RULE);
+  const [maxQtyLimit, setMaxQtyLimitState] = useState<number>(DEFAULT_MAX_QTY);
+  const [autoCloseEnabled, setAutoCloseEnabled] = useState(false);
   const [activity, setActivity] = useState<ActivityItem[]>([
     { id: 3, at: "10:20", text: "Elvankent Kebap Salonu siparişini güncelledi", tone: "neutral" },
     { id: 2, at: "09:30", text: "Kuğulu Kafe yarın için ürün istemedi", tone: "danger" },
@@ -131,21 +146,35 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     setToasts((current) => current.filter((item) => item.id !== id));
   }, []);
 
-  /** Şoför portalında bir durağı teslim edildi / edilmedi olarak işaretler. */
-  const toggleDelivery = useCallback((customerId: string) => {
-    const stamp = clockStamp();
-    setDeliveries((current) => {
-      const next = { ...current };
-      if (next[customerId]) delete next[customerId];
-      else next[customerId] = stamp;
-      return next;
-    });
-  }, []);
-
   const logActivity = useCallback((text: string, tone: ActivityItem["tone"] = "neutral") => {
     const entry: ActivityItem = { id: nextId(), at: clockStamp(), text, tone };
     setActivity((current) => [entry, ...current].slice(0, 12));
   }, []);
+
+  // -------------------------------------------------------------- seçiciler
+
+  const getProduct = useCallback(
+    (productId: string) => products.find((p) => p.id === productId),
+    [products],
+  );
+  const getOrder = useCallback(
+    (customerId: string) => orders.find((o) => o.customerId === customerId),
+    [orders],
+  );
+  const getCustomer = useCallback((customerId: string) => seedCustomers.find((c) => c.id === customerId), []);
+  const getDriver = useCallback((driverId: string) => seedDrivers.find((d) => d.id === driverId), []);
+
+  /** Aktif kurala göre bir ürünün üst sınırı */
+  const getMaxQty = useCallback(
+    (productId: string) => {
+      const product = products.find((p) => p.id === productId);
+      if (!product) return 0;
+      return orderRule === "average"
+        ? product.avgOrder
+        : Math.min(product.maxOrderLimit, maxQtyLimit);
+    },
+    [products, orderRule, maxQtyLimit],
+  );
 
   // ---------------------------------------------------------------- sistem
 
@@ -161,10 +190,20 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       tone: next ? "success" : "info",
       title: next ? "Sipariş sistemi açıldı" : "Sipariş sistemi kapatıldı",
       description: next
-        ? "Müşteriler yarın için sipariş girişi yapabilir."
+        ? "Müşteriler bugün için sipariş girişi yapabilir."
         : "Yeni sipariş girişi ve değişiklik kabul edilmiyor.",
     });
   }, [logActivity, orderSystemOpen, pushToast]);
+
+  const setOrderRule = useCallback((rule: OrderRule) => {
+    setOrderRuleState(rule);
+    setHasUnsyncedChanges(true);
+  }, []);
+
+  const setMaxQtyLimit = useCallback((value: number) => {
+    setMaxQtyLimitState(Math.max(0, value));
+    setHasUnsyncedChanges(true);
+  }, []);
 
   // ------------------------------------------------------------- siparişler
 
@@ -180,7 +219,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
 
   const setLineQty = useCallback(
     (customerId: string, productId: string, qty: number) => {
-      const limit = products.find((p) => p.id === productId)?.maxOrderLimit ?? 9999;
+      const limit = getMaxQty(productId);
       const safeQty = Math.max(0, Math.min(qty, limit));
       mutateOrder(customerId, (order) => ({
         ...order,
@@ -192,13 +231,14 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
         ),
       }));
     },
-    [mutateOrder, products],
+    [getMaxQty, mutateOrder],
   );
 
   const addLine = useCallback(
     (customerId: string, productId: string) => {
       const product = products.find((p) => p.id === productId);
       if (!product) return;
+      const defaultQty = Math.min(product.avgOrder, getMaxQty(productId));
       mutateOrder(customerId, (order) => {
         if (order.lines.some((line) => line.productId === productId)) return order;
         return {
@@ -206,11 +246,11 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
           status: "ordered",
           editedByAdmin: true,
           updatedAt: clockStamp(),
-          lines: [...order.lines, { productId, qty: product.avgOrder }],
+          lines: [...order.lines, { productId, qty: defaultQty }],
         };
       });
     },
-    [mutateOrder, products],
+    [getMaxQty, mutateOrder, products],
   );
 
   const removeLine = useCallback(
@@ -244,6 +284,30 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     [logActivity, mutateOrder],
   );
 
+  const createOrder = useCallback(
+    (customerId: string, lines: OrderLine[]) => {
+      const cleaned = lines
+        .filter((line) => line.qty > 0)
+        .map((line) => ({ productId: line.productId, qty: Math.min(line.qty, getMaxQty(line.productId)) }));
+      mutateOrder(customerId, (order) => ({
+        ...order,
+        status: "ordered",
+        editedByAdmin: true,
+        updatedAt: clockStamp(),
+        note: order.note,
+        lines: cleaned,
+      }));
+      const name = seedCustomers.find((c) => c.id === customerId)?.name ?? "Müşteri";
+      logActivity(`${name} için admin sipariş girişi yaptı`, "success");
+      pushToast({
+        tone: "success",
+        title: "Sipariş eklendi",
+        description: `${name} · ${cleaned.reduce((s, l2) => s + l2.qty, 0)} adet`,
+      });
+    },
+    [getMaxQty, logActivity, mutateOrder, pushToast],
+  );
+
   // ----------------------------------------------------------------- ürün
 
   const saveProduct = useCallback(
@@ -260,13 +324,6 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     },
     [logActivity, pushToast],
   );
-
-  const toggleProductActive = useCallback((productId: string) => {
-    setProducts((current) =>
-      current.map((p) => (p.id === productId ? { ...p, active: !p.active } : p)),
-    );
-    setHasUnsyncedChanges(true);
-  }, []);
 
   const deleteProduct = useCallback(
     (productId: string) => {
@@ -285,34 +342,13 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     [logActivity, products, pushToast],
   );
 
-  // --------------------------------------------------------------- seçici
-
-  const getProduct = useCallback(
-    (productId: string) => products.find((p) => p.id === productId),
-    [products],
-  );
-  const getOrder = useCallback(
-    (customerId: string) => orders.find((o) => o.customerId === customerId),
-    [orders],
-  );
-  const getCustomer = useCallback(
-    (customerId: string) => seedCustomers.find((c) => c.id === customerId),
-    [],
-  );
-  const getDriver = useCallback((driverId: string) => seedDrivers.find((d) => d.id === driverId), []);
+  // ------------------------------------------------------------- türetilmiş
 
   const orderTotals = useCallback(
-    (order: DailyOrder) =>
-      order.lines.reduce(
-        (acc, line) => {
-          const product = products.find((p) => p.id === line.productId);
-          acc.units += line.qty;
-          acc.amount += line.qty * (product?.unitPrice ?? 0);
-          return acc;
-        },
-        { units: 0, amount: 0 },
-      ),
-    [products],
+    (order: DailyOrder) => ({
+      units: order.lines.reduce((acc, line) => acc + line.qty, 0),
+    }),
+    [],
   );
 
   const productionTotals = useMemo<ProductionTotal[]>(() => {
@@ -330,11 +366,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     return products
       .map((product) => {
         const entry = bucket.get(product.id);
-        return {
-          product,
-          qty: entry?.qty ?? 0,
-          customerCount: entry?.customers ?? 0,
-        };
+        return { product, qty: entry?.qty ?? 0, customerCount: entry?.customers ?? 0 };
       })
       .filter((row) => row.qty > 0)
       .sort((a, b) => b.qty - a.qty);
@@ -345,7 +377,6 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     let declined = 0;
     let pending = 0;
     let units = 0;
-    let amount = 0;
 
     for (const order of orders) {
       if (order.status === "declined") {
@@ -356,14 +387,8 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
         pending += 1;
         continue;
       }
-
-      // Yalnızca onaylı siparişler üretim emrine ve ciroya dahil edilir.
       ordered += 1;
-      for (const line of order.lines) {
-        const product = products.find((p) => p.id === line.productId);
-        units += line.qty;
-        amount += line.qty * (product?.unitPrice ?? 0);
-      }
+      for (const line of order.lines) units += line.qty;
     }
 
     const total = orders.length;
@@ -373,10 +398,9 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       declined,
       pending,
       units,
-      amount,
       responseRate: total === 0 ? 0 : Math.round(((ordered + declined) / total) * 100),
     };
-  }, [orders, products]);
+  }, [orders]);
 
   const syncToErp = useCallback(() => {
     if (syncing) return;
@@ -390,10 +414,10 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       setLastSync({ at: nowStamp(), customerCount: activeOrders.length, unitCount: units });
       setHasUnsyncedChanges(false);
       setSyncing(false);
-      logActivity(`${activeOrders.length} sipariş ERP sistemine aktarıldı`, "success");
+      logActivity(`${activeOrders.length} sipariş üretim programına aktarıldı`, "success");
       pushToast({
         tone: "success",
-        title: "Siparişler başarıyla aktarıldı",
+        title: "Veriler sipariş programına aktarıldı",
         description: `${activeOrders.length} müşteri · ${units.toLocaleString("tr-TR")} adet üretim emri oluşturuldu.`,
       });
     }, 1600);
@@ -405,6 +429,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     customers: seedCustomers,
     drivers: seedDrivers,
     orders,
+    deliveryOrders: seedDeliveryOrders,
     orderSystemOpen,
     systemToggledAt,
     lastSync,
@@ -412,22 +437,27 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     hasUnsyncedChanges,
     activity,
     toasts,
-    deliveries,
+    orderRule,
+    maxQtyLimit,
+    autoCloseEnabled,
     toggleOrderSystem,
     syncToErp,
     setLineQty,
     addLine,
     removeLine,
     setOrderStatus,
+    createOrder,
     saveProduct,
-    toggleProductActive,
     deleteProduct,
     dismissToast,
-    toggleDelivery,
+    setOrderRule,
+    setMaxQtyLimit,
+    setAutoCloseEnabled,
     getProduct,
     getOrder,
     getCustomer,
     getDriver,
+    getMaxQty,
     orderTotals,
     productionTotals,
     metrics,

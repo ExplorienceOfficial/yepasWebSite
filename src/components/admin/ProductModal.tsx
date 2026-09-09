@@ -5,9 +5,8 @@ import { ImageIcon } from "lucide-react";
 
 import { ProductThumb } from "@/components/admin/ProductThumb";
 import { Button } from "@/components/ui/Button";
-import { Field, Label, NumberInput, Select, TextInput } from "@/components/ui/Field";
+import { Field, NumberInput, Select, TextInput } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
-import { Switch } from "@/components/ui/Switch";
 import { useOperations } from "@/context/OperationsContext";
 import type { Product } from "@/types";
 
@@ -16,18 +15,11 @@ const emptyProduct = (categoryId: string): Product => ({
   categoryId,
   name: "",
   code: "",
-  gram: 250,
-  unitPrice: 0,
   maxOrderLimit: 300,
   avgOrder: 50,
   imageUrl: "",
-  active: true,
 });
 
-/**
- * Yalnızca modal açıkken monte edilir; böylece taslak state her açılışta
- * seçili üründen yeniden kurulur ve senkronizasyon efektine gerek kalmaz.
- */
 export function ProductModal({
   product,
   onClose,
@@ -52,7 +44,7 @@ export function ProductModal({
       return;
     }
     if (draft.avgOrder > draft.maxOrderLimit) {
-      setError("Önerilen sipariş adedi, maksimum limitten büyük olamaz.");
+      setError("Geçmiş ortalama, maksimum limitten büyük olamaz.");
       return;
     }
     saveProduct({
@@ -86,7 +78,7 @@ export function ProductModal({
       }
     >
       {error && (
-        <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+        <p className="mb-3 rounded-[10px] bg-[var(--bad-soft)] px-3 py-2 text-[13px] text-[var(--bad)]">
           {error}
         </p>
       )}
@@ -101,10 +93,7 @@ export function ProductModal({
         </Field>
 
         <Field label="Ana Kategori">
-          <Select
-            value={draft.categoryId}
-            onChange={(event) => patch({ categoryId: event.target.value })}
-          >
+          <Select value={draft.categoryId} onChange={(event) => patch({ categoryId: event.target.value })}>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
@@ -118,24 +107,6 @@ export function ProductModal({
             value={draft.code}
             onChange={(event) => patch({ code: event.target.value })}
             placeholder="EKM-305"
-            className="font-mono"
-          />
-        </Field>
-
-        <Field label="Gramaj (gr)">
-          <NumberInput
-            value={draft.gram}
-            min={0}
-            onChange={(event) => patch({ gram: Number(event.target.value) || 0 })}
-          />
-        </Field>
-
-        <Field label="Birim Fiyat (₺)">
-          <NumberInput
-            value={draft.unitPrice}
-            min={0}
-            step={0.25}
-            onChange={(event) => patch({ unitPrice: Number(event.target.value) || 0 })}
           />
         </Field>
 
@@ -150,10 +121,7 @@ export function ProductModal({
           />
         </Field>
 
-        <Field
-          label="Önerilen / Ortalama Adet"
-          hint="Müşteri ekranında varsayılan olarak önerilir."
-        >
+        <Field label="Geçmiş Ortalama Adet" hint="“Geçmiş Ortalama” kuralında üst sınır olur.">
           <NumberInput
             value={draft.avgOrder}
             min={0}
@@ -167,36 +135,18 @@ export function ProductModal({
               <TextInput
                 value={draft.imageUrl}
                 onChange={(event) => patch({ imageUrl: event.target.value })}
-                placeholder="/urunler/1.jpg veya https://..."
-                className="font-mono text-xs"
+                placeholder="/urunler/1.jpg veya https://…"
+                className="text-[13px]"
               />
               {draft.imageUrl ? (
-                <ProductThumb
-                  src={draft.imageUrl}
-                  name={draft.name || "Ürün"}
-                  className="size-12"
-                />
+                <ProductThumb src={draft.imageUrl} name={draft.name || "Ürün"} className="size-12" />
               ) : (
-                <span className="flex size-12 shrink-0 items-center justify-center rounded border border-dashed border-zinc-300 bg-zinc-50 text-zinc-400">
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-[10px] bg-surface-2 text-ink-3 ring-1 ring-hairline">
                   <ImageIcon className="size-4" />
                 </span>
               )}
             </div>
           </Field>
-        </div>
-
-        <div className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50/60 px-3 py-2.5 sm:col-span-2">
-          <div>
-            <Label>Sipariş Ekranında Görünür</Label>
-            <p className="mt-0.5 text-xs text-zinc-500">
-              Kapatılırsa müşteriler bu ürünü sipariş listesinde göremez.
-            </p>
-          </div>
-          <Switch
-            checked={draft.active}
-            onChange={(next) => patch({ active: next })}
-            label="Ürünü aktif/pasif yap"
-          />
         </div>
       </div>
     </Modal>

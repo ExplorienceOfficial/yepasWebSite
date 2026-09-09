@@ -78,7 +78,6 @@
 @theme inline {
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
     var(--font-inter), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo, monospace;
 
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);

@@ -1,12 +1,12 @@
 import { RequireRole } from "@/components/auth/RequireRole";
-import { DriverBar } from "@/components/sofor/DriverBar";
+import { DriverHeader } from "@/components/sofor/DriverHeader";
 
 export default function DriverLayout({ children }: { children: React.ReactNode }) {
   return (
-    <RequireRole role="driver" loginPath="/sofor/giris">
-      <div className="min-h-screen bg-zinc-100">
-        <DriverBar />
-        <main className="mx-auto max-w-4xl px-4 py-4">{children}</main>
+    <RequireRole role="driver" loginPath="/">
+      <div className="min-h-screen bg-canvas">
+        <DriverHeader />
+        <main className="mx-auto max-w-3xl px-4 py-6">{children}</main>
       </div>
     </RequireRole>
   );

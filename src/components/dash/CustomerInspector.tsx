@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, MapPin, Phone, Receipt, Truck, User } from "lucide-react";
+import { ChevronDown, MapPin, Phone, Receipt, User } from "lucide-react";
 
 import { Drawer } from "@/components/ui/Drawer";
 import { StatusBadge } from "@/components/ui/Badge";
 import { useOperations } from "@/context/OperationsContext";
-import { cn, formatCurrency, formatQty, initials } from "@/lib/format";
+import { cn, formatQty, initials } from "@/lib/format";
 
 function Disclosure({
   title,
@@ -29,9 +29,7 @@ function Disclosure({
       >
         <Icon className="size-4 text-ink-3" strokeWidth={1.8} />
         <span className="flex-1 text-[13px] font-semibold text-ink">{title}</span>
-        <ChevronDown
-          className={cn("size-4 text-ink-3 transition-transform duration-200", open && "rotate-180")}
-        />
+        <ChevronDown className={cn("size-4 text-ink-3 transition-transform duration-200", open && "rotate-180")} />
       </button>
       {open && <div className="px-4 pb-3">{children}</div>}
     </div>
@@ -54,12 +52,11 @@ export function CustomerInspector({
   customerId: string | null;
   onClose: () => void;
 }) {
-  const { getCustomer, getOrder, getDriver, getProduct, orderTotals } = useOperations();
+  const { getCustomer, getOrder, getProduct, orderTotals } = useOperations();
 
   const customer = customerId ? getCustomer(customerId) : undefined;
   const order = customerId ? getOrder(customerId) : undefined;
-  const driver = customer ? getDriver(customer.driverId) : undefined;
-  const totals = order ? orderTotals(order) : { units: 0, amount: 0 };
+  const totals = order ? orderTotals(order) : { units: 0 };
 
   return (
     <Drawer
@@ -71,7 +68,6 @@ export function CustomerInspector({
     >
       {customer && (
         <div className="space-y-4">
-          {/* Profil başlığı */}
           <div className="flex items-center gap-4 rounded-[14px] bg-surface-2 p-4">
             <span className="flex size-14 items-center justify-center rounded-full bg-surface text-[18px] font-semibold text-ink-2 ring-1 ring-hairline">
               {initials(customer.name)}
@@ -107,14 +103,14 @@ export function CustomerInspector({
                 <div className="mt-1 flex items-center justify-between border-t border-hairline pt-2.5">
                   <span className="text-[13px] font-semibold text-ink">Toplam</span>
                   <span className="text-[13px] font-semibold tabular-nums text-ink">
-                    {formatQty(totals.units)} adet · {formatCurrency(totals.amount)}
+                    {formatQty(totals.units)} adet
                   </span>
                 </div>
               </div>
             ) : (
               <p className="py-1 text-[13px] text-ink-2">
                 {order?.status === "declined"
-                  ? "Bu bayi yarın için ürün istemedi."
+                  ? "Bu bayi bugün için ürün istemedi."
                   : "Henüz sipariş girişi yapılmadı."}
               </p>
             )}
@@ -125,28 +121,15 @@ export function CustomerInspector({
             )}
           </Disclosure>
 
-          <Disclosure title="Rota & Dağıtım" icon={Truck} defaultOpen={false}>
-            <Row label="Şoför" value={driver?.name ?? "—"} />
-            <Row label="Plaka" value={<span className="tabular-nums">{driver?.plate ?? "—"}</span>} />
-            <Row label="Bölge" value={driver?.region ?? "—"} />
-            <Row label="Durak Sırası" value={<span className="tabular-nums">#{customer.stopNo}</span>} />
-          </Disclosure>
-
           <Disclosure title="Durum" icon={User} defaultOpen={false}>
-            <Row
-              label="Sipariş durumu"
-              value={order ? <StatusBadge status={order.status} /> : "—"}
-            />
+            <Row label="Sipariş durumu" value={order ? <StatusBadge status={order.status} /> : "—"} />
             <Row label="Son giriş" value={<span className="tabular-nums">{order?.updatedAt ?? "—"}</span>} />
-            <Row
-              label="Admin düzenlemesi"
-              value={order?.editedByAdmin ? "Evet" : "Hayır"}
-            />
+            <Row label="Admin düzenlemesi" value={order?.editedByAdmin ? "Evet" : "Hayır"} />
           </Disclosure>
 
           <div className="flex items-center gap-1.5 px-1 pt-1 text-[12px] text-ink-3">
             <MapPin className="size-3.5" strokeWidth={1.8} />
-            {customer.district} · Durak #{customer.stopNo}
+            {customer.district}
           </div>
         </div>
       )}

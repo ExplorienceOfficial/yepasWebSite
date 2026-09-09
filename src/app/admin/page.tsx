@@ -9,11 +9,11 @@ import {
   ChevronDown,
   ChevronRight,
   Circle,
+  Clock4,
   MoreHorizontal,
   Package,
   Store,
   TriangleAlert,
-  Wallet,
 } from "lucide-react";
 
 import { MetricCard } from "@/components/dash/MetricCard";
@@ -25,7 +25,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useOperations } from "@/context/OperationsContext";
 import { OPERATION_DATE } from "@/data/mockData";
 import { periodDelta } from "@/data/trends";
-import { cn, formatCurrency, formatQty, initials } from "@/lib/format";
+import { cn, formatQty, initials } from "@/lib/format";
 
 const statusOrder = { ordered: 0, pending: 1, declined: 2 } as const;
 
@@ -45,22 +45,13 @@ const activityColor = {
 
 export default function OverviewPage() {
   const { session } = useAuth();
-  const {
-    metrics,
-    productionTotals,
-    categories,
-    activity,
-    customers,
-    getOrder,
-    getDriver,
-    orderTotals,
-  } = useOperations();
+  const { metrics, productionTotals, categories, activity, customers, getOrder, orderTotals } =
+    useOperations();
 
   const [selected, setSelected] = useState<string | null>(null);
 
   const firstName = session?.role === "admin" ? session.name.split(" ")[0] : "Yönetici";
 
-  // Kategori bazında üretim
   const categoryTotals = useMemo(() => {
     const rows = categories
       .map((c) => ({
@@ -75,12 +66,11 @@ export default function OverviewPage() {
     return { rows, max };
   }, [categories, productionTotals]);
 
-  // Sipariş tablosu (önizleme)
   const rows = useMemo(() => {
     return customers
       .map((c) => {
         const order = getOrder(c.id);
-        const totals = order ? orderTotals(order) : { units: 0, amount: 0 };
+        const totals = order ? orderTotals(order) : { units: 0 };
         return { customer: c, order, totals };
       })
       .sort(
@@ -93,38 +83,33 @@ export default function OverviewPage() {
 
   return (
     <div className="yp-rise">
-      {/* Selamlama */}
       <PageHeading
         title={`Günaydın, ${firstName}.`}
         description="Platformunuzda bugün olup bitenlerin özeti."
         action={
-          <button
-            type="button"
-            className="inline-flex h-9 items-center gap-2 rounded-full bg-surface px-3.5 text-[13px] font-medium text-ink ring-1 ring-hairline transition-colors hover:bg-surface-2"
-          >
+          <span className="inline-flex h-9 items-center gap-2 rounded-full bg-surface px-3.5 text-[13px] font-medium text-ink ring-1 ring-hairline">
             <Calendar className="size-4 text-ink-2" strokeWidth={1.8} />
             {OPERATION_DATE}
             <ChevronDown className="size-3.5 text-ink-3" />
-          </button>
+          </span>
         }
       />
 
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Ciro" value={formatCurrency(metrics.amount)} delta={periodDelta("revenue")} icon={Wallet} />
-        <MetricCard label="Üretim" value={`${formatQty(metrics.units)}`} delta={periodDelta("units")} icon={Package} caption="adet · önceki döneme göre" />
+        <MetricCard label="Üretim" value={formatQty(metrics.units)} delta={periodDelta("units")} icon={Package} caption="adet · önceki döneme göre" />
         <MetricCard label="Sipariş Veren" value={`${metrics.ordered}/${metrics.total}`} delta={periodDelta("orders")} icon={Store} caption="bayi · önceki döneme göre" />
+        <MetricCard label="Giriş Bekleyen" value={metrics.pending} icon={Clock4} caption="bayi giriş bekliyor" />
         <MetricCard label="Yanıt Oranı" value={`%${metrics.responseRate}`} delta={0.6} icon={Activity} />
       </div>
 
       {/* Analitik */}
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+        <div className="min-w-0 xl:col-span-2">
           <PerformanceCard />
         </div>
 
-        <div className="flex flex-col gap-5">
-          {/* Kategori üretimi */}
+        <div className="flex min-w-0 flex-col gap-5">
           <Panel title="Kategori Üretimi" description="Bugünkü üretim emrinin dağılımı">
             <div className="space-y-4">
               {categoryTotals.rows.map((row) => (
@@ -144,7 +129,6 @@ export default function OverviewPage() {
             </div>
           </Panel>
 
-          {/* Son etkinlik */}
           <Panel title="Son Etkinlik">
             <ol className="space-y-3.5">
               {activity.slice(0, 5).map((item) => {
@@ -182,51 +166,43 @@ export default function OverviewPage() {
         }
         bodyClassName="px-2 pb-2"
       >
-        {/* Başlık satırı */}
-        <div className="hidden grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.9fr_auto] items-center gap-4 px-4 py-2 text-[12px] font-medium text-ink-3 sm:grid">
+        <div className="hidden grid-cols-[1.8fr_1fr_0.8fr_0.8fr_auto] items-center gap-4 px-4 py-2 text-[12px] font-medium text-ink-3 sm:grid">
           <span>Bayi</span>
-          <span>Şoför</span>
           <span>Durum</span>
+          <span className="text-right">Kalem</span>
           <span className="text-right">Adet</span>
-          <span className="text-right">Tutar</span>
           <span className="w-8" />
         </div>
 
         <div className="space-y-0.5">
-          {rows.map(({ customer, order, totals }) => {
-            const driver = getDriver(customer.driverId);
-            return (
-              <button
-                key={customer.id}
-                type="button"
-                onClick={() => setSelected(customer.id)}
-                className="grid w-full grid-cols-[1fr_auto] items-center gap-4 rounded-[12px] px-4 py-2.5 text-left transition-colors hover:bg-surface-2 sm:grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.9fr_auto]"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[12px] font-semibold text-ink-2">
-                    {initials(customer.name)}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[14px] font-medium text-ink">{customer.name}</p>
-                    <p className="truncate text-[12px] text-ink-3">{customer.type} · {customer.district}</p>
-                  </div>
+          {rows.map(({ customer, order, totals }) => (
+            <button
+              key={customer.id}
+              type="button"
+              onClick={() => setSelected(customer.id)}
+              className="grid w-full grid-cols-[1fr_auto] items-center gap-4 rounded-[12px] px-4 py-2.5 text-left transition-colors hover:bg-surface-2 sm:grid-cols-[1.8fr_1fr_0.8fr_0.8fr_auto]"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[12px] font-semibold text-ink-2">
+                  {initials(customer.name)}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[14px] font-medium text-ink">{customer.name}</p>
+                  <p className="truncate text-[12px] text-ink-3">{customer.type} · {customer.district}</p>
                 </div>
-                <span className="hidden truncate text-[13px] text-ink-2 sm:block">{driver?.name ?? "—"}</span>
-                <span className="hidden sm:block">
-                  {order ? <StatusBadge status={order.status} /> : null}
-                </span>
-                <span className="hidden text-right text-[13px] font-medium tabular-nums text-ink sm:block">
-                  {totals.units > 0 ? formatQty(totals.units) : "—"}
-                </span>
-                <span className="hidden text-right text-[13px] font-medium tabular-nums text-ink sm:block">
-                  {totals.amount > 0 ? formatCurrency(totals.amount) : "—"}
-                </span>
-                <span className="flex size-8 items-center justify-center justify-self-end rounded-full text-ink-3 hover:bg-surface-3">
-                  <MoreHorizontal className="size-4" />
-                </span>
-              </button>
-            );
-          })}
+              </div>
+              <span className="hidden sm:block">{order ? <StatusBadge status={order.status} /> : null}</span>
+              <span className="hidden text-right text-[13px] tabular-nums text-ink-2 sm:block">
+                {order && order.lines.length > 0 ? order.lines.length : "—"}
+              </span>
+              <span className="hidden text-right text-[13px] font-medium tabular-nums text-ink sm:block">
+                {totals.units > 0 ? formatQty(totals.units) : "—"}
+              </span>
+              <span className="flex size-8 items-center justify-center justify-self-end rounded-full text-ink-3 hover:bg-surface-3">
+                <MoreHorizontal className="size-4" />
+              </span>
+            </button>
+          ))}
         </div>
       </Panel>
 

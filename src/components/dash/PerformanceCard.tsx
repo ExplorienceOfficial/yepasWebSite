@@ -5,10 +5,9 @@ import { ArrowUpRight } from "lucide-react";
 
 import { LineChart } from "@/components/dash/LineChart";
 import { getSeries, type ChartMetric, type ChartRange } from "@/data/trends";
-import { cn, formatCurrency, formatQty } from "@/lib/format";
+import { cn, formatQty } from "@/lib/format";
 
 const metrics: { key: ChartMetric; label: string }[] = [
-  { key: "revenue", label: "Ciro" },
   { key: "units", label: "Üretim" },
   { key: "orders", label: "Sipariş" },
 ];
@@ -46,11 +45,11 @@ function Segmented<T extends string>({
 }
 
 export function PerformanceCard() {
-  const [metric, setMetric] = useState<ChartMetric>("revenue");
+  const [metric, setMetric] = useState<ChartMetric>("units");
   const [range, setRange] = useState<ChartRange>("30D");
 
   const series = useMemo(() => getSeries(metric, range), [metric, range]);
-  const fmt = metric === "revenue" ? formatCurrency : formatQty;
+  const fmt = formatQty;
 
   const last = series[series.length - 1]?.value ?? 0;
   const first = series[0]?.value ?? 0;
