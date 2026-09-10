@@ -26,17 +26,22 @@ export function Field({
   );
 }
 
-const control =
-  "w-full rounded-[10px] border border-hairline bg-surface-2 px-3.5 py-2.5 text-sm text-ink " +
+const controlBase =
+  "rounded-[10px] border border-hairline bg-surface-2 px-3.5 py-2.5 text-sm text-ink " +
   "placeholder:text-ink-3 transition-all duration-150 " +
   "focus:border-transparent focus:bg-surface focus:outline-none focus:ring-4 focus:ring-[var(--ring)] " +
   "disabled:opacity-50";
+
+function hasExplicitWidth(className?: string): boolean {
+  if (!className) return false;
+  return className.split(/\s+/).some((token) => /(^|:)(w-\d+|w-\[|w-auto|w-full|w-fit|w-max|w-min)/.test(token));
+}
 
 export function TextInput({
   className,
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(control, className)} {...props} />;
+  return <input className={cn(controlBase, !hasExplicitWidth(className) && "w-full", className)} {...props} />;
 }
 
 export function Select({
@@ -45,8 +50,8 @@ export function Select({
   ...props
 }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <span className={cn("relative block", className)}>
-      <select className={cn(control, "appearance-none pr-9")} {...props}>
+    <span className={cn("relative block", !hasExplicitWidth(className) && "w-full", className)}>
+      <select className={cn(controlBase, "w-full appearance-none pr-9")} {...props}>
         {children}
       </select>
       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
@@ -62,7 +67,7 @@ export function NumberInput({
     <input
       type="number"
       inputMode="numeric"
-      className={cn(control, "tabular-nums", className)}
+      className={cn(controlBase, !hasExplicitWidth(className) && "w-full", "tabular-nums", className)}
       {...props}
     />
   );
