@@ -14,7 +14,7 @@ interface DraftLine {
 }
 
 export function AddOrderModal({ onClose }: { onClose: () => void }) {
-  const { customers, products, createOrder, getMaxQty } = useOperations();
+  const { customers, products, createOrder, getMaxQty, getOrder } = useOperations();
 
   const [customerId, setCustomerId] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([{ productId: "", qty: 50 }]);
@@ -22,12 +22,35 @@ export function AddOrderModal({ onClose }: { onClose: () => void }) {
 
   const usedIds = lines.map((l) => l.productId).filter(Boolean);
 
-  const setLine = (index: number, values: Partial<DraftLine>) =>
-    setLines((current) => current.map((l, i) => (i === index ? { ...l, ...values } : l)));
+  const handleCustomerChange = (newId: string) => {
+    setCustomerId(newId);
+    setError(null);
+    if (!newId) {
+      setLines([{ productId: "", qty: 50 }]);
+      return;
+    }
+    const existing = getOrder(newId);
+    if (existing && existing.lines.length > 0) {
+      setLines(existing.lines.map((l) => ({ productId: l.productId, qty: l.qty })));
+    } else {
+      setLines([{ productId: "", qty: 50 }]);
+    }
+  };
 
-  const addRow = () => setLines((current) => [...current, { productId: "", qty: 50 }]);
-  const removeRow = (index: number) =>
-    setLines((current) => (current.length === 1 ? current : current.filter((_, i) => i !== index)));
+  const setLine = (index: number, values: Partial<DraftLine>) => {
+    setError(null);
+    setLines((current) => current.map((l, i) => (i === index ? { ...l, ...values } : l)));
+  };
+
+  const addRow = () => {
+    setError(null);
+    setLines((current) => [...current, { productId: "", qty: 50 }]);
+  };
+
+  const removeRow = (index: number) => {
+    setError(null);
+    setLines((current) => (current.length === 1 ? [{ productId: "", qty: 50 }] : current.filter((_, i) => i !== index)));
+  };
 
   const handleSave = () => {
     if (!customerId) {
@@ -68,7 +91,7 @@ export function AddOrderModal({ onClose }: { onClose: () => void }) {
       )}
 
       <Field label="Müşteri / Bayi">
-        <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+        <Select value={customerId} onChange={(e) => handleCustomerChange(e.target.value)}>
           <option value="">Müşteri seçin…</option>
           {customers.map((c) => (
             <option key={c.id} value={c.id}>
@@ -91,7 +114,7 @@ export function AddOrderModal({ onClose }: { onClose: () => void }) {
                 <Select
                   value={line.productId}
                   onChange={(e) => setLine(index, { productId: e.target.value })}
-                  className="flex-1"
+                  className="min-w-0 flex-1"
                 >
                   <option value="">Ürün seçin…</option>
                   {available.map((p) => (
@@ -105,7 +128,7 @@ export function AddOrderModal({ onClose }: { onClose: () => void }) {
                   min={0}
                   max={max}
                   onChange={(e) => setLine(index, { qty: Number(e.target.value) || 0 })}
-                  className="w-24 text-center"
+                  className="w-24 shrink-0 text-center"
                   aria-label="Adet"
                 />
                 <button

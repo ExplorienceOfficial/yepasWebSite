@@ -296,14 +296,35 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       const cleaned = lines
         .filter((line) => line.qty > 0)
         .map((line) => ({ productId: line.productId, qty: Math.min(line.qty, getMaxQty(line.productId)) }));
-      mutateOrder(customerId, (order) => ({
-        ...order,
-        status: "ordered",
-        editedByAdmin: true,
-        updatedAt: clockStamp(),
-        note: order.note,
-        lines: cleaned,
-      }));
+
+      setOrders((current) => {
+        const exists = current.some((o) => o.customerId === customerId);
+        if (exists) {
+          return current.map((order) =>
+            order.customerId === customerId
+              ? {
+                  ...order,
+                  status: "ordered" as const,
+                  editedByAdmin: true,
+                  updatedAt: clockStamp(),
+                  lines: cleaned,
+                }
+              : order,
+          );
+        }
+        return [
+          {
+            customerId,
+            status: "ordered" as const,
+            editedByAdmin: true,
+            updatedAt: clockStamp(),
+            lines: cleaned,
+          },
+          ...current,
+        ];
+      });
+      setHasUnsyncedChanges(true);
+
       const name = seedCustomers.find((c) => c.id === customerId)?.name ?? "Müşteri";
       logActivity(`${name} için admin sipariş girişi yaptı`, "success");
       pushToast({
@@ -312,7 +333,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
         description: `${name} · ${cleaned.reduce((s, l2) => s + l2.qty, 0)} adet`,
       });
     },
-    [getMaxQty, logActivity, mutateOrder, pushToast],
+    [getMaxQty, logActivity, pushToast],
   );
 
   // ----------------------------------------------------------------- ürün

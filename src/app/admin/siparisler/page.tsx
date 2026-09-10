@@ -48,7 +48,13 @@ export default function OrdersPage() {
         title="Siparişler"
         description="Günü seçin, siparişleri duruma göre gruplanmış olarak inceleyin."
         action={
-          <Button variant="primary" onClick={() => setAddOpen(true)}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setDay("today");
+              setAddOpen(true);
+            }}
+          >
             <Plus className="size-4" strokeWidth={2} />
             Sipariş Ekle
           </Button>

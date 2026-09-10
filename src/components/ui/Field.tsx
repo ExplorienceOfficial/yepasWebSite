@@ -34,7 +34,13 @@ const controlBase =
 
 function hasExplicitWidth(className?: string): boolean {
   if (!className) return false;
-  return className.split(/\s+/).some((token) => /(^|:)(w-\d+|w-\[|w-auto|w-full|w-fit|w-max|w-min)/.test(token));
+  return className
+    .split(/\s+/)
+    .some((token) =>
+      /(^|:)(w-\d+|w-\[|w-auto|w-full|w-fit|w-max|w-min|flex-1|flex-auto|flex-initial|flex-none|min-w-|max-w-)/.test(
+        token,
+      ),
+    );
 }
 
 export function TextInput({
