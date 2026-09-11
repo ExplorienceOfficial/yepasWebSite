@@ -30,6 +30,17 @@ export default function LoginPage() {
     else if (session?.role === "driver") router.replace("/sofor");
   }, [router, session]);
 
+  useEffect(() => {
+    if (mode === "driver") {
+      document.documentElement.setAttribute("data-theme-mode", "driver");
+    } else {
+      document.documentElement.removeAttribute("data-theme-mode");
+    }
+    return () => {
+      document.documentElement.removeAttribute("data-theme-mode");
+    };
+  }, [mode]);
+
   const switchMode = (next: Mode) => {
     setMode(next);
     setError(null);
@@ -54,45 +65,47 @@ export default function LoginPage() {
   return (
     <div
       className={cn(
-        "flex min-h-screen flex-col items-center justify-center px-4 py-12 transition-colors duration-500 ease-in-out",
-        mode === "driver" ? "bg-amber-50/40 dark:bg-amber-950/20" : "bg-canvas",
+        "flex min-h-screen flex-col items-center justify-center px-4 py-12 transition-all duration-500 ease-in-out",
+        mode === "driver"
+          ? "bg-gradient-to-br from-[#ffe8d1] via-[#fff2e5] to-[#ffdcb8] dark:from-[#2a1306] dark:via-[#1a0f07] dark:to-[#220d03]"
+          : "bg-canvas",
       )}
     >
-      <div className="w-full max-w-[380px]">
+      <div className="w-full max-w-[390px]">
         {/* Marka */}
         <div className="mb-7 flex flex-col items-center text-center">
           <span
             className={cn(
-              "flex size-12 items-center justify-center rounded-[13px] text-lg font-bold transition-all duration-500 ease-in-out",
+              "flex size-14 items-center justify-center rounded-[16px] text-xl font-extrabold transition-all duration-500 ease-in-out",
               mode === "driver"
-                ? "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-[0_4px_20px_rgba(249,115,22,0.35)] scale-105"
+                ? "bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white shadow-[0_8px_30px_rgba(249,115,22,0.45)] scale-110"
                 : "bg-ink text-[var(--canvas)]",
             )}
           >
             Y
           </span>
-          <h1 className="mt-3 text-[22px] font-semibold tracking-tight text-ink transition-colors duration-300">
+          <h1 className="mt-3.5 text-[23px] font-bold tracking-tight text-ink transition-colors duration-300">
             Yepaş Yönetim Konsolu
           </h1>
-          <p className="mt-1 text-[14px] text-ink-2 transition-colors duration-300">
+          <p className="mt-1 text-[14px] font-medium text-ink-2 transition-colors duration-300">
             {mode === "driver" ? "Şoför Girişi — Saha Teslimat Paneli" : "Devam etmek için giriş yapın"}
           </p>
         </div>
 
         <div
           className={cn(
-            "rounded-[18px] bg-surface p-6 ring-1 shadow-[var(--shadow-md)] transition-all duration-500 ease-in-out",
+            "rounded-[20px] bg-surface p-6 ring-1 transition-all duration-500 ease-in-out shadow-[var(--shadow-md)]",
             mode === "driver"
-              ? "ring-orange-500/35 bg-gradient-to-b from-amber-500/10 via-surface to-surface dark:from-amber-950/30 shadow-[0_10px_35px_rgba(249,115,22,0.15)]"
+              ? "ring-orange-500/50 bg-gradient-to-b from-amber-500/15 via-surface to-surface dark:from-amber-950/40 shadow-[0_16px_50px_rgba(249,115,22,0.25)]"
               : "ring-hairline",
           )}
         >
           {/* Rol seçimi */}
           <div
             className={cn(
-              "grid grid-cols-2 gap-1 rounded-[12px] p-1 transition-all duration-500 ease-in-out",
+              "grid grid-cols-2 gap-1 rounded-[14px] p-1.5 transition-all duration-500 ease-in-out",
               mode === "driver"
-                ? "bg-amber-500/15 ring-1 ring-orange-500/30"
+                ? "bg-amber-500/20 ring-1 ring-orange-500/40"
                 : "bg-surface-2",
             )}
           >
@@ -110,13 +123,13 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => switchMode(m.key)}
                   className={cn(
-                    "flex items-center justify-center gap-2 rounded-[9px] py-2 text-[14px] font-medium transition-all duration-300 ease-in-out active:scale-95",
+                    "flex items-center justify-center gap-2 rounded-[10px] py-2.5 text-[14px] font-medium transition-all duration-300 ease-in-out active:scale-95",
                     isSelected
                       ? isDriver
-                        ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-[0_3px_12px_rgba(249,115,22,0.4)] font-semibold scale-[1.02]"
+                        ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-[0_4px_16px_rgba(249,115,22,0.45)] font-bold scale-[1.03]"
                         : "bg-surface text-ink shadow-[var(--shadow-sm)]"
                       : isDriver && mode === "driver"
-                      ? "text-orange-700 dark:text-orange-300 hover:text-orange-900"
+                      ? "text-orange-800 dark:text-orange-200 font-semibold hover:text-orange-950"
                       : "text-ink-2 hover:text-ink",
                   )}
                 >

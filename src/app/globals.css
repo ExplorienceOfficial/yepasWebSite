@@ -102,16 +102,51 @@
   --color-bad: var(--bad);
 }
 
+/* ------------------------------------------------------------- Şoför Soft Turuncu Tema */
+html[data-theme-mode="driver"],
+:root[data-theme-mode="driver"] {
+  --canvas: #fff2e5;
+  --surface: #ffffff;
+  --surface-2: #ffe6cc;
+  --surface-3: #ffd4a8;
+  --elevated: rgba(255, 242, 229, 0.88);
+  --elevated-solid: #fff2e5;
+  --ink: #261507;
+  --ink-2: #7a583d;
+  --ink-3: #9e7a5c;
+  --hairline: rgba(249, 115, 22, 0.18);
+  --hairline-strong: rgba(249, 115, 22, 0.32);
+  --ring: rgba(249, 115, 22, 0.45);
+}
+
+html.dark[data-theme-mode="driver"],
+.dark:root[data-theme-mode="driver"] {
+  --canvas: #1a0f07;
+  --surface: #26160a;
+  --surface-2: #381f0d;
+  --surface-3: #4a2911;
+  --elevated: rgba(38, 22, 10, 0.88);
+  --elevated-solid: #26160a;
+  --ink: #fdf5ef;
+  --ink-2: #c4a993;
+  --ink-3: #9e826b;
+  --hairline: rgba(249, 115, 22, 0.22);
+  --hairline-strong: rgba(249, 115, 22, 0.4);
+  --ring: rgba(249, 115, 22, 0.55);
+}
+
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  transition: background-color 0.5s ease-in-out, color 0.5s ease-in-out;
 }
 
 body {
   background-color: var(--canvas);
   color: var(--ink);
   letter-spacing: -0.011em;
+  transition: background-color 0.5s ease-in-out, color 0.5s ease-in-out;
 }
 
 /* İnce, temaya uyumlu kaydırma çubuğu */
