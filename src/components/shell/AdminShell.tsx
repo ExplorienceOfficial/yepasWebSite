@@ -19,7 +19,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div
-            className="yp-fade absolute inset-0 bg-black/30 backdrop-blur-md"
+            className="yp-fade absolute inset-0 bg-black/10 dark:bg-black/30 backdrop-blur-md transition-all duration-300"
             onClick={() => setOpen(false)}
             aria-hidden
           />

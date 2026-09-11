@@ -37,7 +37,7 @@ export function Drawer({
 
   return (
     <div className="fixed inset-0 z-50">
-      <div className="yp-fade absolute inset-0 bg-black/30 backdrop-blur-md" onClick={onClose} aria-hidden />
+      <div className="yp-fade absolute inset-0 bg-black/10 dark:bg-black/30 backdrop-blur-md transition-all duration-300" onClick={onClose} aria-hidden />
       <aside
         role="dialog"
         aria-modal="true"

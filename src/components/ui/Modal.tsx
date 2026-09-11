@@ -39,9 +39,9 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex min-h-screen items-center justify-center overflow-y-auto p-4 sm:p-6 text-left">
-      {/* Arka plan karartması */}
+      {/* Arka plan buzlu cam blur overlay */}
       <div
-        className="yp-fade fixed inset-0 bg-black/50 backdrop-blur-sm"
+        className="yp-fade fixed inset-0 bg-black/10 dark:bg-black/30 backdrop-blur-md transition-all duration-300"
         onClick={onClose}
         aria-hidden="true"
       />

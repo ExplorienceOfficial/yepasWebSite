@@ -1,14 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, LogIn, ShieldCheck, TriangleAlert, Truck } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  Loader2,
+  LogIn,
+  ShieldCheck,
+  TriangleAlert,
+  Truck,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
-import { Field, Select, TextInput } from "@/components/ui/Field";
+import { Field, TextInput } from "@/components/ui/Field";
 import { useAuth } from "@/context/AuthContext";
 import { drivers } from "@/data/mockData";
-import { cn } from "@/lib/format";
+import { cn, initials } from "@/lib/format";
 
 type Mode = "admin" | "driver";
 
@@ -24,6 +34,18 @@ export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [driverSelectOpen, setDriverSelectOpen] = useState(false);
+  const driverDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (driverDropdownRef.current && !driverDropdownRef.current.contains(event.target as Node)) {
+        setDriverSelectOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (session?.role === "admin") router.replace("/admin");
@@ -189,19 +211,94 @@ export default function LoginPage() {
             ) : (
               <>
                 <Field label="Şoför">
-                  <Select
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    required
-                    className="focus:ring-orange-500/50 focus:border-orange-500"
-                  >
-                    <option value="">Şoför seçin</option>
-                    {drivers.map((driver) => (
-                      <option key={driver.id} value={driver.code}>
-                        {driver.code} · {driver.name}
-                      </option>
-                    ))}
-                  </Select>
+                  <div className="relative" ref={driverDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setDriverSelectOpen((v) => !v)}
+                      className={cn(
+                        "flex h-11 w-full items-center justify-between rounded-[12px] bg-surface px-3.5 text-sm ring-1 transition-all duration-200",
+                        driverSelectOpen
+                          ? "ring-2 ring-orange-500 border-transparent shadow-[0_4px_16px_rgba(249,115,22,0.2)]"
+                          : "ring-hairline hover:ring-orange-500/50",
+                      )}
+                    >
+                      {code ? (
+                        (() => {
+                          const selectedDriver = drivers.find((d) => d.code === code);
+                          return selectedDriver ? (
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-[11px] font-bold text-orange-600 dark:text-orange-400 ring-1 ring-orange-500/30">
+                                {initials(selectedDriver.name)}
+                              </span>
+                              <span className="truncate font-semibold text-ink">
+                                {selectedDriver.code} · {selectedDriver.name}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-ink-3">Şoför seçin</span>
+                          );
+                        })()
+                      ) : (
+                        <span className="text-ink-3">Şoför seçin</span>
+                      )}
+                      <ChevronDown
+                        className={cn(
+                          "size-4 text-ink-3 transition-transform duration-300",
+                          driverSelectOpen && "rotate-180",
+                        )}
+                      />
+                    </button>
+
+                    {/* Custom Animated Floating Dropdown List */}
+                    {driverSelectOpen && (
+                      <div className="absolute left-0 top-full z-50 mt-1.5 w-full overflow-hidden rounded-[16px] bg-surface/95 backdrop-blur-xl p-1.5 ring-1 ring-orange-500/30 shadow-[0_14px_45px_rgba(0,0,0,0.18)] yp-scale-in">
+                        <div className="max-h-60 space-y-1 overflow-y-auto pr-0.5">
+                          {drivers.map((driver) => {
+                            const isSelected = code === driver.code;
+                            return (
+                              <button
+                                key={driver.id}
+                                type="button"
+                                onClick={() => {
+                                  setCode(driver.code);
+                                  setDriverSelectOpen(false);
+                                }}
+                                className={cn(
+                                  "flex w-full items-center justify-between rounded-[10px] px-3 py-2.5 text-left text-[13.5px] transition-all duration-150 active:scale-[0.98]",
+                                  isSelected
+                                    ? "bg-amber-500/15 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/30"
+                                    : "text-ink hover:bg-surface-2",
+                                )}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span
+                                    className={cn(
+                                      "flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all",
+                                      isSelected
+                                        ? "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm"
+                                        : "bg-surface-2 text-ink-2",
+                                    )}
+                                  >
+                                    {initials(driver.name)}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="truncate font-semibold leading-tight">{driver.name}</p>
+                                    <p className="truncate text-[11px] text-ink-3">
+                                      {driver.code} · {driver.plate}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {isSelected && (
+                                  <Check className="size-4 shrink-0 text-orange-500" strokeWidth={2.5} />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </Field>
                 <Field label="PIN" hint="Araç plakanızın son 4 hanesi.">
                   <TextInput
@@ -273,9 +370,17 @@ export default function LoginPage() {
                 </>
               ) : (
                 drivers.slice(0, 3).map((d) => (
-                  <p key={d.id}>
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => {
+                      setCode(d.code);
+                      setPin(d.pin);
+                    }}
+                    className="block w-full text-left transition-colors hover:text-ink"
+                  >
                     <span className="font-semibold text-orange-600 dark:text-orange-400">{d.code}</span> / {d.pin} — {d.name}
-                  </p>
+                  </button>
                 ))
               )}
             </div>
