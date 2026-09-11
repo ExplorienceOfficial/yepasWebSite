@@ -65,12 +65,12 @@ export default function LoginPage() {
   return (
     <div
       className={cn(
-        "flex min-h-screen flex-col items-center justify-center px-4 py-12 transition-all duration-700 ease-out",
+        "flex min-h-screen flex-col items-center justify-center px-4 py-12 transition-colors duration-1000 ease-out",
         mode === "driver"
           ? "bg-gradient-to-br from-[#fff3e8] via-[#fff8f2] to-[#ffebd9] dark:from-[#1e1107] dark:via-[#140b05] dark:to-[#190d05]"
           : "bg-canvas",
       )}
-      style={{ transitionDuration: "750ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
+      style={{ transitionDuration: "1200ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
     >
       <div className="w-full max-w-[390px]">
         {/* Marka */}
@@ -79,17 +79,17 @@ export default function LoginPage() {
             className={cn(
               "flex size-14 items-center justify-center rounded-[16px] text-xl font-extrabold transition-all duration-700 ease-out",
               mode === "driver"
-                ? "bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white shadow-[0_8px_25px_rgba(249,115,22,0.35)] scale-105"
+                ? "bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white shadow-[0_8px_25px_rgba(249,115,22,0.35)]"
                 : "bg-ink text-[var(--canvas)]",
             )}
-            style={{ transitionDuration: "750ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
+            style={{ transitionDuration: "1200ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
           >
             Y
           </span>
-          <h1 className="mt-3.5 text-[23px] font-bold tracking-tight text-ink transition-colors duration-500">
+          <h1 className="mt-3.5 text-[23px] font-bold tracking-tight text-ink transition-colors duration-700">
             Yepaş Yönetim Konsolu
           </h1>
-          <p className="mt-1 text-[14px] font-medium text-ink-2 transition-colors duration-500">
+          <p className="mt-1 text-[14px] font-medium text-ink-2 transition-colors duration-700">
             {mode === "driver" ? "Şoför Girişi — Saha Teslimat Paneli" : "Devam etmek için giriş yapın"}
           </p>
         </div>
@@ -101,7 +101,7 @@ export default function LoginPage() {
               ? "ring-orange-500/30 bg-gradient-to-b from-amber-500/10 via-surface to-surface dark:from-amber-950/30 shadow-[0_16px_45px_rgba(249,115,22,0.18)]"
               : "ring-hairline",
           )}
-          style={{ transitionDuration: "750ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
+          style={{ transitionDuration: "1200ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
         >
           {/* Rol seçimi - Kayan Pill (Sliding Segmented Control) */}
           <div
@@ -111,15 +111,15 @@ export default function LoginPage() {
                 ? "bg-amber-500/20 ring-1 ring-orange-500/40"
                 : "bg-surface-2 ring-1 ring-hairline",
             )}
-            style={{ transitionDuration: "750ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
+            style={{ transitionDuration: "1200ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
           >
             {/* Kayar Aktif Seçim Arka Planı (Sliding Active Indicator) */}
             <div
               className={cn(
-                "absolute inset-y-1.5 w-[calc(50%-0.375rem)] rounded-[10px] transition-all duration-500 shadow-md",
+                "absolute inset-y-1.5 w-[calc(50%-0.375rem)] rounded-[10px] transition-all duration-400 shadow-md",
                 mode === "admin"
                   ? "left-1.5 bg-surface shadow-[var(--shadow-sm)]"
-                  : "left-[calc(50%+0.1875rem)] bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-[0_4px_18px_rgba(249,115,22,0.45)] scale-[1.02]",
+                  : "left-[calc(50%+0.1875rem)] bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-[0_4px_18px_rgba(249,115,22,0.45)]",
               )}
               style={{ transitionTimingFunction: "cubic-bezier(0.34, 1.2, 0.64, 1)" }}
             />
@@ -146,10 +146,7 @@ export default function LoginPage() {
                 mode === "driver" ? "text-white font-bold" : "text-ink-2 hover:text-ink",
               )}
             >
-              <Truck
-                className={cn("size-4 transition-transform duration-300", mode === "driver" && "scale-110")}
-                strokeWidth={2}
-              />
+              <Truck className="size-4" strokeWidth={2} />
               Şoför
             </button>
           </div>

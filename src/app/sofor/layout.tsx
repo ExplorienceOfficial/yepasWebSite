@@ -15,7 +15,10 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
 
   return (
     <RequireRole role="driver" loginPath="/">
-      <div className="min-h-screen bg-canvas transition-colors duration-500 ease-in-out">
+      <div
+        className="min-h-screen bg-canvas transition-colors ease-out"
+        style={{ transitionDuration: "1200ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
+      >
         <DriverHeader />
         <main className="mx-auto max-w-3xl px-4 py-6">{children}</main>
       </div>

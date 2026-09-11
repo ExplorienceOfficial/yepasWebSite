@@ -139,14 +139,14 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  transition: background-color 750ms cubic-bezier(0.25, 1, 0.5, 1), color 750ms cubic-bezier(0.25, 1, 0.5, 1);
+  transition: background-color 1200ms cubic-bezier(0.25, 1, 0.5, 1), color 1200ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 body {
   background-color: var(--canvas);
   color: var(--ink);
   letter-spacing: -0.011em;
-  transition: background-color 750ms cubic-bezier(0.25, 1, 0.5, 1), color 750ms cubic-bezier(0.25, 1, 0.5, 1);
+  transition: background-color 1200ms cubic-bezier(0.25, 1, 0.5, 1), color 1200ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 /* İnce, temaya uyumlu kaydırma çubuğu */
