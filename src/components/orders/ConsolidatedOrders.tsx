@@ -7,16 +7,47 @@ import { useOperations } from "@/context/OperationsContext";
 import { cn, formatQty, initials } from "@/lib/format";
 import type { DailyOrder, OrderStatus } from "@/types";
 
-const groupMeta: { status: OrderStatus; label: string; dot: string; empty: string }[] = [
-  { status: "ordered", label: "Sipariş Verildi", dot: "bg-[var(--ok)]", empty: "Sipariş veren bayi yok." },
-  { status: "pending", label: "Giriş Bekleyen", dot: "bg-[var(--warn)]", empty: "Bekleyen bayi yok." },
-  { status: "declined", label: "Ürün İstemedi", dot: "bg-[var(--bad)]", empty: "Pas geçen bayi yok." },
+const groupMeta: {
+  status: OrderStatus;
+  label: string;
+  dot: string;
+  color: string;
+  badgeBg: string;
+  accentBorder: string;
+  empty: string;
+}[] = [
+  {
+    status: "ordered",
+    label: "Sipariş Verildi",
+    dot: "bg-[var(--ok)]",
+    color: "text-[var(--ok)]",
+    badgeBg: "bg-[var(--ok)]/10 text-[var(--ok)]",
+    accentBorder: "border-l-[var(--ok)]",
+    empty: "Sipariş veren bayi yok.",
+  },
+  {
+    status: "declined",
+    label: "Ürün İstemedi",
+    dot: "bg-[var(--bad)]",
+    color: "text-[var(--bad)]",
+    badgeBg: "bg-[var(--bad)]/10 text-[var(--bad)]",
+    accentBorder: "border-l-[var(--bad)]",
+    empty: "Pas geçen bayi yok.",
+  },
+  {
+    status: "pending",
+    label: "Giriş Bekleyen",
+    dot: "bg-[var(--warn)]",
+    color: "text-[var(--warn)]",
+    badgeBg: "bg-[var(--warn)]/10 text-[var(--warn)]",
+    accentBorder: "border-l-[var(--warn)]",
+    empty: "Bekleyen bayi yok.",
+  },
 ];
 
 /**
- * Siparişleri 3 duruma göre gruplar. Her bayi bir açılır kart (accordion):
- * kapalıyken bayi + toplam, tıklanınca kalem kalem açılır. Aynı anda birden
- * fazla kart açık kalabilir. Hem admin hem şoför görünümü kullanır.
+ * Siparişleri 3 duruma göre 3 sütun halinde gruplar. Her bayi bir açılır kart:
+ * kapalıyken bayi + toplam, tıklanınca kalem kalem açılır.
  */
 export function ConsolidatedOrders({
   orders,
@@ -49,23 +80,29 @@ export function ConsolidatedOrders({
   }, [orders, customerIds, getCustomer]);
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 items-start">
       {grouped.map((group) => (
-        <section key={group.status}>
-          <div className="mb-2 flex items-center gap-2 px-1">
-            <span className={cn("size-2 rounded-full", group.dot)} />
-            <h3 className="text-[13px] font-semibold text-ink">{group.label}</h3>
-            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[12px] font-medium tabular-nums text-ink-2">
+        <section key={group.status} className="flex flex-col">
+          {/* Sütun başlığı */}
+          <div className="mb-3 flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <span className={cn("size-2.5 rounded-full ring-2 ring-surface", group.dot)} />
+              <h3 className={cn("text-[14px] font-semibold tracking-tight", group.color)}>
+                {group.label}
+              </h3>
+            </div>
+            <span className={cn("rounded-full px-2.5 py-0.5 text-[12px] font-bold tabular-nums", group.badgeBg)}>
               {group.rows.length}
             </span>
           </div>
 
+          {/* Sütun kartları */}
           {group.rows.length === 0 ? (
             <p className="rounded-[14px] bg-surface px-4 py-5 text-[13px] text-ink-3 ring-1 ring-hairline">
               {group.empty}
             </p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {group.rows.map(({ order, customer }) => {
                 if (!customer) return null;
                 const total = order.lines.reduce((s, l) => s + l.qty, 0);
@@ -73,29 +110,38 @@ export function ConsolidatedOrders({
                 return (
                   <div
                     key={customer.id}
-                    className="overflow-hidden rounded-[14px] bg-surface ring-1 ring-hairline"
+                    className={cn(
+                      "overflow-hidden rounded-[14px] bg-surface ring-1 ring-hairline border-l-4 transition-all duration-150 hover:shadow-sm",
+                      group.accentBorder
+                    )}
                   >
                     {/* Başlık — tıkla aç/kapa */}
                     <button
                       type="button"
                       onClick={() => toggle(customer.id)}
                       aria-expanded={isOpen}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2/50"
+                      className="flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-surface-2/50"
                     >
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[12px] font-semibold text-ink-2">
+                      <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold", group.badgeBg)}>
                         {initials(customer.name)}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14px] font-medium text-ink">{customer.name}</p>
-                        <p className="truncate text-[12px] text-ink-3">
+                        <p className="truncate text-[13.5px] font-medium text-ink">{customer.name}</p>
+                        <p className="truncate text-[11.5px] text-ink-3">
                           {customer.type} · {customer.district}
                         </p>
                       </div>
                       {order.status === "ordered" && (
-                        <span className="text-right">
-                          <span className="text-[15px] font-semibold tabular-nums text-ink">{formatQty(total)}</span>
-                          <span className="ml-1 text-[12px] text-ink-3">adet</span>
+                        <span className="text-right shrink-0">
+                          <span className="text-[14px] font-semibold tabular-nums text-ink">{formatQty(total)}</span>
+                          <span className="ml-1 text-[11px] text-ink-3">adet</span>
                         </span>
+                      )}
+                      {order.status === "declined" && (
+                        <span className={cn("text-[12px] font-medium shrink-0", group.color)}>İstemedi</span>
+                      )}
+                      {order.status === "pending" && (
+                        <span className={cn("text-[12px] font-medium shrink-0", group.color)}>Bekliyor</span>
                       )}
                       <ChevronDown
                         className={cn(
@@ -107,20 +153,20 @@ export function ConsolidatedOrders({
 
                     {/* İçerik — kalem kalem */}
                     {isOpen && (
-                      <div className="border-t border-hairline px-4 py-2">
+                      <div className="border-t border-hairline px-3.5 py-2.5 bg-surface-2/30">
                         {order.status === "ordered" && order.lines.length > 0 && (
-                          <div>
+                          <div className="space-y-1">
                             {order.lines.map((line) => {
                               const product = getProduct(line.productId);
                               if (!product) return null;
                               return (
                                 <div
                                   key={line.productId}
-                                  className="flex items-center justify-between gap-3 border-b border-hairline py-2 last:border-b-0"
+                                  className="flex items-center justify-between gap-3 border-b border-hairline/60 py-1.5 last:border-b-0 text-[12.5px]"
                                 >
-                                  <span className="text-[13px] text-ink-2">{product.name}</span>
-                                  <span className="text-[13px] font-medium tabular-nums text-ink">
-                                    {formatQty(line.qty)}
+                                  <span className="text-ink-2 font-normal">{product.name}</span>
+                                  <span className="font-semibold tabular-nums text-ink">
+                                    {formatQty(line.qty)} <span className="text-[11px] text-ink-3 font-normal">adet</span>
                                   </span>
                                 </div>
                               );
@@ -129,27 +175,27 @@ export function ConsolidatedOrders({
                         )}
 
                         {order.status === "ordered" && order.lines.length === 0 && (
-                          <p className="py-2 text-[13px] text-ink-3">Bu siparişte kalem yok.</p>
+                          <p className="py-1 text-[12.5px] text-ink-3">Bu siparişte kalem yok.</p>
                         )}
 
                         {order.status === "pending" && (
-                          <p className="py-2 text-[13px] text-ink-3">Bayi henüz sipariş girişi yapmadı.</p>
+                          <p className="py-1 text-[12.5px] text-ink-3">Bayi henüz sipariş girişi yapmadı.</p>
                         )}
 
                         {order.status === "declined" && (
-                          <p className="py-2 text-[13px] text-ink-3">
+                          <p className="py-1 text-[12.5px] text-ink-3">
                             Bayi bugün ürün istemedi.{order.note ? ` (${order.note})` : ""}
                           </p>
                         )}
 
                         {editable && (
-                          <div className="pt-1.5">
+                          <div className="pt-2">
                             <button
                               type="button"
                               onClick={() => onSelect?.(customer.id)}
-                              className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-3"
+                              className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1 text-[12px] font-medium text-ink transition-colors hover:bg-surface-2 ring-1 ring-hairline shadow-2xs"
                             >
-                              <Pencil className="size-3.5" strokeWidth={1.8} />
+                              <Pencil className="size-3 text-ink-2" strokeWidth={1.8} />
                               Düzenle
                             </button>
                           </div>

@@ -6,8 +6,9 @@ import {
   ClipboardList,
   LayoutGrid,
   LogOut,
+  MessageSquareQuote,
   Package,
-  Settings,
+  Truck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -26,7 +27,8 @@ const items: Item[] = [
   { href: "/admin", label: "Kontrol Paneli", icon: LayoutGrid },
   { href: "/admin/siparisler", label: "Siparişler", icon: ClipboardList, badgeKey: "pending" },
   { href: "/admin/urunler", label: "Ürünler", icon: Package },
-  { href: "/admin/ayarlar", label: "Ayarlar", icon: Settings },
+  { href: "/admin/sofor-yonetimi", label: "Şoför Yönetimi", icon: Truck },
+  { href: "/admin/musteri-yanitlari", label: "Müşteri Yanıtları", icon: MessageSquareQuote },
 ];
 
 export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {

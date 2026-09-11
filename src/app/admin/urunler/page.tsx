@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 import { PageHeading, Panel } from "@/components/admin/Panel";
@@ -11,14 +11,16 @@ import { Button } from "@/components/ui/Button";
 import { TextInput } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { useOperations } from "@/context/OperationsContext";
-import { cn, formatQty } from "@/lib/format";
-import type { Product } from "@/types";
+import { cn, formatQty, initials } from "@/lib/format";
+import type { Customer, Product } from "@/types";
 
 export default function ProductsPage() {
-  const { categories, products, productionTotals, deleteProduct } = useOperations();
+  const { categories, products, productionTotals, deleteProduct, orders, getCustomer } =
+    useOperations();
 
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<string[]>([]);
+  const [openProducts, setOpenProducts] = useState<string[]>([]);
   const [editing, setEditing] = useState<Product | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Product | null>(null);
@@ -28,6 +30,25 @@ export default function ProductsPage() {
     for (const row of productionTotals) map.set(row.product.id, row.qty);
     return map;
   }, [productionTotals]);
+
+  const productCustomerBreakdown = useMemo(() => {
+    const map = new Map<string, Array<{ customer: Customer; qty: number }>>();
+    for (const order of orders) {
+      if (order.status !== "ordered") continue;
+      const customer = getCustomer(order.customerId);
+      if (!customer) continue;
+      for (const line of order.lines) {
+        if (line.qty <= 0) continue;
+        const list = map.get(line.productId) ?? [];
+        list.push({ customer, qty: line.qty });
+        map.set(line.productId, list);
+      }
+    }
+    for (const [, list] of map.entries()) {
+      list.sort((a, b) => b.qty - a.qty);
+    }
+    return map;
+  }, [orders, getCustomer]);
 
   const term = search.trim().toLocaleLowerCase("tr-TR");
   const visible = products.filter(
@@ -50,6 +71,13 @@ export default function ProductsPage() {
       current.includes(categoryId)
         ? current.filter((id) => id !== categoryId)
         : [...current, categoryId],
+    );
+
+  const toggleProduct = (productId: string) =>
+    setOpenProducts((current) =>
+      current.includes(productId)
+        ? current.filter((id) => id !== productId)
+        : [...current, productId],
     );
 
   return (
@@ -113,53 +141,112 @@ export default function ProductsPage() {
                     <tbody>
                       {items.map((product) => {
                         const demand = demandOf.get(product.id) ?? 0;
+                        const isExpanded = openProducts.includes(product.id);
+                        const customersForProduct = productCustomerBreakdown.get(product.id) ?? [];
+
                         return (
-                          <tr
-                            key={product.id}
-                            className="group border-t border-hairline transition-colors hover:bg-surface-2/50"
-                          >
-                            <td className="px-2 py-2.5">
-                              <div className="flex items-center gap-3">
-                                <ProductThumb src={product.imageUrl} name={product.name} className="size-10" />
-                                <div className="min-w-0">
-                                  <p className="truncate text-[14px] font-medium text-ink">{product.name}</p>
-                                  <p className="truncate text-[12px] text-ink-3">{product.code}</p>
+                          <Fragment key={product.id}>
+                            <tr
+                              onClick={() => toggleProduct(product.id)}
+                              className="group border-t border-hairline transition-colors hover:bg-surface-2/50 cursor-pointer"
+                            >
+                              <td className="px-2 py-2.5">
+                                <div className="flex items-center gap-3">
+                                  <ChevronDown
+                                    className={cn(
+                                      "size-4 text-ink-3 transition-transform duration-200 shrink-0",
+                                      isExpanded && "rotate-180 text-ink"
+                                    )}
+                                  />
+                                  <ProductThumb src={product.imageUrl} name={product.name} className="size-10 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="truncate text-[14px] font-medium text-ink">{product.name}</p>
+                                    <p className="truncate text-[12px] text-ink-3">{product.code}</p>
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="px-2 py-2.5 text-right text-[14px] tabular-nums text-ink-2">
-                              {formatQty(product.maxOrderLimit)}
-                            </td>
-                            <td className="px-2 py-2.5 text-right">
-                              {demand > 0 ? (
-                                <span className="text-[14px] font-semibold tabular-nums text-ink">
-                                  {formatQty(demand)}
-                                </span>
-                              ) : (
-                                <span className="text-[13px] text-ink-3">—</span>
-                              )}
-                            </td>
-                            <td className="px-2 py-2.5">
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => openEdit(product)}
-                                  aria-label={`${product.name} düzenle`}
-                                  className="flex size-8 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink"
-                                >
-                                  <Pencil className="size-4" strokeWidth={1.8} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setPendingDelete(product)}
-                                  aria-label={`${product.name} sil`}
-                                  className="flex size-8 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-[var(--bad-soft)] hover:text-[var(--bad)]"
-                                >
-                                  <Trash2 className="size-4" strokeWidth={1.8} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
+                              </td>
+                              <td className="px-2 py-2.5 text-right text-[14px] tabular-nums text-ink-2">
+                                {formatQty(product.maxOrderLimit)}
+                              </td>
+                              <td className="px-2 py-2.5 text-right">
+                                {demand > 0 ? (
+                                  <span className="text-[14px] font-semibold tabular-nums text-ink">
+                                    {formatQty(demand)} <span className="text-[11px] text-ink-3 font-normal">adet</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[13px] text-ink-3">—</span>
+                                )}
+                              </td>
+                              <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEdit(product)}
+                                    aria-label={`${product.name} düzenle`}
+                                    className="flex size-8 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink"
+                                  >
+                                    <Pencil className="size-4" strokeWidth={1.8} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPendingDelete(product)}
+                                    aria-label={`${product.name} sil`}
+                                    className="flex size-8 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-[var(--bad-soft)] hover:text-[var(--bad)]"
+                                  >
+                                    <Trash2 className="size-4" strokeWidth={1.8} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {/* Alt View (Sub-view Breakdown) */}
+                            {isExpanded && (
+                              <tr className="bg-surface-2/30 border-t border-hairline/60">
+                                <td colSpan={4} className="px-3 py-3">
+                                  <div className="rounded-[12px] bg-surface p-3.5 ring-1 ring-hairline shadow-2xs">
+                                    <div className="mb-2.5 flex items-center justify-between border-b border-hairline pb-2">
+                                      <span className="text-[12px] font-semibold text-ink-2 uppercase tracking-wider">
+                                        Bugünkü Sipariş Veren Bayiler ({customersForProduct.length})
+                                      </span>
+                                      <span className="text-[12px] font-semibold tabular-nums text-ink">
+                                        Toplam: {formatQty(demand)} adet
+                                      </span>
+                                    </div>
+
+                                    {customersForProduct.length === 0 ? (
+                                      <p className="py-2 text-[12.5px] text-ink-3">
+                                        Bugün bu üründen sipariş veren bayi bulunmuyor.
+                                      </p>
+                                    ) : (
+                                      <div className="space-y-1.5">
+                                        {customersForProduct.map(({ customer, qty }) => (
+                                          <div
+                                            key={customer.id}
+                                            className="flex items-center justify-between rounded-[9px] bg-surface-2/60 px-3 py-2 text-[13px] transition-colors hover:bg-surface-2"
+                                          >
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-bold text-ink-2">
+                                                {initials(customer.name)}
+                                              </span>
+                                              <div className="min-w-0">
+                                                <p className="truncate font-medium text-ink">{customer.name}</p>
+                                                <p className="truncate text-[11px] text-ink-3">
+                                                  {customer.type} · {customer.district}
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <span className="font-semibold tabular-nums text-ink shrink-0">
+                                              {formatQty(qty)} <span className="text-[11px] font-normal text-ink-3">adet</span>
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>

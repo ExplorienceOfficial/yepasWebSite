@@ -13,7 +13,8 @@ const routeMeta: Record<string, { crumb: string; title: string }> = {
   "/admin": { crumb: "Genel", title: "Kontrol Paneli" },
   "/admin/siparisler": { crumb: "Operasyon", title: "Siparişler" },
   "/admin/urunler": { crumb: "Operasyon", title: "Ürünler" },
-  "/admin/ayarlar": { crumb: "Sistem", title: "Ayarlar" },
+  "/admin/sofor-yonetimi": { crumb: "Saha", title: "Şoför Yönetimi" },
+  "/admin/musteri-yanitlari": { crumb: "Müşteri", title: "Müşteri Yanıtları" },
 };
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {

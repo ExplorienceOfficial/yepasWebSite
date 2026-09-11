@@ -92,6 +92,8 @@ interface OperationsContextValue {
   createOrder: (customerId: string, lines: OrderLine[]) => void;
   saveProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
+  assignCustomerToDriver: (customerId: string, driverId: string) => void;
+  saveDriver: (driver: Driver) => void;
   dismissToast: (id: number) => void;
   setOrderRule: (rule: OrderRule) => void;
   setMaxQtyLimit: (value: number) => void;
@@ -121,6 +123,8 @@ const OperationsContext = createContext<OperationsContextValue | null>(null);
 
 export function OperationsProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>(seedProducts);
+  const [customers, setCustomers] = useState<Customer[]>(seedCustomers);
+  const [drivers, setDrivers] = useState<Driver[]>(seedDrivers);
   const [orders, setOrders] = useState<DailyOrder[]>(seedOrders);
   const [orderSystemOpen, setOrderSystemOpen] = useState(true);
   const [systemToggledAt, setSystemToggledAt] = useState(initialSystemToggleAt);
@@ -168,8 +172,41 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     (customerId: string) => orders.find((o) => o.customerId === customerId),
     [orders],
   );
-  const getCustomer = useCallback((customerId: string) => seedCustomers.find((c) => c.id === customerId), []);
-  const getDriver = useCallback((driverId: string) => seedDrivers.find((d) => d.id === driverId), []);
+  const getCustomer = useCallback((customerId: string) => customers.find((c) => c.id === customerId), [customers]);
+  const getDriver = useCallback((driverId: string) => drivers.find((d) => d.id === driverId), [drivers]);
+
+  const assignCustomerToDriver = useCallback(
+    (customerId: string, driverId: string) => {
+      setCustomers((current) =>
+        current.map((c) => (c.id === customerId ? { ...c, driverId } : c)),
+      );
+      setHasUnsyncedChanges(true);
+      const custName = customers.find((c) => c.id === customerId)?.name ?? "Bayi";
+      const drvName = drivers.find((d) => d.id === driverId)?.name ?? "Şoför";
+      pushToast({
+        tone: "success",
+        title: "Şoför Ataması Güncellendi",
+        description: `${custName} ➔ ${drvName}`,
+      });
+      logActivity(`${custName} bayisi ${drvName} şoförüne atandı`, "success");
+    },
+    [customers, drivers, logActivity, pushToast],
+  );
+
+  const saveDriver = useCallback(
+    (driver: Driver) => {
+      setDrivers((current) => {
+        const exists = current.some((d) => d.id === driver.id);
+        return exists
+          ? current.map((d) => (d.id === driver.id ? driver : d))
+          : [...current, driver];
+      });
+      setHasUnsyncedChanges(true);
+      pushToast({ tone: "success", title: "Şoför Kaydedildi", description: driver.name });
+      logActivity(`${driver.name} şoför bilgileri güncellendi`);
+    },
+    [logActivity, pushToast],
+  );
 
   /** Aktif kurala göre bir ürünün üst sınırı */
   const getMaxQty = useCallback(
@@ -454,8 +491,8 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   const value: OperationsContextValue = {
     categories: seedCategories,
     products,
-    customers: seedCustomers,
-    drivers: seedDrivers,
+    customers,
+    drivers,
     orders,
     deliveryOrders: seedDeliveryOrders,
     nextOrders: seedNextOrders,
@@ -479,6 +516,8 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     createOrder,
     saveProduct,
     deleteProduct,
+    assignCustomerToDriver,
+    saveDriver,
     dismissToast,
     setOrderRule,
     setMaxQtyLimit,
