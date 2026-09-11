@@ -1,15 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  Check,
-  CheckCircle2,
-  ChevronDown,
-  RotateCcw,
-  Search,
-  X,
-  XCircle,
-} from "lucide-react";
+import { CheckCircle2, ChevronDown, Search, X, XCircle } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 import { useOperations } from "@/context/OperationsContext";
@@ -21,20 +13,11 @@ const days: { key: OrderDay; label: string; sub: string }[] = [
   { key: "today", label: "Bugün Verilen", sub: "Yarın dağıtılacaklar" },
 ];
 
-type FilterType = "all" | "green" | "red" | "completed";
+type FilterType = "all" | "green" | "red";
 
 export default function DriverRoutePage() {
   const { session } = useAuth();
-  const {
-    customers,
-    orders,
-    deliveryOrders,
-    getProduct,
-    drivers,
-    completedDeliveries,
-    completeDelivery,
-    undoDelivery,
-  } = useOperations();
+  const { customers, orders, deliveryOrders, getProduct, drivers } = useOperations();
 
   const [day, setDay] = useState<OrderDay>("delivery");
   const [openItems, setOpenItems] = useState<string[]>([]);
@@ -73,16 +56,11 @@ export default function DriverRoutePage() {
   const counts = useMemo(() => {
     let green = 0;
     let red = 0;
-    let completed = 0;
 
     searchedCustomers.forEach((c) => {
       const order = activeOrders.find((o) => o.customerId === c.id);
       const hasOrder = Boolean(order && order.status === "ordered" && order.lines.length > 0);
-      const isCompleted = completedDeliveries.includes(c.id);
-
-      if (isCompleted) {
-        completed += 1;
-      } else if (hasOrder) {
+      if (hasOrder) {
         green += 1;
       } else {
         red += 1;
@@ -93,23 +71,20 @@ export default function DriverRoutePage() {
       all: searchedCustomers.length,
       green,
       red,
-      completed,
     };
-  }, [searchedCustomers, activeOrders, completedDeliveries]);
+  }, [searchedCustomers, activeOrders]);
 
   // Filtered customer list
   const filteredCustomers = useMemo(() => {
     return searchedCustomers.filter((c) => {
       const order = activeOrders.find((o) => o.customerId === c.id);
       const hasOrder = Boolean(order && order.status === "ordered" && order.lines.length > 0);
-      const isCompleted = completedDeliveries.includes(c.id);
 
-      if (filter === "completed") return isCompleted;
-      if (filter === "green") return hasOrder && !isCompleted;
-      if (filter === "red") return !hasOrder && !isCompleted;
+      if (filter === "green") return hasOrder;
+      if (filter === "red") return !hasOrder;
       return true; // "all"
     });
-  }, [searchedCustomers, activeOrders, completedDeliveries, filter]);
+  }, [searchedCustomers, activeOrders, filter]);
 
   return (
     <div className="yp-rise space-y-5 pb-10">
@@ -177,7 +152,7 @@ export default function DriverRoutePage() {
           )}
         </div>
 
-        {/* Status Filter Tabs (Tümü, Yeşiller, Kırmızılar, Tamamlananlar) */}
+        {/* Status Filter Tabs (Tümü, Yeşiller, Kırmızılar) */}
         <div className="flex flex-wrap items-center gap-1.5 rounded-[12px] bg-surface-2 p-1 ring-1 ring-hairline">
           {(
             [
@@ -195,13 +170,6 @@ export default function DriverRoutePage() {
                 count: counts.red,
                 dot: "bg-[var(--bad)]",
                 activeBg: "bg-[var(--bad)]/15 text-[var(--bad)] font-semibold ring-1 ring-[var(--bad)]/30",
-              },
-              {
-                key: "completed",
-                label: "Tamamlananlar",
-                count: counts.completed,
-                dot: "bg-emerald-500",
-                activeBg: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold ring-1 ring-emerald-500/40",
               },
             ] as const
           ).map((t) => {
@@ -232,7 +200,6 @@ export default function DriverRoutePage() {
         {filteredCustomers.map((customer) => {
           const order = activeOrders.find((o) => o.customerId === customer.id);
           const hasOrder = Boolean(order && order.status === "ordered" && order.lines.length > 0);
-          const isCompleted = completedDeliveries.includes(customer.id);
           const totalUnits = order?.lines.reduce((s, l) => s + l.qty, 0) ?? 0;
           const isOpen = openItems.includes(customer.id);
 
@@ -240,123 +207,69 @@ export default function DriverRoutePage() {
             <div
               key={customer.id}
               className={cn(
-                "overflow-hidden rounded-[16px] bg-surface ring-1 transition-all duration-300 border-l-4",
-                isCompleted
-                  ? "border-l-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/15 ring-emerald-500/30 opacity-90"
-                  : hasOrder
-                  ? "border-l-[var(--ok)] ring-hairline"
-                  : "border-l-[var(--bad)] ring-hairline opacity-75",
+                "overflow-hidden rounded-[16px] bg-surface ring-1 ring-hairline border-l-4 transition-all duration-150",
+                hasOrder ? "border-l-[var(--ok)]" : "border-l-[var(--bad)]",
               )}
             >
-              {/* Card Header Row */}
-              <div className="flex w-full items-center justify-between gap-3 px-4 py-3.5">
-                <button
-                  type="button"
-                  onClick={() => hasOrder && toggleOpen(customer.id)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left transition-colors hover:opacity-80"
-                >
+              {/* Başlık Satırı */}
+              <button
+                type="button"
+                onClick={() => hasOrder && toggleOpen(customer.id)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-surface-2/40"
+              >
+                <div className="flex items-center gap-3 min-w-0">
                   <span
                     className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold transition-all",
-                      isCompleted
-                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/40"
-                        : hasOrder
+                      "flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold",
+                      hasOrder
                         ? "bg-[var(--ok)]/10 text-[var(--ok)]"
                         : "bg-[var(--bad)]/10 text-[var(--bad)]",
                     )}
                   >
-                    {isCompleted ? <Check className="size-4 stroke-[2.5]" /> : initials(customer.name)}
+                    {initials(customer.name)}
                   </span>
-
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2
-                        className={cn(
-                          "truncate text-[14.5px] font-semibold text-ink",
-                          isCompleted && "line-through text-ink-2",
-                        )}
-                      >
-                        {customer.name}
-                      </h2>
+                      <h2 className="truncate text-[14.5px] font-semibold text-ink">{customer.name}</h2>
                       <span className="text-[11px] font-medium text-ink-3">Durak #{customer.stopNo}</span>
                     </div>
                     <p className="truncate text-[12px] text-ink-3">
                       {customer.type} · {customer.district}
                     </p>
                   </div>
-                </button>
+                </div>
 
-                {/* Status & Complete Action Area */}
-                <div className="flex items-center gap-2.5 shrink-0">
-                  {isCompleted ? (
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[12px] font-bold text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30">
+                {/* Durum & Adet */}
+                <div className="flex items-center gap-3 shrink-0">
+                  {hasOrder ? (
+                    <div className="text-right">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ok)]/10 px-2.5 py-0.5 text-[12px] font-semibold text-[var(--ok)]">
                         <CheckCircle2 className="size-3.5" />
-                        Tamamlandı
+                        Sipariş Verildi
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => undoDelivery(customer.id)}
-                        title="Tamamlandı durumunu geri al"
-                        className="flex size-7 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink"
-                      >
-                        <RotateCcw className="size-3.5" />
-                      </button>
-                    </div>
-                  ) : hasOrder ? (
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ok)]/10 px-2 py-0.5 text-[11.5px] font-semibold text-[var(--ok)]">
-                          <CheckCircle2 className="size-3" />
-                          Sipariş Verildi
-                        </span>
-                        <p className="mt-0.5 text-[13.5px] font-semibold tabular-nums text-ink">
-                          {formatQty(totalUnits)} <span className="text-[11px] font-normal text-ink-3">adet</span>
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => completeDelivery(customer.id)}
-                        className="flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold text-[13px] px-3.5 py-2 shadow-[0_2px_8px_rgba(16,185,129,0.3)] transition-all duration-200 active:scale-95 shrink-0"
-                      >
-                        <Check className="size-4 stroke-[2.5]" />
-                        <span>Tamamladım</span>
-                      </button>
+                      <p className="mt-0.5 text-[14px] font-semibold tabular-nums text-ink">
+                        {formatQty(totalUnits)} <span className="text-[11px] font-normal text-ink-3">adet</span>
+                      </p>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
+                    <div className="text-right">
                       <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bad)]/10 px-2.5 py-0.5 text-[12px] font-semibold text-[var(--bad)]">
                         <XCircle className="size-3.5" />
                         Sipariş Vermedi
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => completeDelivery(customer.id)}
-                        title="Pas geçildi olarak tamamla"
-                        className="rounded-[8px] bg-surface-2 px-2.5 py-1 text-[11.5px] font-medium text-ink-2 hover:bg-surface-3 hover:text-ink transition-colors"
-                      >
-                        Pas Geç
-                      </button>
                     </div>
                   )}
 
                   {hasOrder && (
-                    <button
-                      type="button"
-                      onClick={() => toggleOpen(customer.id)}
-                      className="p-1 text-ink-3 hover:text-ink transition-colors"
-                    >
-                      <ChevronDown
-                        className={cn(
-                          "size-4 transition-transform duration-200",
-                          isOpen && "rotate-180",
-                        )}
-                      />
-                    </button>
+                    <ChevronDown
+                      className={cn(
+                        "size-4 text-ink-3 transition-transform duration-200",
+                        isOpen && "rotate-180",
+                      )}
+                    />
                   )}
                 </div>
-              </div>
+              </button>
 
               {/* Ürün Listesi Açılır Detay */}
               {hasOrder && isOpen && order && (

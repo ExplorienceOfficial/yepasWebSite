@@ -105,48 +105,48 @@
 /* ------------------------------------------------------------- Şoför Soft Turuncu Tema */
 html[data-theme-mode="driver"],
 :root[data-theme-mode="driver"] {
-  --canvas: #fff2e5;
+  --canvas: #fff8f2;
   --surface: #ffffff;
-  --surface-2: #ffe6cc;
-  --surface-3: #ffd4a8;
-  --elevated: rgba(255, 242, 229, 0.88);
-  --elevated-solid: #fff2e5;
-  --ink: #261507;
-  --ink-2: #7a583d;
-  --ink-3: #9e7a5c;
-  --hairline: rgba(249, 115, 22, 0.18);
-  --hairline-strong: rgba(249, 115, 22, 0.32);
-  --ring: rgba(249, 115, 22, 0.45);
+  --surface-2: #fff0e0;
+  --surface-3: #ffe4cc;
+  --elevated: rgba(255, 248, 242, 0.92);
+  --elevated-solid: #fff8f2;
+  --ink: #2b1708;
+  --ink-2: #825d40;
+  --ink-3: #a37f62;
+  --hairline: rgba(249, 115, 22, 0.12);
+  --hairline-strong: rgba(249, 115, 22, 0.22);
+  --ring: rgba(249, 115, 22, 0.35);
 }
 
 html.dark[data-theme-mode="driver"],
 .dark:root[data-theme-mode="driver"] {
-  --canvas: #1a0f07;
-  --surface: #26160a;
-  --surface-2: #381f0d;
-  --surface-3: #4a2911;
-  --elevated: rgba(38, 22, 10, 0.88);
-  --elevated-solid: #26160a;
-  --ink: #fdf5ef;
-  --ink-2: #c4a993;
-  --ink-3: #9e826b;
-  --hairline: rgba(249, 115, 22, 0.22);
-  --hairline-strong: rgba(249, 115, 22, 0.4);
-  --ring: rgba(249, 115, 22, 0.55);
+  --canvas: #140b05;
+  --surface: #1e1108;
+  --surface-2: #2b1a0d;
+  --surface-3: #3b2413;
+  --elevated: rgba(30, 17, 8, 0.92);
+  --elevated-solid: #1e1108;
+  --ink: #fdf6f0;
+  --ink-2: #cbb19c;
+  --ink-3: #a38973;
+  --hairline: rgba(249, 115, 22, 0.18);
+  --hairline-strong: rgba(249, 115, 22, 0.32);
+  --ring: rgba(249, 115, 22, 0.45);
 }
 
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  transition: background-color 0.5s ease-in-out, color 0.5s ease-in-out;
+  transition: background-color 750ms cubic-bezier(0.25, 1, 0.5, 1), color 750ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 body {
   background-color: var(--canvas);
   color: var(--ink);
   letter-spacing: -0.011em;
-  transition: background-color 0.5s ease-in-out, color 0.5s ease-in-out;
+  transition: background-color 750ms cubic-bezier(0.25, 1, 0.5, 1), color 750ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 /* İnce, temaya uyumlu kaydırma çubuğu */

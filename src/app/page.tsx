@@ -65,85 +65,93 @@ export default function LoginPage() {
   return (
     <div
       className={cn(
-        "flex min-h-screen flex-col items-center justify-center px-4 py-12 transition-all duration-500 ease-in-out",
+        "flex min-h-screen flex-col items-center justify-center px-4 py-12 transition-all duration-700 ease-out",
         mode === "driver"
-          ? "bg-gradient-to-br from-[#ffe8d1] via-[#fff2e5] to-[#ffdcb8] dark:from-[#2a1306] dark:via-[#1a0f07] dark:to-[#220d03]"
+          ? "bg-gradient-to-br from-[#fff3e8] via-[#fff8f2] to-[#ffebd9] dark:from-[#1e1107] dark:via-[#140b05] dark:to-[#190d05]"
           : "bg-canvas",
       )}
+      style={{ transitionDuration: "750ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
     >
       <div className="w-full max-w-[390px]">
         {/* Marka */}
         <div className="mb-7 flex flex-col items-center text-center">
           <span
             className={cn(
-              "flex size-14 items-center justify-center rounded-[16px] text-xl font-extrabold transition-all duration-500 ease-in-out",
+              "flex size-14 items-center justify-center rounded-[16px] text-xl font-extrabold transition-all duration-700 ease-out",
               mode === "driver"
-                ? "bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white shadow-[0_8px_30px_rgba(249,115,22,0.45)] scale-110"
+                ? "bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white shadow-[0_8px_25px_rgba(249,115,22,0.35)] scale-105"
                 : "bg-ink text-[var(--canvas)]",
             )}
+            style={{ transitionDuration: "750ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
           >
             Y
           </span>
-          <h1 className="mt-3.5 text-[23px] font-bold tracking-tight text-ink transition-colors duration-300">
+          <h1 className="mt-3.5 text-[23px] font-bold tracking-tight text-ink transition-colors duration-500">
             Yepaş Yönetim Konsolu
           </h1>
-          <p className="mt-1 text-[14px] font-medium text-ink-2 transition-colors duration-300">
+          <p className="mt-1 text-[14px] font-medium text-ink-2 transition-colors duration-500">
             {mode === "driver" ? "Şoför Girişi — Saha Teslimat Paneli" : "Devam etmek için giriş yapın"}
           </p>
         </div>
 
         <div
           className={cn(
-            "rounded-[20px] bg-surface p-6 ring-1 transition-all duration-500 ease-in-out shadow-[var(--shadow-md)]",
+            "rounded-[20px] bg-surface p-6 ring-1 transition-all duration-700 ease-out shadow-[var(--shadow-md)]",
             mode === "driver"
-              ? "ring-orange-500/50 bg-gradient-to-b from-amber-500/15 via-surface to-surface dark:from-amber-950/40 shadow-[0_16px_50px_rgba(249,115,22,0.25)]"
+              ? "ring-orange-500/30 bg-gradient-to-b from-amber-500/10 via-surface to-surface dark:from-amber-950/30 shadow-[0_16px_45px_rgba(249,115,22,0.18)]"
               : "ring-hairline",
           )}
+          style={{ transitionDuration: "750ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
         >
-          {/* Rol seçimi */}
+          {/* Rol seçimi - Kayan Pill (Sliding Segmented Control) */}
           <div
             className={cn(
-              "grid grid-cols-2 gap-1 rounded-[14px] p-1.5 transition-all duration-500 ease-in-out",
+              "relative grid grid-cols-2 rounded-[14px] p-1.5 transition-all duration-700 ease-out select-none",
               mode === "driver"
                 ? "bg-amber-500/20 ring-1 ring-orange-500/40"
-                : "bg-surface-2",
+                : "bg-surface-2 ring-1 ring-hairline",
             )}
+            style={{ transitionDuration: "750ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}
           >
-            {(
-              [
-                { key: "admin", label: "Yönetici", icon: ShieldCheck },
-                { key: "driver", label: "Şoför", icon: Truck },
-              ] as const
-            ).map((m) => {
-              const isSelected = mode === m.key;
-              const isDriver = m.key === "driver";
-              return (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => switchMode(m.key)}
-                  className={cn(
-                    "flex items-center justify-center gap-2 rounded-[10px] py-2.5 text-[14px] font-medium transition-all duration-300 ease-in-out active:scale-95",
-                    isSelected
-                      ? isDriver
-                        ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-[0_4px_16px_rgba(249,115,22,0.45)] font-bold scale-[1.03]"
-                        : "bg-surface text-ink shadow-[var(--shadow-sm)]"
-                      : isDriver && mode === "driver"
-                      ? "text-orange-800 dark:text-orange-200 font-semibold hover:text-orange-950"
-                      : "text-ink-2 hover:text-ink",
-                  )}
-                >
-                  <m.icon
-                    className={cn(
-                      "size-4 transition-transform duration-300",
-                      isSelected && isDriver && "scale-110",
-                    )}
-                    strokeWidth={1.8}
-                  />
-                  {m.label}
-                </button>
-              );
-            })}
+            {/* Kayar Aktif Seçim Arka Planı (Sliding Active Indicator) */}
+            <div
+              className={cn(
+                "absolute inset-y-1.5 w-[calc(50%-0.375rem)] rounded-[10px] transition-all duration-500 shadow-md",
+                mode === "admin"
+                  ? "left-1.5 bg-surface shadow-[var(--shadow-sm)]"
+                  : "left-[calc(50%+0.1875rem)] bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-[0_4px_18px_rgba(249,115,22,0.45)] scale-[1.02]",
+              )}
+              style={{ transitionTimingFunction: "cubic-bezier(0.34, 1.2, 0.64, 1)" }}
+            />
+
+            {/* Yönetici Butonu */}
+            <button
+              type="button"
+              onClick={() => switchMode("admin")}
+              className={cn(
+                "relative z-10 flex items-center justify-center gap-2 rounded-[10px] py-2.5 text-[14px] font-semibold transition-colors duration-300 active:scale-95",
+                mode === "admin" ? "text-ink" : "text-ink-2 hover:text-ink",
+              )}
+            >
+              <ShieldCheck className="size-4" strokeWidth={2} />
+              Yönetici
+            </button>
+
+            {/* Şoför Butonu */}
+            <button
+              type="button"
+              onClick={() => switchMode("driver")}
+              className={cn(
+                "relative z-10 flex items-center justify-center gap-2 rounded-[10px] py-2.5 text-[14px] font-semibold transition-colors duration-300 active:scale-95",
+                mode === "driver" ? "text-white font-bold" : "text-ink-2 hover:text-ink",
+              )}
+            >
+              <Truck
+                className={cn("size-4 transition-transform duration-300", mode === "driver" && "scale-110")}
+                strokeWidth={2}
+              />
+              Şoför
+            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="mt-5 space-y-4">
