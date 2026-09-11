@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, XCircle } from "lucide-react";
+import {
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  RotateCcw,
+  Search,
+  X,
+  XCircle,
+} from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 import { useOperations } from "@/context/OperationsContext";
@@ -13,12 +21,25 @@ const days: { key: OrderDay; label: string; sub: string }[] = [
   { key: "today", label: "Bugün Verilen", sub: "Yarın dağıtılacaklar" },
 ];
 
+type FilterType = "all" | "green" | "red" | "completed";
+
 export default function DriverRoutePage() {
   const { session } = useAuth();
-  const { customers, orders, deliveryOrders, getProduct, drivers } = useOperations();
+  const {
+    customers,
+    orders,
+    deliveryOrders,
+    getProduct,
+    drivers,
+    completedDeliveries,
+    completeDelivery,
+    undoDelivery,
+  } = useOperations();
 
   const [day, setDay] = useState<OrderDay>("delivery");
   const [openItems, setOpenItems] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState<FilterType>("all");
 
   const toggleOpen = (id: string) => {
     setOpenItems((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -34,8 +55,64 @@ export default function DriverRoutePage() {
 
   const activeOrders = day === "delivery" ? deliveryOrders : orders;
 
+  // Search filtering
+  const searchedCustomers = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase("tr-TR");
+    if (!query) return assignedCustomers;
+    return assignedCustomers.filter((c) => {
+      const matchName = c.name.toLocaleLowerCase("tr-TR").includes(query);
+      const matchDistrict = c.district.toLocaleLowerCase("tr-TR").includes(query);
+      const matchType = c.type.toLocaleLowerCase("tr-TR").includes(query);
+      const matchStop =
+        `durak #${c.stopNo}`.toLocaleLowerCase("tr-TR").includes(query) || `${c.stopNo}` === query;
+      return matchName || matchDistrict || matchType || matchStop;
+    });
+  }, [assignedCustomers, searchQuery]);
+
+  // Counts for tabs based on current search scope
+  const counts = useMemo(() => {
+    let green = 0;
+    let red = 0;
+    let completed = 0;
+
+    searchedCustomers.forEach((c) => {
+      const order = activeOrders.find((o) => o.customerId === c.id);
+      const hasOrder = Boolean(order && order.status === "ordered" && order.lines.length > 0);
+      const isCompleted = completedDeliveries.includes(c.id);
+
+      if (isCompleted) {
+        completed += 1;
+      } else if (hasOrder) {
+        green += 1;
+      } else {
+        red += 1;
+      }
+    });
+
+    return {
+      all: searchedCustomers.length,
+      green,
+      red,
+      completed,
+    };
+  }, [searchedCustomers, activeOrders, completedDeliveries]);
+
+  // Filtered customer list
+  const filteredCustomers = useMemo(() => {
+    return searchedCustomers.filter((c) => {
+      const order = activeOrders.find((o) => o.customerId === c.id);
+      const hasOrder = Boolean(order && order.status === "ordered" && order.lines.length > 0);
+      const isCompleted = completedDeliveries.includes(c.id);
+
+      if (filter === "completed") return isCompleted;
+      if (filter === "green") return hasOrder && !isCompleted;
+      if (filter === "red") return !hasOrder && !isCompleted;
+      return true; // "all"
+    });
+  }, [searchedCustomers, activeOrders, completedDeliveries, filter]);
+
   return (
-    <div className="yp-rise space-y-5">
+    <div className="yp-rise space-y-5 pb-10">
       {/* Header */}
       <div>
         <h1 className="text-[22px] font-bold tracking-tight text-ink">
@@ -47,30 +124,115 @@ export default function DriverRoutePage() {
       </div>
 
       {/* Gün Geçişi */}
-      <div className="inline-flex items-center gap-1 rounded-[12px] bg-surface-2 p-1">
-        {days.map((d) => (
-          <button
-            key={d.key}
-            type="button"
-            onClick={() => setDay(d.key)}
-            className={cn(
-              "flex flex-col items-start rounded-[9px] px-4 py-1.5 text-left transition-all duration-150",
-              day === d.key ? "bg-surface shadow-[var(--shadow-sm)]" : "hover:bg-surface/50",
-            )}
-          >
-            <span className={cn("text-[13.5px] font-medium", day === d.key ? "text-ink" : "text-ink-2")}>
-              {d.label}
-            </span>
-            <span className="text-[11px] text-ink-3">{d.sub}</span>
-          </button>
-        ))}
+      <div className="inline-flex items-center gap-1 rounded-[12px] bg-surface-2 p-1 ring-1 ring-hairline">
+        {days.map((d) => {
+          const isActive = day === d.key;
+          return (
+            <button
+              key={d.key}
+              type="button"
+              onClick={() => setDay(d.key)}
+              className={cn(
+                "flex flex-col items-start rounded-[9px] px-4 py-1.5 text-left transition-all duration-300 ease-in-out active:scale-95",
+                isActive
+                  ? "bg-amber-500/15 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/30 shadow-sm scale-[1.01]"
+                  : "hover:bg-surface/60 text-ink-2",
+              )}
+            >
+              <span
+                className={cn(
+                  "text-[13.5px] font-medium transition-colors duration-300",
+                  isActive ? "text-orange-600 dark:text-orange-400 font-semibold" : "text-ink-2",
+                )}
+              >
+                {d.label}
+              </span>
+              <span className="text-[11px] text-ink-3">{d.sub}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Tanımlı Bayi Listesi — Sipariş verdiyse YEŞİL, vermediyse KIRMIZI */}
+      {/* Search Bar & Status Filters Container */}
       <div className="space-y-3">
-        {assignedCustomers.map((customer) => {
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Bayi adı, ilçe veya durak no ara..."
+            className="h-10 w-full rounded-[12px] bg-surface pl-10 pr-9 text-sm text-ink placeholder:text-ink-3 ring-1 ring-hairline transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              aria-label="Aramayı Temizle"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-ink-3 hover:bg-surface-2 hover:text-ink"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Status Filter Tabs (Tümü, Yeşiller, Kırmızılar, Tamamlananlar) */}
+        <div className="flex flex-wrap items-center gap-1.5 rounded-[12px] bg-surface-2 p-1 ring-1 ring-hairline">
+          {(
+            [
+              { key: "all", label: "Tümü", count: counts.all, activeBg: "bg-surface text-ink shadow-sm" },
+              {
+                key: "green",
+                label: "Yeşiller",
+                count: counts.green,
+                dot: "bg-[var(--ok)]",
+                activeBg: "bg-[var(--ok)]/15 text-[var(--ok)] font-semibold ring-1 ring-[var(--ok)]/30",
+              },
+              {
+                key: "red",
+                label: "Kırmızılar",
+                count: counts.red,
+                dot: "bg-[var(--bad)]",
+                activeBg: "bg-[var(--bad)]/15 text-[var(--bad)] font-semibold ring-1 ring-[var(--bad)]/30",
+              },
+              {
+                key: "completed",
+                label: "Tamamlananlar",
+                count: counts.completed,
+                dot: "bg-emerald-500",
+                activeBg: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold ring-1 ring-emerald-500/40",
+              },
+            ] as const
+          ).map((t) => {
+            const isActive = filter === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setFilter(t.key)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[13px] font-medium transition-all duration-200 active:scale-95",
+                  isActive ? t.activeBg : "text-ink-2 hover:bg-surface/50 hover:text-ink",
+                )}
+              >
+                {"dot" in t && <span className={cn("size-2 rounded-full", t.dot)} />}
+                <span>{t.label}</span>
+                <span className="rounded-full bg-surface-3/80 px-1.5 py-0.2 text-[11px] font-semibold tabular-nums text-ink-3">
+                  {t.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Tanımlı Bayi Listesi */}
+      <div className="space-y-3">
+        {filteredCustomers.map((customer) => {
           const order = activeOrders.find((o) => o.customerId === customer.id);
           const hasOrder = Boolean(order && order.status === "ordered" && order.lines.length > 0);
+          const isCompleted = completedDeliveries.includes(customer.id);
           const totalUnits = order?.lines.reduce((s, l) => s + l.qty, 0) ?? 0;
           const isOpen = openItems.includes(customer.id);
 
@@ -78,69 +240,123 @@ export default function DriverRoutePage() {
             <div
               key={customer.id}
               className={cn(
-                "overflow-hidden rounded-[16px] bg-surface ring-1 ring-hairline border-l-4 transition-all duration-150",
-                hasOrder ? "border-l-[var(--ok)]" : "border-l-[var(--bad)]",
+                "overflow-hidden rounded-[16px] bg-surface ring-1 transition-all duration-300 border-l-4",
+                isCompleted
+                  ? "border-l-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/15 ring-emerald-500/30 opacity-90"
+                  : hasOrder
+                  ? "border-l-[var(--ok)] ring-hairline"
+                  : "border-l-[var(--bad)] ring-hairline opacity-75",
               )}
             >
-              {/* Başlık Satırı */}
-              <button
-                type="button"
-                onClick={() => hasOrder && toggleOpen(customer.id)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-surface-2/40"
-              >
-                <div className="flex items-center gap-3 min-w-0">
+              {/* Card Header Row */}
+              <div className="flex w-full items-center justify-between gap-3 px-4 py-3.5">
+                <button
+                  type="button"
+                  onClick={() => hasOrder && toggleOpen(customer.id)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left transition-colors hover:opacity-80"
+                >
                   <span
                     className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold",
-                      hasOrder
+                      "flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold transition-all",
+                      isCompleted
+                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/40"
+                        : hasOrder
                         ? "bg-[var(--ok)]/10 text-[var(--ok)]"
                         : "bg-[var(--bad)]/10 text-[var(--bad)]",
                     )}
                   >
-                    {initials(customer.name)}
+                    {isCompleted ? <Check className="size-4 stroke-[2.5]" /> : initials(customer.name)}
                   </span>
+
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="truncate text-[14.5px] font-semibold text-ink">{customer.name}</h2>
+                      <h2
+                        className={cn(
+                          "truncate text-[14.5px] font-semibold text-ink",
+                          isCompleted && "line-through text-ink-2",
+                        )}
+                      >
+                        {customer.name}
+                      </h2>
                       <span className="text-[11px] font-medium text-ink-3">Durak #{customer.stopNo}</span>
                     </div>
                     <p className="truncate text-[12px] text-ink-3">
                       {customer.type} · {customer.district}
                     </p>
                   </div>
-                </div>
+                </button>
 
-                {/* Durum & Adet */}
-                <div className="flex items-center gap-3 shrink-0">
-                  {hasOrder ? (
-                    <div className="text-right">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ok)]/10 px-2.5 py-0.5 text-[12px] font-semibold text-[var(--ok)]">
+                {/* Status & Complete Action Area */}
+                <div className="flex items-center gap-2.5 shrink-0">
+                  {isCompleted ? (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[12px] font-bold text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30">
                         <CheckCircle2 className="size-3.5" />
-                        Sipariş Verildi
+                        Tamamlandı
                       </span>
-                      <p className="mt-0.5 text-[14px] font-semibold tabular-nums text-ink">
-                        {formatQty(totalUnits)} <span className="text-[11px] font-normal text-ink-3">adet</span>
-                      </p>
+                      <button
+                        type="button"
+                        onClick={() => undoDelivery(customer.id)}
+                        title="Tamamlandı durumunu geri al"
+                        className="flex size-7 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink"
+                      >
+                        <RotateCcw className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : hasOrder ? (
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ok)]/10 px-2 py-0.5 text-[11.5px] font-semibold text-[var(--ok)]">
+                          <CheckCircle2 className="size-3" />
+                          Sipariş Verildi
+                        </span>
+                        <p className="mt-0.5 text-[13.5px] font-semibold tabular-nums text-ink">
+                          {formatQty(totalUnits)} <span className="text-[11px] font-normal text-ink-3">adet</span>
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => completeDelivery(customer.id)}
+                        className="flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold text-[13px] px-3.5 py-2 shadow-[0_2px_8px_rgba(16,185,129,0.3)] transition-all duration-200 active:scale-95 shrink-0"
+                      >
+                        <Check className="size-4 stroke-[2.5]" />
+                        <span>Tamamladım</span>
+                      </button>
                     </div>
                   ) : (
-                    <div className="text-right">
+                    <div className="flex items-center gap-2">
                       <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bad)]/10 px-2.5 py-0.5 text-[12px] font-semibold text-[var(--bad)]">
                         <XCircle className="size-3.5" />
                         Sipariş Vermedi
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => completeDelivery(customer.id)}
+                        title="Pas geçildi olarak tamamla"
+                        className="rounded-[8px] bg-surface-2 px-2.5 py-1 text-[11.5px] font-medium text-ink-2 hover:bg-surface-3 hover:text-ink transition-colors"
+                      >
+                        Pas Geç
+                      </button>
                     </div>
                   )}
 
                   {hasOrder && (
-                    <ChevronDown
-                      className={cn(
-                        "size-4 text-ink-3 transition-transform duration-200",
-                        isOpen && "rotate-180",
-                      )}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleOpen(customer.id)}
+                      className="p-1 text-ink-3 hover:text-ink transition-colors"
+                    >
+                      <ChevronDown
+                        className={cn(
+                          "size-4 transition-transform duration-200",
+                          isOpen && "rotate-180",
+                        )}
+                      />
+                    </button>
                   )}
                 </div>
-              </button>
+              </div>
 
               {/* Ürün Listesi Açılır Detay */}
               {hasOrder && isOpen && order && (
@@ -171,9 +387,14 @@ export default function DriverRoutePage() {
           );
         })}
 
-        {assignedCustomers.length === 0 && (
-          <div className="rounded-[16px] bg-surface p-8 text-center text-ink-3 ring-1 ring-hairline">
-            Bu şoför için henüz atanmış bayi bulunmuyor.
+        {filteredCustomers.length === 0 && (
+          <div className="rounded-[16px] bg-surface p-8 text-center text-ink-3 ring-1 ring-hairline space-y-1">
+            <p className="font-medium text-[15px] text-ink">Sonuç Bulunamadı</p>
+            <p className="text-[13px]">
+              {searchQuery
+                ? `"${searchQuery}" aramanıza uygun durak bulunamadı.`
+                : "Seçili filtre kategorisinde durak bulunmuyor."}
+            </p>
           </div>
         )}
       </div>

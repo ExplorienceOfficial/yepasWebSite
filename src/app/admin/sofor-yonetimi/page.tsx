@@ -162,9 +162,9 @@ export default function DriverManagementPage() {
                 key={driver.id}
                 onClick={() => setSelectedDriverId(isSelected ? null : driver.id)}
                 className={cn(
-                  "cursor-pointer overflow-hidden rounded-[16px] bg-surface ring-1 transition-all duration-150 p-4 hover:shadow-sm",
+                  "cursor-pointer overflow-hidden rounded-[16px] bg-surface ring-1 transition-all duration-300 ease-in-out p-4 hover:shadow-sm active:scale-[0.99]",
                   isSelected
-                    ? "ring-2 ring-accent bg-accent/5"
+                    ? "ring-2 ring-orange-500 bg-amber-500/10 dark:bg-amber-950/20 shadow-[0_4px_16px_rgba(249,115,22,0.15)]"
                     : "ring-hairline hover:border-ink-3",
                 )}
               >

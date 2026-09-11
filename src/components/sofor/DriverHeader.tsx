@@ -18,13 +18,18 @@ export function DriverHeader() {
   };
 
   return (
-    <header className="glass sticky top-0 z-30 border-b border-hairline">
+    <header className="glass sticky top-0 z-30 border-b border-amber-500/20 bg-surface/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-3xl items-center gap-3 px-4">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-ink text-[15px] font-bold text-[var(--canvas)]">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-gradient-to-br from-amber-500 to-orange-500 text-[15px] font-bold text-white shadow-[0_2px_8px_rgba(249,115,22,0.3)]">
           Y
         </span>
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-[15px] font-semibold tracking-tight text-ink">{session.name}</p>
+          <div className="flex items-center gap-2">
+            <p className="truncate text-[15px] font-semibold tracking-tight text-ink">{session.name}</p>
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-600 dark:text-orange-400 ring-1 ring-orange-500/30">
+              Şoför
+            </span>
+          </div>
           <p className="truncate text-[12px] tabular-nums text-ink-3">
             {session.code} · {session.plate}
           </p>

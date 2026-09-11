@@ -5,9 +5,9 @@ import '../models/models.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../widgets/branch_switcher.dart';
 import '../widgets/status_badge.dart';
 import 'delivery_screen.dart';
-import 'login_screen.dart';
 import 'order_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -17,7 +17,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final customer = app.currentCustomer;
-    if (customer == null) return const LoginScreen();
+    if (customer == null) return const SizedBox.shrink();
 
     final order = app.orderFor(customer.id);
     final driver = app.driverById(customer.driverId);
@@ -32,23 +32,28 @@ class HomeScreen extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
-            Text('${customer.code} · ${customer.district}',
-                style: const TextStyle(fontSize: 12.5, color: YpColors.ink2, fontWeight: FontWeight.w400)),
+            Text(
+              app.hasMultipleBranches
+                  ? '${customer.branchNo}. Şube · ${customer.district}'
+                  : '${customer.code} · ${customer.district}',
+              style: const TextStyle(fontSize: 12.5, color: YpColors.ink2, fontWeight: FontWeight.w400),
+            ),
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Çıkış',
-            icon: const Icon(Icons.logout_rounded, size: 21),
-            onPressed: () {
-              app.logout();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (r) => false,
-              );
-            },
-          ),
-          const SizedBox(width: 6),
+          if (app.hasMultipleBranches)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ActionChip(
+                avatar: const Icon(Icons.swap_horiz_rounded, size: 18, color: YpColors.accent),
+                label: const Text('Şube'),
+                labelStyle: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600, color: YpColors.accent),
+                backgroundColor: YpColors.accentSoft,
+                side: BorderSide.none,
+                onPressed: () => showBranchSwitcher(context),
+              ),
+            ),
         ],
       ),
       body: ListView(

@@ -52,39 +52,85 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12">
+    <div
+      className={cn(
+        "flex min-h-screen flex-col items-center justify-center px-4 py-12 transition-colors duration-500 ease-in-out",
+        mode === "driver" ? "bg-amber-50/40 dark:bg-amber-950/20" : "bg-canvas",
+      )}
+    >
       <div className="w-full max-w-[380px]">
         {/* Marka */}
         <div className="mb-7 flex flex-col items-center text-center">
-          <span className="flex size-12 items-center justify-center rounded-[13px] bg-ink text-lg font-bold text-[var(--canvas)]">
+          <span
+            className={cn(
+              "flex size-12 items-center justify-center rounded-[13px] text-lg font-bold transition-all duration-500 ease-in-out",
+              mode === "driver"
+                ? "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-[0_4px_20px_rgba(249,115,22,0.35)] scale-105"
+                : "bg-ink text-[var(--canvas)]",
+            )}
+          >
             Y
           </span>
-          <h1 className="mt-3 text-[22px] font-semibold tracking-tight text-ink">Yepaş Yönetim Konsolu</h1>
-          <p className="mt-1 text-[14px] text-ink-2">Devam etmek için giriş yapın</p>
+          <h1 className="mt-3 text-[22px] font-semibold tracking-tight text-ink transition-colors duration-300">
+            Yepaş Yönetim Konsolu
+          </h1>
+          <p className="mt-1 text-[14px] text-ink-2 transition-colors duration-300">
+            {mode === "driver" ? "Şoför Girişi — Saha Teslimat Paneli" : "Devam etmek için giriş yapın"}
+          </p>
         </div>
 
-        <div className="rounded-[18px] bg-surface p-6 ring-1 ring-hairline shadow-[var(--shadow-md)]">
+        <div
+          className={cn(
+            "rounded-[18px] bg-surface p-6 ring-1 shadow-[var(--shadow-md)] transition-all duration-500 ease-in-out",
+            mode === "driver"
+              ? "ring-orange-500/35 bg-gradient-to-b from-amber-500/10 via-surface to-surface dark:from-amber-950/30 shadow-[0_10px_35px_rgba(249,115,22,0.15)]"
+              : "ring-hairline",
+          )}
+        >
           {/* Rol seçimi */}
-          <div className="grid grid-cols-2 gap-1 rounded-[12px] bg-surface-2 p-1">
+          <div
+            className={cn(
+              "grid grid-cols-2 gap-1 rounded-[12px] p-1 transition-all duration-500 ease-in-out",
+              mode === "driver"
+                ? "bg-amber-500/15 ring-1 ring-orange-500/30"
+                : "bg-surface-2",
+            )}
+          >
             {(
               [
                 { key: "admin", label: "Yönetici", icon: ShieldCheck },
                 { key: "driver", label: "Şoför", icon: Truck },
               ] as const
-            ).map((m) => (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() => switchMode(m.key)}
-                className={cn(
-                  "flex items-center justify-center gap-2 rounded-[9px] py-2 text-[14px] font-medium transition-all duration-150",
-                  mode === m.key ? "bg-surface text-ink shadow-[var(--shadow-sm)]" : "text-ink-2 hover:text-ink",
-                )}
-              >
-                <m.icon className="size-4" strokeWidth={1.8} />
-                {m.label}
-              </button>
-            ))}
+            ).map((m) => {
+              const isSelected = mode === m.key;
+              const isDriver = m.key === "driver";
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => switchMode(m.key)}
+                  className={cn(
+                    "flex items-center justify-center gap-2 rounded-[9px] py-2 text-[14px] font-medium transition-all duration-300 ease-in-out active:scale-95",
+                    isSelected
+                      ? isDriver
+                        ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-[0_3px_12px_rgba(249,115,22,0.4)] font-semibold scale-[1.02]"
+                        : "bg-surface text-ink shadow-[var(--shadow-sm)]"
+                      : isDriver && mode === "driver"
+                      ? "text-orange-700 dark:text-orange-300 hover:text-orange-900"
+                      : "text-ink-2 hover:text-ink",
+                  )}
+                >
+                  <m.icon
+                    className={cn(
+                      "size-4 transition-transform duration-300",
+                      isSelected && isDriver && "scale-110",
+                    )}
+                    strokeWidth={1.8}
+                  />
+                  {m.label}
+                </button>
+              );
+            })}
           </div>
 
           <form onSubmit={handleSubmit} className="mt-5 space-y-4">
@@ -125,7 +171,12 @@ export default function LoginPage() {
             ) : (
               <>
                 <Field label="Şoför">
-                  <Select value={code} onChange={(e) => setCode(e.target.value)} required>
+                  <Select
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    required
+                    className="focus:ring-orange-500/50 focus:border-orange-500"
+                  >
                     <option value="">Şoför seçin</option>
                     {drivers.map((driver) => (
                       <option key={driver.id} value={driver.code}>
@@ -143,7 +194,7 @@ export default function LoginPage() {
                     value={pin}
                     onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
                     placeholder="••••"
-                    className="text-center text-xl tracking-[0.6em]"
+                    className="text-center text-xl tracking-[0.6em] focus:ring-orange-500/50 focus:border-orange-500"
                     required
                   />
                 </Field>
@@ -157,7 +208,17 @@ export default function LoginPage() {
               </p>
             )}
 
-            <Button type="submit" variant="primary" size="lg" disabled={busy} className="w-full">
+            <Button
+              type="submit"
+              variant={mode === "driver" ? "primary" : "primary"}
+              size="lg"
+              disabled={busy}
+              className={cn(
+                "w-full transition-all duration-300",
+                mode === "driver" &&
+                  "bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-[0_4px_16px_rgba(249,115,22,0.35)] border-none",
+              )}
+            >
               {busy ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
@@ -172,8 +233,20 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-5 rounded-[12px] bg-surface-2 px-4 py-3">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-ink-3">Demo Erişimi</p>
+          <div
+            className={cn(
+              "mt-5 rounded-[12px] px-4 py-3 transition-colors duration-500",
+              mode === "driver" ? "bg-amber-500/10 ring-1 ring-orange-500/20" : "bg-surface-2",
+            )}
+          >
+            <p
+              className={cn(
+                "text-[11px] font-medium uppercase tracking-wider transition-colors duration-300",
+                mode === "driver" ? "text-orange-700 dark:text-orange-300" : "text-ink-3",
+              )}
+            >
+              Demo Erişimi
+            </p>
             <div className="mt-2 space-y-1 text-[13px] leading-5 text-ink-2">
               {mode === "admin" ? (
                 <>
@@ -183,7 +256,7 @@ export default function LoginPage() {
               ) : (
                 drivers.slice(0, 3).map((d) => (
                   <p key={d.id}>
-                    {d.code} / {d.pin} — {d.name}
+                    <span className="font-semibold text-orange-600 dark:text-orange-400">{d.code}</span> / {d.pin} — {d.name}
                   </p>
                 ))
               )}

@@ -82,6 +82,10 @@ interface OperationsContextValue {
   /** Otomatik kapanış saati (HH:mm) */
   cutoffTime: string;
 
+  completedDeliveries: string[];
+  completeDelivery: (customerId: string) => void;
+  undoDelivery: (customerId: string) => void;
+
   // ---- aksiyonlar ----
   toggleOrderSystem: () => void;
   syncToErp: () => void;
@@ -161,6 +165,35 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     const entry: ActivityItem = { id: nextId(), at: clockStamp(), text, tone };
     setActivity((current) => [entry, ...current].slice(0, 12));
   }, []);
+
+  const [completedDeliveries, setCompletedDeliveries] = useState<string[]>([]);
+
+  const completeDelivery = useCallback(
+    (customerId: string) => {
+      setCompletedDeliveries((prev) => (prev.includes(customerId) ? prev : [...prev, customerId]));
+      const custName = customers.find((c) => c.id === customerId)?.name ?? "Bayi";
+      pushToast({
+        tone: "success",
+        title: "Teslimat Tamamlandı",
+        description: `${custName} siparişi teslim edildi olarak işaretlendi.`,
+      });
+      logActivity(`${custName} teslimatı şoför tarafından tamamlandı`, "success");
+    },
+    [customers, logActivity, pushToast],
+  );
+
+  const undoDelivery = useCallback(
+    (customerId: string) => {
+      setCompletedDeliveries((prev) => prev.filter((id) => id !== customerId));
+      const custName = customers.find((c) => c.id === customerId)?.name ?? "Bayi";
+      pushToast({
+        tone: "info",
+        title: "Teslimat Durumu Güncellendi",
+        description: `${custName} tamamlandı durumu geri alındı.`,
+      });
+    },
+    [customers, pushToast],
+  );
 
   // -------------------------------------------------------------- seçiciler
 
@@ -507,6 +540,9 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     maxQtyLimit,
     autoCloseEnabled,
     cutoffTime,
+    completedDeliveries,
+    completeDelivery,
+    undoDelivery,
     toggleOrderSystem,
     syncToErp,
     setLineQty,
