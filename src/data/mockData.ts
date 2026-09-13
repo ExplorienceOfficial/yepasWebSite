@@ -55,11 +55,11 @@ export const products: Product[] = [
 ];
 
 export const drivers: Driver[] = [
-  { id: "d1", code: "SFR-01", name: "Hakan Demir", phone: "0532 411 08 22", plate: "06 YPS 401", region: "Kızılay · Ulus", pin: "1401" },
-  { id: "d2", code: "SFR-02", name: "Mustafa Yılmaz", phone: "0533 260 77 14", plate: "06 YPS 118", region: "Bahçelievler · Balgat", pin: "1118" },
-  { id: "d3", code: "SFR-03", name: "Erkan Şahin", phone: "0542 815 33 90", plate: "06 YPS 232", region: "Keçiören · Etlik", pin: "1232" },
-  { id: "d4", code: "SFR-04", name: "Serkan Aydın", phone: "0505 774 12 63", plate: "06 YPS 305", region: "Sincan · Etimesgut", pin: "1305" },
-  { id: "d5", code: "SFR-05", name: "Bülent Koç", phone: "0536 903 45 71", plate: "06 YPS 417", region: "Mamak · Natoyolu", pin: "1417" },
+  { id: "d1", code: "SFR-01", name: "Hakan Demir", phone: "0532 411 08 22", plate: "06 YPS 401", region: "Kızılay · Ulus" },
+  { id: "d2", code: "SFR-02", name: "Mustafa Yılmaz", phone: "0533 260 77 14", plate: "06 YPS 118", region: "Bahçelievler · Balgat" },
+  { id: "d3", code: "SFR-03", name: "Erkan Şahin", phone: "0542 815 33 90", plate: "06 YPS 232", region: "Keçiören · Etlik" },
+  { id: "d4", code: "SFR-04", name: "Serkan Aydın", phone: "0505 774 12 63", plate: "06 YPS 305", region: "Sincan · Etimesgut" },
+  { id: "d5", code: "SFR-05", name: "Bülent Koç", phone: "0536 903 45 71", plate: "06 YPS 417", region: "Mamak · Natoyolu" },
 ];
 
 export const customers: Customer[] = [

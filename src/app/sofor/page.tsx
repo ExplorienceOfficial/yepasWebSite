@@ -300,7 +300,11 @@ export default function DriverRoutePage() {
           );
         })}
 
-        {filteredCustomers.length === 0 && (
+        {assignedCustomers.length === 0 ? (
+          <div className="rounded-[16px] bg-surface p-8 text-center text-ink-3 ring-1 ring-hairline">
+            Şoförün gerçek müşteri ve sipariş listesi henüz API’ye bağlanmadı.
+          </div>
+        ) : filteredCustomers.length === 0 ? (
           <div className="rounded-[16px] bg-surface p-8 text-center text-ink-3 ring-1 ring-hairline space-y-1">
             <p className="font-medium text-[15px] text-ink">Sonuç Bulunamadı</p>
             <p className="text-[13px]">
@@ -309,7 +313,7 @@ export default function DriverRoutePage() {
                 : "Seçili filtre kategorisinde durak bulunmuyor."}
             </p>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

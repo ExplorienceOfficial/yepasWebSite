@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Check,
-  ChevronDown,
   Eye,
   EyeOff,
   Loader2,
@@ -17,8 +15,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Field, TextInput } from "@/components/ui/Field";
 import { useAuth } from "@/context/AuthContext";
-import { drivers } from "@/data/mockData";
-import { cn, initials } from "@/lib/format";
+import { cn } from "@/lib/format";
 
 type Mode = "admin" | "driver";
 
@@ -31,23 +28,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [code, setCode] = useState("");
-  const [pin, setPin] = useState("");
+  const [driverPassword, setDriverPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [driverSelectOpen, setDriverSelectOpen] = useState(false);
-  const driverDropdownRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (driverDropdownRef.current && !driverDropdownRef.current.contains(event.target as Node)) {
-        setDriverSelectOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
+    if (window.location.hostname === "127.0.0.1") {
+      window.location.replace(`http://localhost:3000${window.location.pathname}`);
+      return;
+    }
     if (session?.role === "admin") router.replace("/admin");
     else if (session?.role === "driver") router.replace("/sofor");
   }, [router, session]);
@@ -68,20 +56,20 @@ export default function LoginPage() {
     setError(null);
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
     setBusy(true);
 
-    window.setTimeout(() => {
-      const result = mode === "admin" ? loginAdmin(username, password) : loginDriver(code, pin);
-      if (result.ok) {
-        router.replace(mode === "admin" ? "/admin" : "/sofor");
-        return;
-      }
-      setError(result.message);
-      setBusy(false);
-    }, 400);
+    const result = mode === "admin"
+      ? await loginAdmin(username, password)
+      : await loginDriver(code, driverPassword);
+    if (result.ok) {
+      router.replace(mode === "admin" ? "/admin" : "/sofor");
+      return;
+    }
+    setError(result.message);
+    setBusy(false);
   };
 
   return (
@@ -210,106 +198,22 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                <Field label="Şoför">
-                  <div className="relative" ref={driverDropdownRef}>
-                    <button
-                      type="button"
-                      onClick={() => setDriverSelectOpen((v) => !v)}
-                      className={cn(
-                        "flex h-11 w-full items-center justify-between rounded-[12px] bg-surface px-3.5 text-sm ring-1 transition-all duration-200",
-                        driverSelectOpen
-                          ? "ring-2 ring-orange-500 border-transparent shadow-[0_4px_16px_rgba(249,115,22,0.2)]"
-                          : "ring-hairline hover:ring-orange-500/50",
-                      )}
-                    >
-                      {code ? (
-                        (() => {
-                          const selectedDriver = drivers.find((d) => d.code === code);
-                          return selectedDriver ? (
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-[11px] font-bold text-orange-600 dark:text-orange-400 ring-1 ring-orange-500/30">
-                                {initials(selectedDriver.name)}
-                              </span>
-                              <span className="truncate font-semibold text-ink">
-                                {selectedDriver.code} · {selectedDriver.name}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-ink-3">Şoför seçin</span>
-                          );
-                        })()
-                      ) : (
-                        <span className="text-ink-3">Şoför seçin</span>
-                      )}
-                      <ChevronDown
-                        className={cn(
-                          "size-4 text-ink-3 transition-transform duration-300",
-                          driverSelectOpen && "rotate-180",
-                        )}
-                      />
-                    </button>
-
-                    {/* Custom Animated Floating Dropdown List */}
-                    {driverSelectOpen && (
-                      <div className="absolute left-0 top-full z-50 mt-1.5 w-full overflow-hidden rounded-[16px] bg-surface/95 backdrop-blur-xl p-1.5 ring-1 ring-orange-500/30 shadow-[0_14px_45px_rgba(0,0,0,0.18)] yp-scale-in">
-                        <div className="max-h-60 space-y-1 overflow-y-auto pr-0.5">
-                          {drivers.map((driver) => {
-                            const isSelected = code === driver.code;
-                            return (
-                              <button
-                                key={driver.id}
-                                type="button"
-                                onClick={() => {
-                                  setCode(driver.code);
-                                  setDriverSelectOpen(false);
-                                }}
-                                className={cn(
-                                  "flex w-full items-center justify-between rounded-[10px] px-3 py-2.5 text-left text-[13.5px] transition-all duration-150 active:scale-[0.98]",
-                                  isSelected
-                                    ? "bg-amber-500/15 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/30"
-                                    : "text-ink hover:bg-surface-2",
-                                )}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <span
-                                    className={cn(
-                                      "flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all",
-                                      isSelected
-                                        ? "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm"
-                                        : "bg-surface-2 text-ink-2",
-                                    )}
-                                  >
-                                    {initials(driver.name)}
-                                  </span>
-                                  <div className="min-w-0">
-                                    <p className="truncate font-semibold leading-tight">{driver.name}</p>
-                                    <p className="truncate text-[11px] text-ink-3">
-                                      {driver.code} · {driver.plate}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {isSelected && (
-                                  <Check className="size-4 shrink-0 text-orange-500" strokeWidth={2.5} />
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                <Field label="Personel Kodu">
+                  <TextInput
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    autoComplete="username"
+                    placeholder="Personel kodunuz"
+                    required
+                  />
                 </Field>
-                <Field label="PIN" hint="Araç plakanızın son 4 hanesi.">
+                <Field label="Parola">
                   <TextInput
                     type="password"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={4}
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-                    placeholder="••••"
-                    className="text-center text-xl tracking-[0.6em] focus:ring-orange-500/50 focus:border-orange-500"
+                    value={driverPassword}
+                    onChange={(e) => setDriverPassword(e.target.value)}
+                    autoComplete="current-password"
+                    placeholder="Parolanız"
                     required
                   />
                 </Field>
@@ -348,47 +252,10 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div
-            className={cn(
-              "mt-5 rounded-[12px] px-4 py-3 transition-colors duration-500",
-              mode === "driver" ? "bg-amber-500/10 ring-1 ring-orange-500/20" : "bg-surface-2",
-            )}
-          >
-            <p
-              className={cn(
-                "text-[11px] font-medium uppercase tracking-wider transition-colors duration-300",
-                mode === "driver" ? "text-orange-700 dark:text-orange-300" : "text-ink-3",
-              )}
-            >
-              Demo Erişimi
-            </p>
-            <div className="mt-2 space-y-1 text-[13px] leading-5 text-ink-2">
-              {mode === "admin" ? (
-                <>
-                  <p>admin / yepas2026</p>
-                  <p>planlama / yepas2026</p>
-                </>
-              ) : (
-                drivers.slice(0, 3).map((d) => (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => {
-                      setCode(d.code);
-                      setPin(d.pin);
-                    }}
-                    className="block w-full text-left transition-colors hover:text-ink"
-                  >
-                    <span className="font-semibold text-orange-600 dark:text-orange-400">{d.code}</span> / {d.pin} — {d.name}
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
         </div>
 
         <p className="mt-6 text-center text-[12px] text-ink-3">
-          Demo sürümü — veriler örnek operasyon verisidir.
+          Girişler sunucuda doğrulanır. Diğer operasyon ekranlarındaki örnek veriler henüz entegrasyona bağlanmadı.
         </p>
       </div>
     </div>

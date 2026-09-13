@@ -27,8 +27,6 @@ export interface Driver {
   phone: string;
   plate: string;
   region: string;
-  /** Şoför portalına giriş için 4 haneli PIN (demo amaçlı) */
-  pin: string;
 }
 
 export interface Customer {

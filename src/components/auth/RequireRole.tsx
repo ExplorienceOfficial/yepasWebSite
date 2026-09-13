@@ -7,8 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useAuth, type Session } from "@/context/AuthContext";
 
 /**
- * İstemci tarafı demo koruması. Gerçek bir kurulumda bu kontrol sunucuda
- * (middleware veya session cookie) yapılmalıdır.
+ * Yalnızca arayüz yönlendirmesi; gerçek yetki kontrolü API'dedir.
  */
 export function RequireRole({
   role,
@@ -19,13 +18,15 @@ export function RequireRole({
   loginPath: string;
   children: React.ReactNode;
 }) {
-  const { session, hydrated } = useAuth();
+  const { session, hydrated, unavailable } = useAuth();
   const router = useRouter();
   const allowed = session?.role === role;
 
   useEffect(() => {
-    if (hydrated && !allowed) router.replace(loginPath);
-  }, [allowed, hydrated, loginPath, router]);
+    if (hydrated && !allowed && !unavailable) router.replace(loginPath);
+  }, [allowed, hydrated, unavailable, loginPath, router]);
+
+  if (unavailable) return <div className="p-8 text-center">Oturum hizmetine erişilemiyor. Lütfen daha sonra tekrar deneyin.</div>;
 
   if (!allowed) return <AuthPending />;
   return <>{children}</>;

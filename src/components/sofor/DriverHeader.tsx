@@ -12,9 +12,8 @@ export function DriverHeader() {
 
   if (session?.role !== "driver") return null;
 
-  const handleLogout = () => {
-    logout();
-    router.replace("/");
+  const handleLogout = async () => {
+    if (await logout()) router.replace("/");
   };
 
   return (

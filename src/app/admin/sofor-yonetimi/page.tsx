@@ -2,14 +2,10 @@
 
 import { useMemo, useState } from "react";
 import {
-  CheckCircle2,
-  ChevronRight,
   MapPin,
   Pencil,
-  Phone,
   Plus,
   Search,
-  Shield,
   Truck,
   UserCheck,
   Users,
@@ -24,7 +20,7 @@ import { cn, initials } from "@/lib/format";
 import type { Driver } from "@/types";
 
 export default function DriverManagementPage() {
-  const { drivers, customers, assignCustomerToDriver, saveDriver } = useOperations();
+  const { drivers, customers, saveDriver } = useOperations();
 
   const [search, setSearch] = useState("");
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
@@ -67,7 +63,6 @@ export default function DriverManagementPage() {
       phone: phone.trim() || "0500 000 00 00",
       plate: plate.trim() || "06 YPS 000",
       region: region.trim() || "Ankara",
-      pin: editingDriver ? editingDriver.pin : "1234",
     };
     saveDriver(driverObj);
     setModalOpen(false);
@@ -214,7 +209,7 @@ export default function DriverManagementPage() {
       {/* Müşteri - Şoför Tanımlama & Atama Tablosu */}
       <Panel
         title="Şoför - Bayi Tanımlama Listesi"
-        description="Her bayinin dağıtım yapacak ilgili şoförünü buradan değiştirebilir ve tanımlayabilirsiniz."
+        description="Şoför-müşteri atamaları eski programda yönetilir. Bu liste henüz örnek veridir; buradan atama değiştirilemez."
         action={
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
@@ -266,18 +261,9 @@ export default function DriverManagementPage() {
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <select
-                        value={customer.driverId}
-                        onChange={(e) => assignCustomerToDriver(customer.id, e.target.value)}
-                        aria-label={`${customer.name} için şoför atama`}
-                        className="rounded-[10px] border border-hairline bg-surface-2 px-3 py-1.5 text-[13px] font-medium text-ink outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-[var(--ring)] cursor-pointer"
-                      >
-                        {drivers.map((drv) => (
-                          <option key={drv.id} value={drv.id}>
-                            {drv.name} ({drv.plate})
-                          </option>
-                        ))}
-                      </select>
+                      <span className="font-medium text-ink-2">
+                        {assignedDriver ? `${assignedDriver.name} (${assignedDriver.plate})` : "Atama yok"}
+                      </span>
                     </td>
                   </tr>
                 );
