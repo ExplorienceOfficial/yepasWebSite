@@ -14,10 +14,8 @@ namespace Yepas.Api
             var origin = request.Headers.Contains("Origin")
                 ? String.Join("", request.Headers.GetValues("Origin")) : null;
             var allowed = false;
-#if DEBUG
-            allowed = request.RequestUri.IsLoopback &&
+            allowed = RuntimeSettings.DevelopmentMode && request.RequestUri.IsLoopback &&
                 (origin == "http://127.0.0.1:3000" || origin == "http://localhost:3000");
-#endif
             HttpResponseMessage response;
             if (request.Method == HttpMethod.Options)
                 response = new HttpResponseMessage(allowed ? HttpStatusCode.NoContent : HttpStatusCode.Forbidden);

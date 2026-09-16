@@ -12,3 +12,4 @@ next-env.d.ts
 server/packages/
 server/**/bin/
 server/**/obj/
+artifacts/

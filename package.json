@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "package:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File ./deploy/New-SmokePackage.ps1",
     "start": "next start",
     "lint": "eslint ."
   },

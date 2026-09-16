@@ -17,12 +17,7 @@ ORDER BY U.U_STOK_ADI, A.A_STOK_ADI, U.U_STOK_ID, A.ID";
 
         public IList<CatalogProduct> Read()
         {
-            // Development-only local connection. No passwords are checked into source control.
-            var connectionString = Environment.GetEnvironmentVariable("YEPAS_CATALOG_CONNECTION");
-            if (String.IsNullOrWhiteSpace(connectionString))
-            {
-                connectionString = @"Data Source=.\YEPASDEV;Initial Catalog=PrestoPlus_Local;Integrated Security=SSPI;Connect Timeout=15;Encrypt=False";
-            }
+            var connectionString = DatabaseConnections.Catalog();
 
             var products = new List<CatalogProduct>();
             using (var connection = new SqlConnection(connectionString))

@@ -23,12 +23,8 @@ namespace Yepas.Api.Controllers
             if (String.IsNullOrWhiteSpace(origin)) return false;
             var ownOrigin = request.Url.GetLeftPart(UriPartial.Authority);
             if (String.Equals(origin, ownOrigin, StringComparison.OrdinalIgnoreCase)) return true;
-#if DEBUG
-            return request.IsLocal &&
+            return RuntimeSettings.DevelopmentMode && request.IsLocal &&
                 (origin == "http://127.0.0.1:3000" || origin == "http://localhost:3000");
-#else
-            return false;
-#endif
         }
 
         private static void SetSessionCookie(string value, bool delete)
@@ -37,11 +33,9 @@ namespace Yepas.Api.Controllers
                 HttpOnly = true,
                 SameSite = SameSiteMode.Strict,
                 Path = "/",
-#if DEBUG
-                Secure = HttpContext.Current.Request.IsSecureConnection
-#else
-                Secure = true
-#endif
+                Secure = RuntimeSettings.DevelopmentMode
+                    ? HttpContext.Current.Request.IsSecureConnection
+                    : true
             };
             if (delete) cookie.Expires = DateTime.UtcNow.AddDays(-1);
             HttpContext.Current.Response.Cookies.Add(cookie);
@@ -63,10 +57,8 @@ namespace Yepas.Api.Controllers
                 String.IsNullOrEmpty(input.Password) || String.IsNullOrWhiteSpace(input.Role))
                 return Request.CreateResponse(HttpStatusCode.BadRequest);
 
-#if !DEBUG
-            if (!HttpContext.Current.Request.IsSecureConnection)
+            if (!RuntimeSettings.DevelopmentMode && !HttpContext.Current.Request.IsSecureConnection)
                 return Request.CreateResponse(HttpStatusCode.Forbidden);
-#endif
             try
             {
                 string token;

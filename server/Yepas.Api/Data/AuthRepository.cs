@@ -21,26 +21,12 @@ namespace Yepas.Api.Data
 
         private static string AppConnectionString()
         {
-            var value = Environment.GetEnvironmentVariable("YEPAS_APP_CONNECTION");
-#if DEBUG
-            if (String.IsNullOrWhiteSpace(value))
-                value = @"Data Source=.\YEPASDEV;Initial Catalog=EkmekSiparis;Integrated Security=SSPI;Connect Timeout=15;Encrypt=False";
-#endif
-            if (String.IsNullOrWhiteSpace(value))
-                throw new InvalidOperationException("Application database is not configured.");
-            return value;
+            return DatabaseConnections.Application();
         }
 
         private static string LegacyConnectionString()
         {
-            var value = Environment.GetEnvironmentVariable("YEPAS_CATALOG_CONNECTION");
-#if DEBUG
-            if (String.IsNullOrWhiteSpace(value))
-                value = @"Data Source=.\YEPASDEV;Initial Catalog=PrestoPlus_Local;Integrated Security=SSPI;Connect Timeout=15;Encrypt=False";
-#endif
-            if (String.IsNullOrWhiteSpace(value))
-                throw new InvalidOperationException("Legacy database is not configured.");
-            return value;
+            return DatabaseConnections.Catalog();
         }
 
         private static byte[] Sha256(byte[] bytes)

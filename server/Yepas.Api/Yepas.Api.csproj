@@ -25,6 +25,7 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Web" />
@@ -47,11 +48,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Global.asax.cs" />
+    <Compile Include="RuntimeSettings.cs" />
     <Compile Include="Controllers\ProductsController.cs" />
     <Compile Include="Controllers\AuthController.cs" />
     <Compile Include="Controllers\DriverAccessController.cs" />
     <Compile Include="Data\ProductCatalogReader.cs" />
     <Compile Include="Data\AuthRepository.cs" />
+    <Compile Include="Data\DatabaseConnections.cs" />
     <Compile Include="Models\CatalogProduct.cs" />
     <Compile Include="LocalCorsHandler.cs" />
   </ItemGroup>

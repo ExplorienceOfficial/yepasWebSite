@@ -1,7 +1,9 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateLength(3, 100)]
-    [string]$LoginName
+    [string]$LoginName,
+
+    [switch]$PromptConnectionString
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,6 +11,7 @@ $first = Read-Host 'Yeni admin parolası (en az 12 karakter)' -AsSecureString
 $second = Read-Host 'Parolayı tekrar girin' -AsSecureString
 $firstPtr = [IntPtr]::Zero
 $secondPtr = [IntPtr]::Zero
+$connectionPtr = [IntPtr]::Zero
 
 try {
     $firstPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($first)
@@ -21,12 +24,24 @@ try {
     $salt = New-Object byte[] 32
     $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
     try { $rng.GetBytes($salt) } finally { $rng.Dispose() }
-    $derive = [Security.Cryptography.Rfc2898DeriveBytes]::new(
-        $password, $salt, 150000, [Security.Cryptography.HashAlgorithmName]::SHA256)
+    $deriveType = [Security.Cryptography.Rfc2898DeriveBytes]
+    $hashAlgorithmType = [Security.Cryptography.HashAlgorithmName]
+    $constructor = $deriveType.GetConstructor([Type[]]@(
+        [String], [Byte[]], [Int32], $hashAlgorithmType))
+    if ($constructor -eq $null) { throw '.NET Framework 4.8 PBKDF2-SHA256 desteği bulunamadı.' }
+    $derive = $constructor.Invoke([Object[]]@(
+        $password, $salt, 150000, [Security.Cryptography.HashAlgorithmName]::SHA256))
     try { $hash = $derive.GetBytes(32) } finally { $derive.Dispose() }
 
-    $connection = New-Object System.Data.SqlClient.SqlConnection(
-        'Server=.\YEPASDEV;Database=EkmekSiparis;Integrated Security=SSPI;Encrypt=False;Application Name=YepasLocalAdminSetup')
+    $connectionString = 'Server=.\YEPASDEV;Database=EkmekSiparis;Integrated Security=SSPI;Encrypt=False;Application Name=YepasLocalAdminSetup'
+    if ($PromptConnectionString) {
+        $connectionSecret = Read-Host 'EkmekSiparis bağlantı dizesi' -AsSecureString
+        $connectionPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($connectionSecret)
+        $connectionString = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($connectionPtr)
+        if ([String]::IsNullOrWhiteSpace($connectionString)) { throw 'Bağlantı dizesi boş olamaz.' }
+    }
+
+    $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
     try {
         $connection.Open()
         $transaction = $connection.BeginTransaction()
@@ -53,7 +68,7 @@ INSERT INTO dbo.UserRoles (UserId, RoleCode) VALUES (@id, N'ADMIN');
             $command.Parameters['@salt'].Value = $salt
             [void]$command.ExecuteNonQuery()
             $transaction.Commit()
-            Write-Host 'Yerel admin hesabı oluşturuldu. Parola yalnızca özetiyle saklandı.'
+            Write-Host 'Admin hesabı oluşturuldu. Parola yalnızca özetiyle saklandı.'
         }
         catch {
             $transaction.Rollback()
@@ -65,4 +80,6 @@ INSERT INTO dbo.UserRoles (UserId, RoleCode) VALUES (@id, N'ADMIN');
 finally {
     if ($firstPtr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($firstPtr) }
     if ($secondPtr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($secondPtr) }
+    if ($connectionPtr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($connectionPtr) }
+    $connectionString = $null
 }
