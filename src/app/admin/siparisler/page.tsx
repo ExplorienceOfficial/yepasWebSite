@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2, PackageOpen, RefreshCw, Search, Truck } from "lucide-react";
+import { Building2, PackageOpen, Pencil, Plus, RefreshCw, Search, Truck } from "lucide-react";
 
 import { PageHeading, Panel } from "@/components/admin/Panel";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { TextInput } from "@/components/ui/Field";
+import { Field, NumberInput, Select, TextInput } from "@/components/ui/Field";
+import { Modal } from "@/components/ui/Modal";
 import { invalidateSession } from "@/context/AuthContext";
 import { localApiUrl } from "@/lib/api";
 import { cn, formatQty } from "@/lib/format";
@@ -56,6 +57,22 @@ interface AdminOrderBoard {
   rows: AdminOrderRow[];
 }
 
+interface AssignedProduct {
+  uStokId: number;
+  aStokId: number;
+  code: string;
+  name: string;
+  variantName: string | null;
+  maxQuantity: number;
+}
+
+interface AdminOrderContext {
+  legacyMbId: number;
+  deliveryDate: string;
+  products: AssignedProduct[];
+  order: OrderView | null;
+}
+
 const scopes: { key: BoardScope; label: string; sub: string }[] = [
   { key: "delivery", label: "Bugün Dağıtılacak", sub: "Teslim tarihi bugün olanlar" },
   { key: "submitted", label: "Bugün Verilen", sub: "Bugün oluşturulan siparişler" },
@@ -99,6 +116,10 @@ function apiUrl(scope: BoardScope): string {
   return localApiUrl(`/api/v1/admin/orders?scope=${scope}`);
 }
 
+function productKey(uStokId: number, aStokId: number): string {
+  return `${uStokId}:${aStokId}`;
+}
+
 export default function OrdersPage() {
   const [scope, setScope] = useState<BoardScope>("submitted");
   const [board, setBoard] = useState<AdminOrderBoard | null>(null);
@@ -106,6 +127,14 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [editRow, setEditRow] = useState<AdminOrderRow | null>(null);
+  const [editContext, setEditContext] = useState<AdminOrderContext | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formStatus, setFormStatus] = useState<Exclude<BoardStatus, "PENDING">>("SUBMITTED");
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [note, setNote] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -170,6 +199,93 @@ export default function OrdersPage() {
     setLoading(true);
     setScope(value);
   };
+
+  const openEditor = async (row: AdminOrderRow) => {
+    setEditRow(row);
+    setEditContext(null);
+    setEditLoading(true);
+    setEditError(null);
+    try {
+      const response = await fetch(localApiUrl(`/api/v1/admin/orders/${row.legacyMbId}/context`), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (response.status === 401) {
+        invalidateSession();
+        throw new Error("Yönetici oturumu sona erdi.");
+      }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { message?: string } | null;
+        throw new Error(body?.message || "Sipariş düzenleme bilgisi alınamadı.");
+      }
+      const context = (await response.json()) as AdminOrderContext;
+      const nextQuantities: Record<string, number> = {};
+      for (const line of context.order?.lines ?? [])
+        nextQuantities[productKey(line.uStokId, line.aStokId)] = line.quantity;
+      setEditContext(context);
+      setQuantities(nextQuantities);
+      setFormStatus(context.order?.status ?? "SUBMITTED");
+      setNote(context.order?.note ?? "");
+    } catch (cause) {
+      setEditError(cause instanceof Error ? cause.message : "Sipariş düzenleme bilgisi alınamadı.");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const saveOrder = async () => {
+    if (!editRow || !editContext) return;
+    const lines = formStatus === "SUBMITTED" ? editContext.products
+      .map((product) => ({
+        uStokId: product.uStokId,
+        aStokId: product.aStokId,
+        quantity: quantities[productKey(product.uStokId, product.aStokId)] ?? 0,
+      }))
+      .filter((line) => line.quantity > 0) : [];
+    if (formStatus === "SUBMITTED" && lines.length === 0) {
+      setEditError("Sipariş için en az bir ürün miktarı girin.");
+      return;
+    }
+    setSaving(true);
+    setEditError(null);
+    try {
+      const response = await fetch(localApiUrl(`/api/v1/admin/orders/${editRow.legacyMbId}`), {
+        method: "PUT",
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": `admin-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        },
+        body: JSON.stringify({
+          revision: editContext.order?.revision ?? 0,
+          status: formStatus,
+          note: note.trim() || null,
+          lines,
+        }),
+      });
+      if (response.status === 401) {
+        invalidateSession();
+        throw new Error("Yönetici oturumu sona erdi.");
+      }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { message?: string } | null;
+        throw new Error(body?.message || "Sipariş kaydedilemedi.");
+      }
+      setEditRow(null);
+      setEditContext(null);
+      refresh();
+    } catch (cause) {
+      setEditError(cause instanceof Error ? cause.message : "Sipariş kaydedilemedi.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const submittedLineCount = formStatus === "SUBMITTED" && editContext
+    ? editContext.products.filter((product) =>
+      (quantities[productKey(product.uStokId, product.aStokId)] ?? 0) > 0).length
+    : 0;
 
   return (
     <div className="yp-rise">
@@ -252,6 +368,7 @@ export default function OrdersPage() {
                         {row.order.note && <p className="rounded-xl bg-surface px-3 py-2 text-sm text-ink-2 ring-1 ring-hairline"><span className="font-medium text-ink">Not:</span> {row.order.note}</p>}
                       </div>
                     )}
+                    {scope === "submitted" && <div className="mt-4"><Button size="sm" variant="primary" onClick={() => void openEditor(row)}>{row.order ? <Pencil className="size-3.5" /> : <Plus className="size-3.5" />}{row.order ? "Siparişi düzenle" : "Müşteri adına sipariş gir"}</Button></div>}
                   </div>
                 </details>
               );
@@ -260,7 +377,50 @@ export default function OrdersPage() {
         )}
       </Panel>
 
-      <p className="mt-4 text-center text-xs text-ink-3">Bu ekran şu anda salt okunurdur. Yönetici adına sipariş ekleme ve güncelleme bir sonraki adımda güvenli API üzerinden eklenecek.</p>
+      {scope === "delivery" && <p className="mt-4 text-center text-xs text-ink-3">Bugün dağıtılacak siparişler kesinleşmiş operasyon listesidir. Yönetici düzenlemesi yalnızca “Bugün Verilen” ekranından yapılır.</p>}
+
+      <Modal
+        open={Boolean(editRow)}
+        onClose={() => { if (!saving) { setEditRow(null); setEditContext(null); } }}
+        title={editRow?.order ? "Siparişi düzenle" : "Müşteri adına sipariş gir"}
+        subtitle={editRow ? `${editRow.customerName} · ${editRow.departmentName} · MB ID ${editRow.legacyMbId}` : undefined}
+        width="max-w-3xl"
+        footer={<><Button onClick={() => { setEditRow(null); setEditContext(null); }} disabled={saving}>Vazgeç</Button><Button variant="primary" onClick={() => void saveOrder()} disabled={saving || editLoading || !editContext || (formStatus === "SUBMITTED" && submittedLineCount === 0)}>{saving ? "Kaydediliyor…" : "Siparişi kaydet"}</Button></>}
+      >
+        {editLoading ? <div className="py-12 text-center text-sm text-ink-3">Ürün tanımları yükleniyor…</div> : editContext ? (
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Sipariş durumu">
+                <Select value={formStatus} onChange={(event) => setFormStatus(event.target.value as Exclude<BoardStatus, "PENDING">)}>
+                  <option value="SUBMITTED">Sipariş verildi</option>
+                  <option value="NO_PRODUCT">Ürün istemiyor</option>
+                  {editContext.order && <option value="CANCELLED">Siparişi iptal et</option>}
+                </Select>
+              </Field>
+              <Field label="Teslim tarihi"><TextInput value={formatDate(editContext.deliveryDate)} disabled /></Field>
+            </div>
+
+            {formStatus === "SUBMITTED" && (
+              <div>
+                <p className="text-[13px] font-medium text-ink-2">Müşteriye tanımlı ürünler</p>
+                {editContext.products.length === 0 ? <p className="mt-2 rounded-xl bg-[var(--warn-soft)] px-3 py-3 text-sm text-[var(--warn)]">Bu şubeye eski programda mobil sipariş ürünü tanımlanmamış.</p> :
+                  <div className="mt-2 max-h-[360px] divide-y divide-hairline overflow-y-auto rounded-xl ring-1 ring-hairline">
+                    {editContext.products.map((product) => {
+                      const key = productKey(product.uStokId, product.aStokId);
+                      return <div key={key} className="grid gap-3 bg-surface px-4 py-3 sm:grid-cols-[1fr_130px] sm:items-center"><div className="min-w-0"><p className="truncate text-sm font-medium text-ink">{product.name}{product.variantName ? ` · ${product.variantName}` : ""}</p><p className="mt-0.5 text-xs text-ink-3">{product.code} · Limit {formatQty(product.maxQuantity)} adet</p></div><NumberInput min={0} max={product.maxQuantity > 0 ? product.maxQuantity : undefined} step={1} value={quantities[key] || ""} placeholder="0" onChange={(event) => setQuantities((current) => ({ ...current, [key]: Math.max(0, Number(event.target.value) || 0) }))} aria-label={`${product.name} miktarı`} /></div>;
+                    })}
+                  </div>}
+              </div>
+            )}
+
+            <Field label="Sipariş notu" hint="En fazla 500 karakter.">
+              <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} rows={3} className="w-full resize-none rounded-[10px] border border-hairline bg-surface-2 px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-3 focus:border-transparent focus:bg-surface focus:outline-none focus:ring-4 focus:ring-[var(--ring)]" placeholder="İsteğe bağlı not" />
+            </Field>
+            <p className="text-xs text-ink-3">Yönetici işlemleri son sipariş saatinden bağımsızdır ve denetim kaydına yönetici işlemi olarak yazılır.</p>
+            {editError && <p className="rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{editError}</p>}
+          </div>
+        ) : <div className="py-8 text-center text-sm text-[var(--bad)]">{editError || "Sipariş bilgisi alınamadı."}</div>}
+      </Modal>
     </div>
   );
 }

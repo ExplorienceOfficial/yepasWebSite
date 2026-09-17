@@ -55,8 +55,56 @@ namespace Yepas.Api.Domain
         public OrderView Save(int userId, int legacyMbId, SaveCustomerOrderRequest input,
             string idempotencyKey)
         {
+            LegacyCustomerSchedule schedule;
+            string status;
+            IList<PreparedOrderLine> prepared;
+            Prepare(legacyMbId, input, idempotencyKey, out schedule, out status, out prepared);
+            return orders.SaveCustomerOrder(userId, schedule, input, status, prepared,
+                idempotencyKey.Trim(), RequestHash(legacyMbId, input, status, null));
+        }
+
+        public CustomerOrderContextView GetAdminContext(int legacyMbId)
+        {
+            var schedule = schedules.Read(legacyMbId);
+            if (schedule == null) return null;
+            DateTime databaseUtcNow;
+            orders.ReadSettings(out databaseUtcNow);
+            var deliveryDate = databaseUtcNow.AddHours(3).Date.AddDays(1);
+            if (!IsDistributionDay(schedule, deliveryDate))
+                throw new ArgumentException("Şubenin yarın için SG dağıtım günü bulunmuyor.");
+            return new CustomerOrderContextView
+            {
+                LegacyMbId = legacyMbId,
+                DeliveryDate = deliveryDate,
+                Window = new OrderWindowView { IsOpen = true, Mode = "ADMIN" },
+                Products = customerProducts.Read(schedule.LegacyMbId),
+                Order = orders.ReadOrder(legacyMbId, deliveryDate)
+            };
+        }
+
+        public OrderView SaveAdmin(int userId, int legacyMbId, SaveCustomerOrderRequest input,
+            string idempotencyKey)
+        {
+            LegacyCustomerSchedule schedule;
+            string status;
+            IList<PreparedOrderLine> prepared;
+            Prepare(legacyMbId, input, idempotencyKey, out schedule, out status, out prepared);
+            DateTime databaseUtcNow;
+            orders.ReadSettings(out databaseUtcNow);
+            var deliveryDate = databaseUtcNow.AddHours(3).Date.AddDays(1);
+            if (!IsDistributionDay(schedule, deliveryDate))
+                throw new ArgumentException("Şubenin yarın için SG dağıtım günü bulunmuyor.");
+            return orders.SaveAdminOrder(userId, schedule, input, status, prepared,
+                idempotencyKey.Trim(), RequestHash(legacyMbId, input, status, deliveryDate),
+                deliveryDate);
+        }
+
+        private void Prepare(int legacyMbId, SaveCustomerOrderRequest input, string idempotencyKey,
+            out LegacyCustomerSchedule schedule, out string status,
+            out IList<PreparedOrderLine> preparedLines)
+        {
             if (input == null) throw new ArgumentException("Sipariş gövdesi zorunludur.");
-            var status = String.IsNullOrWhiteSpace(input.Status)
+            status = String.IsNullOrWhiteSpace(input.Status)
                 ? null : input.Status.Trim().ToUpperInvariant();
             if (status != "SUBMITTED" && status != "NO_PRODUCT" && status != "CANCELLED")
                 throw new ArgumentException("Geçersiz sipariş durumu.");
@@ -65,7 +113,7 @@ namespace Yepas.Api.Domain
             if (String.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 100)
                 throw new ArgumentException("Geçerli bir Idempotency-Key başlığı zorunludur.");
 
-            var schedule = schedules.Read(legacyMbId);
+            schedule = schedules.Read(legacyMbId);
             if (schedule == null) throw new KeyNotFoundException("Müşteri operasyon kaydı bulunamadı.");
 
             var products = customerProducts.Read(schedule.LegacyMbId);
@@ -101,8 +149,7 @@ namespace Yepas.Api.Domain
                 });
             }
 
-            return orders.SaveCustomerOrder(userId, schedule, input, status, prepared,
-                idempotencyKey.Trim(), RequestHash(legacyMbId, input, status));
+            preparedLines = prepared;
         }
 
         private static string ProductKey(CatalogProduct product)
@@ -116,11 +163,21 @@ namespace Yepas.Api.Domain
                 aStokId.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        private static byte[] RequestHash(int legacyMbId, SaveCustomerOrderRequest input, string status)
+        private static bool IsDistributionDay(LegacyCustomerSchedule schedule, DateTime date)
+        {
+            var index = date.DayOfWeek == DayOfWeek.Sunday ? 6 : (int)date.DayOfWeek - 1;
+            return schedule.DistributionDays != null && schedule.DistributionDays.Length == 7 &&
+                schedule.DistributionDays[index];
+        }
+
+        private static byte[] RequestHash(int legacyMbId, SaveCustomerOrderRequest input,
+            string status, DateTime? deliveryDate)
         {
             var builder = new StringBuilder();
             builder.Append(legacyMbId).Append('|').Append(input.Revision.GetValueOrDefault(0))
                 .Append('|').Append(status).Append('|').Append(input.Note ?? String.Empty);
+            if (deliveryDate.HasValue)
+                builder.Append('|').Append(deliveryDate.Value.ToString("yyyyMMdd"));
             foreach (var line in (input.Lines ?? new List<OrderLineInput>())
                 .OrderBy(item => item.UStokId).ThenBy(item => item.AStokId))
                 builder.Append('|').Append(line.UStokId).Append(':').Append(line.AStokId)

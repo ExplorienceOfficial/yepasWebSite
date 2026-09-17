@@ -71,6 +71,23 @@ VALUES (@cutoff, @mode, @until, @reason, @userId);", connection, transaction))
             SaveCustomerOrderRequest input, string status, IList<PreparedOrderLine> lines,
             string idempotencyKey, byte[] requestHash)
         {
+            return SaveOrder(userId, schedule, input, status, lines, idempotencyKey,
+                requestHash, "CUSTOMER", null, true);
+        }
+
+        public OrderView SaveAdminOrder(int userId, LegacyCustomerSchedule schedule,
+            SaveCustomerOrderRequest input, string status, IList<PreparedOrderLine> lines,
+            string idempotencyKey, byte[] requestHash, DateTime deliveryDate)
+        {
+            return SaveOrder(userId, schedule, input, status, lines, idempotencyKey,
+                requestHash, "ADMIN", deliveryDate.Date, false);
+        }
+
+        private OrderView SaveOrder(int userId, LegacyCustomerSchedule schedule,
+            SaveCustomerOrderRequest input, string status, IList<PreparedOrderLine> lines,
+            string idempotencyKey, byte[] requestHash, string actorRole,
+            DateTime? requestedDeliveryDate, bool enforceWindow)
+        {
             int orderId;
             DateTime deliveryDate;
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
@@ -87,11 +104,20 @@ VALUES (@cutoff, @mode, @until, @reason, @userId);", connection, transaction))
                         return replay;
                     }
 
-                    DateTime databaseUtcNow;
-                    var settings = ReadSettings(connection, transaction, true, out databaseUtcNow);
-                    var window = OrderWindowPolicy.Evaluate(schedule, settings, databaseUtcNow);
-                    if (!window.IsOpen) throw new OrderWindowClosedException();
-                    deliveryDate = window.DeliveryDate;
+                    if (enforceWindow)
+                    {
+                        DateTime databaseUtcNow;
+                        var settings = ReadSettings(connection, transaction, true, out databaseUtcNow);
+                        var window = OrderWindowPolicy.Evaluate(schedule, settings, databaseUtcNow);
+                        if (!window.IsOpen) throw new OrderWindowClosedException();
+                        deliveryDate = window.DeliveryDate;
+                    }
+                    else
+                    {
+                        if (!requestedDeliveryDate.HasValue)
+                            throw new InvalidOperationException("Yönetici teslim tarihi bulunamadı.");
+                        deliveryDate = requestedDeliveryDate.Value.Date;
+                    }
 
                     int existingRevision;
                     var existingOrderId = FindOrderForUpdate(connection, transaction,
@@ -105,12 +131,12 @@ VALUES (@cutoff, @mode, @until, @reason, @userId);", connection, transaction))
 UPDATE dbo.Orders SET
     LegacyCustomerId = @customerId, LegacyDepartmentId = @departmentId,
     LegacyPersonnelId = @personnelId, Status = @status,
-    Revision = Revision + 1, Note = @note, SourceRole = N'CUSTOMER',
+    Revision = Revision + 1, Note = @note, SourceRole = @actorRole,
     IntegrationStatus = @integration, LegacyReceiptId = NULL,
     UpdatedByUserId = @userId, UpdatedAtUtc = GETUTCDATE()
 WHERE OrderId = @orderId", connection, transaction))
                         {
-                            AddOrderParameters(update, userId, schedule, status, input.Note);
+                            AddOrderParameters(update, userId, schedule, status, input.Note, actorRole);
                             update.Parameters.Add("@orderId", SqlDbType.Int).Value = orderId;
                             update.ExecuteNonQuery();
                         }
@@ -132,11 +158,11 @@ INSERT INTO dbo.Orders
      CreatedByUserId, UpdatedByUserId)
 VALUES
     (@mbId, @customerId, @departmentId, @personnelId,
-     @deliveryDate, @status, 1, @note, N'CUSTOMER', @integration,
+     @deliveryDate, @status, 1, @note, @actorRole, @integration,
      @userId, @userId);
 SELECT CAST(SCOPE_IDENTITY() AS INT);", connection, transaction))
                         {
-                            AddOrderParameters(insert, userId, schedule, status, input.Note);
+                            AddOrderParameters(insert, userId, schedule, status, input.Note, actorRole);
                             insert.Parameters.Add("@mbId", SqlDbType.Int).Value = schedule.LegacyMbId;
                             insert.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate;
                             orderId = (int)insert.ExecuteScalar();
@@ -148,7 +174,7 @@ SELECT CAST(SCOPE_IDENTITY() AS INT);", connection, transaction))
                     using (var audit = new SqlCommand(@"
 INSERT INTO dbo.OrderAudit
     (OrderId, Revision, ActionCode, Status, ActorUserId, ActorRole, Reason)
-VALUES (@orderId, @revision, @action, @status, @userId, N'CUSTOMER', NULL)", connection, transaction))
+VALUES (@orderId, @revision, @action, @status, @userId, @actorRole, NULL)", connection, transaction))
                     {
                         audit.Parameters.Add("@orderId", SqlDbType.Int).Value = orderId;
                         audit.Parameters.Add("@revision", SqlDbType.Int).Value = revision;
@@ -156,6 +182,7 @@ VALUES (@orderId, @revision, @action, @status, @userId, N'CUSTOMER', NULL)", con
                             existingOrderId.HasValue ? "UPDATED" : "CREATED";
                         audit.Parameters.Add("@status", SqlDbType.NVarChar, 20).Value = status;
                         audit.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                        audit.Parameters.Add("@actorRole", SqlDbType.NVarChar, 20).Value = actorRole;
                         audit.ExecuteNonQuery();
                     }
                     using (var idempotency = new SqlCommand(@"
@@ -240,7 +267,7 @@ WHERE LegacyMbId = @mbId AND DeliveryDate = @deliveryDate", connection, transact
         }
 
         private static void AddOrderParameters(SqlCommand command, int userId,
-            LegacyCustomerSchedule schedule, string status, string note)
+            LegacyCustomerSchedule schedule, string status, string note, string actorRole)
         {
             command.Parameters.Add("@customerId", SqlDbType.Int).Value = schedule.LegacyCustomerId;
             command.Parameters.Add("@departmentId", SqlDbType.Int).Value = schedule.LegacyDepartmentId;
@@ -251,6 +278,7 @@ WHERE LegacyMbId = @mbId AND DeliveryDate = @deliveryDate", connection, transact
             command.Parameters.Add("@integration", SqlDbType.NVarChar, 20).Value =
                 status == "SUBMITTED" ? "PENDING" : "NOT_REQUIRED";
             command.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+            command.Parameters.Add("@actorRole", SqlDbType.NVarChar, 20).Value = actorRole;
         }
 
         private static void InsertLine(SqlConnection connection, SqlTransaction transaction,
