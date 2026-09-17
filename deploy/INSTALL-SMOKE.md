@@ -20,9 +20,10 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
 6. Ayrı, yönetici olmayan IIS uygulama havuzu ve site oluşturun. Uygulama havuzu `.NET v4.0`, Integrated pipeline ve 64-bit kullanmalıdır.
 7. En az yetkili DEV SQL hesaplarını hazırlayın; `sa` kullanmayın.
 8. Sunucuda yönetici PowerShell'i açıp `tools\Configure-Smoke.ps1 -SitePath <site klasörü>` çalıştırın. Bağlantı dizeleri ekranda görünmeden girilir ve `web.config` içinde şifrelenir.
-9. İlk smoke adminini `tools\New-LocalAdmin.ps1 -LoginName <ad> -PromptConnectionString` ile oluşturun. Uygulama veritabanı bağlantı dizesi ve admin parolası ekranda görünmeden istenir; veritabanında yalnızca parola özeti tutulur.
-10. Geçerli sertifikayla HTTPS binding ekleyin. Release girişi HTTP üzerinden bilerek reddedilir.
-11. Siteyi başlatın ve aşağıdaki kontrolleri yapın.
+9. İlk smoke adminini `tools\Yepas.AdminTool.exe --site-path <site klasörü> --login-name <ad>` ile oluşturun. Araç şifrelenmiş `YepasApp` bağlantısını site yapılandırmasından okur; admin parolası ekranda görünmeden istenir ve veritabanında yalnızca parola özeti tutulur.
+10. Geçerli sertifikayla HTTPS binding ekleyin. Windows 7 Schannel ile güncel tarayıcılar arasında ortak şifre takımı sağlamak için ECDSA P-256 sertifika veya modern TLS sonlandıran bir reverse proxy kullanın. Release girişi HTTP üzerinden bilerek reddedilir.
+11. PFX dosyasını IIS'e aktardıktan ve HTTPS'i doğruladıktan sonra sunucudaki aktarım kopyasını kaldırın; PFX özel anahtar içerir.
+12. Siteyi başlatın ve aşağıdaki kontrolleri yapın.
 
 ## Smoke kontrolleri
 

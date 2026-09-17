@@ -48,6 +48,8 @@ try {
     if (-not (Test-Path -LiteralPath $msbuild)) { throw 'MSBuild bulunamadı.' }
     & $msbuild 'server\Yepas.Api\Yepas.Api.csproj' /t:Rebuild /p:Configuration=Release
     if ($LASTEXITCODE -ne 0) { throw 'API Release derlemesi başarısız.' }
+    & $msbuild 'server\Yepas.AdminTool\Yepas.AdminTool.csproj' /t:Rebuild /p:Configuration=Release
+    if ($LASTEXITCODE -ne 0) { throw 'Admin aracı Release derlemesi başarısız.' }
 
     $siteRoot = Join-Path $stageRoot 'site'
     $databaseRoot = Join-Path $stageRoot 'database'
@@ -70,7 +72,8 @@ try {
         ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $siteBin }
     Copy-Item -Path (Join-Path $repositoryRoot 'database\migrations\*') -Destination $databaseRoot -Recurse -Force
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'deploy\Configure-Smoke.ps1') -Destination $toolsRoot
-    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'database\New-LocalAdmin.ps1') -Destination $toolsRoot
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'server\Yepas.AdminTool\bin\Release\Yepas.AdminTool.exe') -Destination $toolsRoot
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'server\Yepas.AdminTool\bin\Release\Yepas.AdminTool.exe.config') -Destination $toolsRoot
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'deploy\INSTALL-SMOKE.md') -Destination $stageRoot
 
     @(

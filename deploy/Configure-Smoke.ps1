@@ -20,8 +20,12 @@ try {
     $catalogPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($catalogSecret)
     $appConnection = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($appPointer)
     $catalogConnection = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($catalogPointer)
-    if ([String]::IsNullOrWhiteSpace($appConnection) -or
-        [String]::IsNullOrWhiteSpace($catalogConnection)) {
+    # Windows 7 ships with PowerShell 2, which can run on CLR 2.0 where
+    # String.IsNullOrWhiteSpace is unavailable.
+    if ([String]::IsNullOrEmpty($appConnection) -or
+        [String]::IsNullOrEmpty($catalogConnection) -or
+        $appConnection.Trim().Length -eq 0 -or
+        $catalogConnection.Trim().Length -eq 0) {
         throw 'Bağlantı dizeleri boş olamaz.'
     }
 

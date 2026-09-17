@@ -38,7 +38,9 @@ try {
         $connectionSecret = Read-Host 'EkmekSiparis bağlantı dizesi' -AsSecureString
         $connectionPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($connectionSecret)
         $connectionString = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($connectionPtr)
-        if ([String]::IsNullOrWhiteSpace($connectionString)) { throw 'Bağlantı dizesi boş olamaz.' }
+        if ([String]::IsNullOrEmpty($connectionString) -or $connectionString.Trim().Length -eq 0) {
+            throw 'Bağlantı dizesi boş olamaz.'
+        }
     }
 
     $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
