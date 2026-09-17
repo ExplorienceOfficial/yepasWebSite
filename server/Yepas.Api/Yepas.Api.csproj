@@ -54,6 +54,7 @@
     <Compile Include="Controllers\DriverAccessController.cs" />
     <Compile Include="Controllers\DriverRoutesController.cs" />
     <Compile Include="Controllers\CustomerOrdersController.cs" />
+    <Compile Include="Controllers\AdminOrdersController.cs" />
     <Compile Include="Controllers\OrderSettingsController.cs" />
     <Compile Include="Controllers\CustomerManagementController.cs" />
     <Compile Include="Data\ProductCatalogReader.cs" />
@@ -61,6 +62,7 @@
     <Compile Include="Data\DatabaseConnections.cs" />
     <Compile Include="Data\LegacyCustomerScheduleReader.cs" />
     <Compile Include="Data\OrderRepository.cs" />
+    <Compile Include="Data\AdminOrderBoardRepository.cs" />
     <Compile Include="Data\LegacyCustomerCatalogReader.cs" />
     <Compile Include="Data\LegacyCustomerProductReader.cs" />
     <Compile Include="Data\CustomerManagementRepository.cs" />
@@ -71,6 +73,7 @@
     <Compile Include="Domain\OrderWindowPolicy.cs" />
     <Compile Include="Models\CatalogProduct.cs" />
     <Compile Include="Models\OrderModels.cs" />
+    <Compile Include="Models\AdminOrderModels.cs" />
     <Compile Include="Models\CustomerManagementModels.cs" />
     <Compile Include="Models\DriverManagementModels.cs" />
     <Compile Include="Models\DriverRouteModels.cs" />
