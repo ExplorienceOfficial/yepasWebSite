@@ -4,7 +4,7 @@ Bu ilk dikey parça, `D00013.RS_URUNLER_UST`, `D00013.RS_URUNLER_ALT` ve `D00013
 
 ## Çalıştırma
 
-Geliştirme bilgisayarında `PrestoPlus_Local` ve migration sürümü 3 uygulanmış `EkmekSiparis` veritabanları `.\YEPASDEV` SQL instance'ında açık olmalıdır. İlk admin hesabını `database/New-LocalAdmin.ps1 -LoginName <ad>` ile etkileşimli açın. Parolayı sohbete veya repoya yazmayın. Sonra iki ayrı PowerShell penceresi kullanın:
+Geliştirme bilgisayarında `PrestoPlus_Local` ve migration sürümü 4 uygulanmış `EkmekSiparis` veritabanları `.\YEPASDEV` SQL instance'ında açık olmalıdır. İlk admin hesabını `database/New-LocalAdmin.ps1 -LoginName <ad>` ile etkileşimli açın. Parolayı sohbete veya repoya yazmayın. Sonra iki ayrı PowerShell penceresi kullanın:
 
 ```powershell
 & 'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\MSBuild.exe' '.\server\Yepas.Api\Yepas.Api.csproj' /t:Build /p:Configuration=Debug
@@ -35,8 +35,8 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 - Tatil veya müşteriye özel tarih istisnası bu sürümde yoktur. Teslim günü sadece eski sistemdeki `RS_MUSTERI_BILGILERI.SG_1`–`SG_7` işaretlerine göre hesaplanır.
 - Ürün ekranındaki düzenleme/silme ve sahte talep/limit işlemleri gizlenmiştir. Eski ürün tablolarına yazma yapılmaz.
 - `Debug` yerel bağlantı kullanır. `Release` için `YEPAS_APP_CONNECTION` ve `YEPAS_CATALOG_CONNECTION` ayrıca yapılandırılmalıdır; gerçek şifreler dosyaya yazılmaz.
-- Giriş artık demo hesapları kullanmaz. Diğer operasyon sayfaları ve şoförün müşteri/sipariş listesi henüz gerçek API'ye bağlanmadı.
-- Sipariş çekirdeği ve müşteri hesap API'si hazırdır; müşteri hesabı yönetim düğmeleri, mobil arayüz entegrasyonu, admin sipariş ekranı, şoför ekranı, iki günlük saklama görevi ve eski programa aktarım henüz tamamlanmamıştır.
+- Giriş artık demo hesapları kullanmaz. Admin müşteri ekranında hesap açma, aynı müşterinin şubelerini bağlama, hesabı açıp kapatma ve geçici parola yenileme işlemleri gerçek API'ye bağlıdır.
+- Sipariş çekirdeği ve müşteri hesap yönetimi hazırdır; mobil arayüz entegrasyonu, admin sipariş ekranı, şoför ekranı, iki günlük saklama görevi ve eski programa aktarım henüz tamamlanmamıştır.
 
 ## Dağıtım günü politika testi
 
