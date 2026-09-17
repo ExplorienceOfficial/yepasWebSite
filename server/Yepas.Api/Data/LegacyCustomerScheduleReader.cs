@@ -11,7 +11,7 @@ namespace Yepas.Api.Data
 SELECT ID, MUSTERI_ID, BOLUM_ID, PERSONEL_ID,
        SG_1, SG_2, SG_3, SG_4, SG_5, SG_6, SG_7
 FROM D00013.RS_MUSTERI_BILGILERI
-WHERE ID = @mbId";
+WHERE ID = @mbId AND SS = 12";
 
         public LegacyCustomerSchedule Read(int legacyMbId)
         {

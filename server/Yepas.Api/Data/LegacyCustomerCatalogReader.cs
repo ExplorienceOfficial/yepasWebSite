@@ -27,6 +27,7 @@ LEFT JOIN (
     ) X
     GROUP BY X.MB_ID
 ) PC ON PC.MB_ID = MB.ID
+WHERE MB.SS = 12
 ORDER BY M.MUST_ADI, B.BOLUM_ADI, MB.ID";
 
         public IList<AdminCustomerView> Read()

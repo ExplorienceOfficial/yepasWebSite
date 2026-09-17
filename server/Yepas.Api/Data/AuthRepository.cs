@@ -53,8 +53,15 @@ namespace Yepas.Api.Data
             using (var connection = new SqlConnection(LegacyConnectionString()))
             using (var command = new SqlCommand(@"SELECT 1 FROM D00013.FIRMA_PERSONELI P
 WHERE P.PERSONEL_ID = @id AND P.PERSONEL_DURUM = 1
-  AND EXISTS (SELECT 1 FROM D00013.RS_MUSTERI_BILGILERI MB
-              WHERE MB.PERSONEL_ID = P.PERSONEL_ID)", connection))
+  AND EXISTS (
+      SELECT 1
+      FROM D00013.BF_PERS_MUST PM
+      INNER JOIN D00013.RS_MUSTERI_BILGILERI MB
+          ON MB.MUSTERI_ID = PM.MUSTERI_ID
+         AND MB.BOLUM_ID = PM.BOLUM_ID
+         AND MB.SS = 12
+      WHERE PM.PERSONEL_ID = P.PERSONEL_ID
+  )", connection))
             {
                 command.Parameters.Add("@id", SqlDbType.Int).Value = personnelId;
                 connection.Open();

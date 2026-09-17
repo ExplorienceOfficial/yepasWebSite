@@ -77,6 +77,7 @@ WHERE P.PERSONEL_ID = @personnel", connection))
         ON MB.MUSTERI_ID = PM.MUSTERI_ID
        AND MB.BOLUM_ID = PM.BOLUM_ID
     WHERE PM.PERSONEL_ID = @personnel
+      AND MB.SS = 12
 )
 SELECT MB.ID, MB.MUSTERI_ID, MB.BOLUM_ID,
        M.MUST_KODU, M.MUST_ADI, B.BOLUM_ADI
