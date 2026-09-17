@@ -42,17 +42,6 @@ BEGIN
         CONSTRAINT FK_OrderWindowAudit_User FOREIGN KEY (ActorUserId) REFERENCES dbo.Users(UserId)
     );
 
-    CREATE TABLE dbo.CustomerProductAccess (
-        LegacyMbId INT NOT NULL,
-        UStokId INT NOT NULL,
-        AStokId INT NOT NULL DEFAULT (0),
-        IsActive BIT NOT NULL DEFAULT (1),
-        CreatedAtUtc DATETIME NOT NULL DEFAULT (GETUTCDATE()),
-        UpdatedAtUtc DATETIME NOT NULL DEFAULT (GETUTCDATE()),
-        CONSTRAINT PK_CustomerProductAccess PRIMARY KEY (LegacyMbId, UStokId, AStokId),
-        CONSTRAINT CK_CustomerProductAccess_Ids CHECK (LegacyMbId > 0 AND UStokId > 0 AND AStokId >= 0)
-    );
-
     CREATE TABLE dbo.Orders (
         OrderId INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         LegacyMbId INT NOT NULL,

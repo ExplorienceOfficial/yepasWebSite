@@ -2,3 +2,4 @@
 -- Uygulama hesabına yazma yetkisi vermez.
 USE [PrestoPlus];
 GRANT SELECT ON OBJECT::[D00013].[RS_MUSTERI_BILGILERI] TO [YepasCatalogReader];
+GRANT SELECT ON OBJECT::[D00013].[BF_MUST_STOK] TO [YepasCatalogReader];

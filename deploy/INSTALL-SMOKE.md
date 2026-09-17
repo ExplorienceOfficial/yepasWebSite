@@ -15,8 +15,8 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
 1. Windows 7 SP1, IIS 7.5 ASP.NET özellikleri ve .NET Framework 4.8'i doğrulayın.
 2. Hedef klasörü ve yeni `EkmekSiparis` veritabanını yedekleyin.
 3. Paketin SHA-256 listesini doğrulayın.
-4. `database\migrations` betiklerini `EkmekSiparis` üzerinde sırasıyla çalıştırın: `000`, `001`, `002`, `003`.
-5. `database\permissions\003_catalog_order_read.sql` betiğini `PrestoPlus` üzerinde çalıştırarak katalog hesabına yalnızca gerekli SG tablosu okuma yetkisini ekleyin.
+4. `database\migrations` betiklerini `EkmekSiparis` üzerinde sırasıyla çalıştırın: `000`, `001`, `002`, `003`, `004`.
+5. `database\permissions` altındaki `003` ve `004` betiklerini `PrestoPlus` üzerinde çalıştırarak katalog hesabına yalnızca gereken salt-okunur izinleri ekleyin.
 6. `site` içeriğini yeni sürüm klasörüne kopyalayın.
 7. Ayrı, yönetici olmayan IIS uygulama havuzu ve site oluşturun. Uygulama havuzu `.NET v4.0`, Integrated pipeline ve 64-bit kullanmalıdır.
 8. En az yetkili DEV SQL hesaplarını hazırlayın; `sa` kullanmayın.

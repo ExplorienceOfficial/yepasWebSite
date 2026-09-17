@@ -31,7 +31,7 @@ namespace Yepas.Api.Domain
             DateTime databaseUtcNow;
             var settings = orders.ReadSettings(out databaseUtcNow);
             var decision = OrderWindowPolicy.Evaluate(schedule, settings, databaseUtcNow);
-            var products = AccessibleProducts(legacyMbId);
+            var products = AccessibleProducts(schedule);
 
             return new CustomerOrderContextView
             {
@@ -66,7 +66,7 @@ namespace Yepas.Api.Domain
             var schedule = schedules.Read(legacyMbId);
             if (schedule == null) throw new KeyNotFoundException("Müşteri operasyon kaydı bulunamadı.");
 
-            var products = AccessibleProducts(legacyMbId);
+            var products = AccessibleProducts(schedule);
             var productMap = products.ToDictionary(ProductKey, StringComparer.Ordinal);
             var prepared = new List<PreparedOrderLine>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -101,12 +101,9 @@ namespace Yepas.Api.Domain
                 idempotencyKey.Trim(), RequestHash(legacyMbId, input, status));
         }
 
-        private IList<CatalogProduct> AccessibleProducts(int legacyMbId)
+        private static IList<CatalogProduct> AccessibleProducts(LegacyCustomerSchedule schedule)
         {
-            var keys = orders.ReadAccessibleProductKeys(legacyMbId);
-            return new ProductCatalogReader().Read()
-                .Where(product => keys.Contains(ProductKey(product)))
-                .ToList();
+            return new LegacyCustomerProductReader().Read(schedule);
         }
 
         private static string ProductKey(CatalogProduct product)

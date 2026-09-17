@@ -18,23 +18,6 @@ namespace Yepas.Api.Data
             }
         }
 
-        public HashSet<string> ReadAccessibleProductKeys(int legacyMbId)
-        {
-            var keys = new HashSet<string>(StringComparer.Ordinal);
-            using (var connection = new SqlConnection(DatabaseConnections.Application()))
-            using (var command = new SqlCommand(@"
-SELECT UStokId, AStokId
-FROM dbo.CustomerProductAccess
-WHERE LegacyMbId = @mbId AND IsActive = 1", connection))
-            {
-                command.Parameters.Add("@mbId", SqlDbType.Int).Value = legacyMbId;
-                connection.Open();
-                using (var reader = command.ExecuteReader())
-                    while (reader.Read()) keys.Add(ProductKey(reader.GetInt32(0), reader.GetInt32(1)));
-            }
-            return keys;
-        }
-
         public OrderView ReadOrder(int legacyMbId, DateTime deliveryDate)
         {
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
@@ -356,12 +339,6 @@ ORDER BY ProductName, VariantName, UStokId, AStokId", connection, transaction))
             var difference = 0;
             for (var index = 0; index < left.Length; index++) difference |= left[index] ^ right[index];
             return difference == 0;
-        }
-
-        private static string ProductKey(int uStokId, int aStokId)
-        {
-            return uStokId.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" +
-                aStokId.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         private static OrderSettingsView SettingsView(OrderWindowSettings settings)

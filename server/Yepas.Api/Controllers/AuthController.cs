@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Web;
 using System.Web.Http;
 using Yepas.Api.Data;
+using Yepas.Api.Models;
 
 namespace Yepas.Api.Controllers
 {
@@ -114,6 +115,34 @@ namespace Yepas.Api.Controllers
             {
                 return Request.CreateResponse(HttpStatusCode.ServiceUnavailable,
                     new { code = "AUTH_UNAVAILABLE", message = "Çıkış işlemi tamamlanamadı." });
+            }
+        }
+
+        [HttpPost]
+        [Route("change-password")]
+        public HttpResponseMessage ChangePassword(ChangePasswordRequest input)
+        {
+            if (HttpContext.Current == null || !PermittedOrigin(HttpContext.Current.Request))
+                return Request.CreateResponse(HttpStatusCode.Forbidden);
+            if (input == null || String.IsNullOrEmpty(input.CurrentPassword) ||
+                String.IsNullOrEmpty(input.NewPassword))
+                return Request.CreateResponse(HttpStatusCode.BadRequest);
+            try
+            {
+                var token = CurrentToken();
+                var identity = new AuthRepository().Authenticate(token, null);
+                if (identity == null) return Request.CreateResponse(HttpStatusCode.Unauthorized);
+                string error;
+                if (!new AuthRepository().ChangePassword(identity.UserId, token,
+                    input.CurrentPassword, input.NewPassword, out error))
+                    return Request.CreateResponse(HttpStatusCode.BadRequest,
+                        new { code = "PASSWORD_CHANGE_REJECTED", message = error });
+                return Request.CreateResponse(HttpStatusCode.NoContent);
+            }
+            catch (Exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.ServiceUnavailable,
+                    new { code = "AUTH_UNAVAILABLE", message = "Parola değiştirilemiyor." });
             }
         }
     }
