@@ -1,345 +1,175 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  MapPin,
-  Pencil,
-  Plus,
-  Search,
-  Truck,
-  UserCheck,
-  Users,
-} from "lucide-react";
-
+import { useEffect, useMemo, useState } from "react";
+import { KeyRound, Power, Search, Truck, UserCheck, Users } from "lucide-react";
 import { PageHeading, Panel } from "@/components/admin/Panel";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { TextInput } from "@/components/ui/Field";
+import { Field, TextInput } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
-import { useOperations } from "@/context/OperationsContext";
-import { cn, initials } from "@/lib/format";
-import type { Driver } from "@/types";
+import { initials } from "@/lib/format";
+
+interface DriverAccount {
+  userId: number;
+  loginName: string;
+  isActive: boolean;
+  mustChangePassword: boolean;
+}
+
+interface DriverRow {
+  legacyPersonnelId: number;
+  personnelCode: string;
+  personnelName: string;
+  isLegacyActive: boolean;
+  branchCount: number;
+  account: DriverAccount | null;
+}
+
+function apiUrl(path = ""): string {
+  if (typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+    return `http://localhost:5057/api/v1/admin/drivers${path}`;
+  }
+  return `/api/v1/admin/drivers${path}`;
+}
+
+async function responseMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await response.json()) as { message?: string };
+    return body.message || fallback;
+  } catch { return fallback; }
+}
 
 export default function DriverManagementPage() {
-  const { drivers, customers, saveDriver } = useOperations();
-
+  const [rows, setRows] = useState<DriverRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [reload, setReload] = useState(0);
+  const [createDriver, setCreateDriver] = useState<DriverRow | null>(null);
+  const [resetAccount, setResetAccount] = useState<DriverAccount | null>(null);
+  const [loginName, setLoginName] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  // Form State for Driver Modal
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [plate, setPlate] = useState("");
-  const [region, setRegion] = useState("");
-  const [code, setCode] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(apiUrl(), { credentials: "include", cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await responseMessage(response, "Şoför listesi alınamadı."));
+        return response.json() as Promise<DriverRow[]>;
+      })
+      .then((data) => { setRows(data); setLoadError(null); })
+      .catch((cause) => {
+        if (cause instanceof DOMException && cause.name === "AbortError") return;
+        setLoadError(cause instanceof Error ? cause.message : "Şoför listesi alınamadı.");
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [reload]);
 
-  const openNewDriver = () => {
-    setEditingDriver(null);
-    setName("");
-    setPhone("");
-    setPlate("");
-    setRegion("");
-    setCode(`SFR-0${drivers.length + 1}`);
-    setModalOpen(true);
-  };
-
-  const openEditDriver = (driver: Driver) => {
-    setEditingDriver(driver);
-    setName(driver.name);
-    setPhone(driver.phone);
-    setPlate(driver.plate);
-    setRegion(driver.region);
-    setCode(driver.code);
-    setModalOpen(true);
-  };
-
-  const handleSaveDriver = () => {
-    if (!name.trim()) return;
-    const driverObj: Driver = {
-      id: editingDriver ? editingDriver.id : `d${Date.now()}`,
-      code: code || "SFR-99",
-      name: name.trim(),
-      phone: phone.trim() || "0500 000 00 00",
-      plate: plate.trim() || "06 YPS 000",
-      region: region.trim() || "Ankara",
-    };
-    saveDriver(driverObj);
-    setModalOpen(false);
-  };
-
-  const filteredCustomers = useMemo(() => {
+  const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("tr-TR");
-    return customers.filter((c) => {
-      if (selectedDriverId && c.driverId !== selectedDriverId) return false;
-      if (!term) return true;
-      return (
-        c.name.toLocaleLowerCase("tr-TR").includes(term) ||
-        c.district.toLocaleLowerCase("tr-TR").includes(term) ||
-        c.type.toLocaleLowerCase("tr-TR").includes(term)
-      );
-    });
-  }, [customers, search, selectedDriverId]);
+    if (!term) return rows;
+    return rows.filter((row) =>
+      `${row.personnelCode} ${row.personnelName} ${row.legacyPersonnelId} ${row.account?.loginName ?? ""}`
+        .toLocaleLowerCase("tr-TR").includes(term));
+  }, [rows, search]);
+
+  const accountCount = rows.filter((row) => row.account).length;
+  const activeAccountCount = rows.filter((row) => row.account?.isActive && row.isLegacyActive).length;
+  const refresh = () => { setLoading(true); setReload((value) => value + 1); };
+
+  const openCreate = (driver: DriverRow) => {
+    setCreateDriver(driver);
+    setLoginName(driver.personnelCode);
+    setTemporaryPassword("");
+    setActionError(null);
+  };
+
+  const createAccount = async () => {
+    if (!createDriver) return;
+    setBusy(true); setActionError(null);
+    try {
+      const response = await fetch(apiUrl(`/${createDriver.legacyPersonnelId}/account`), {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginName, temporaryPassword }),
+      });
+      if (!response.ok) throw new Error(await responseMessage(response, "Şoför hesabı oluşturulamadı."));
+      setCreateDriver(null); setNotice(`${createDriver.personnelName} için giriş hesabı oluşturuldu.`); refresh();
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : "Hesap oluşturulamadı."); }
+    finally { setBusy(false); }
+  };
+
+  const setAccountStatus = async (row: DriverRow) => {
+    if (!row.account) return;
+    setBusy(true); setActionError(null);
+    try {
+      const response = await fetch(apiUrl(`/accounts/${row.account.userId}/status`), {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !row.account.isActive }),
+      });
+      if (!response.ok) throw new Error(await responseMessage(response, "Şoför hesabı güncellenemedi."));
+      setNotice(row.account.isActive
+        ? "Şoför girişi kapatıldı ve açık oturumları sonlandırıldı."
+        : "Şoför girişi açıldı.");
+      refresh();
+    } catch (cause) { setNotice(cause instanceof Error ? cause.message : "Hesap güncellenemedi."); }
+    finally { setBusy(false); }
+  };
+
+  const submitReset = async () => {
+    if (!resetAccount) return;
+    setBusy(true); setActionError(null);
+    try {
+      const response = await fetch(apiUrl(`/accounts/${resetAccount.userId}/reset-password`), {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ temporaryPassword }),
+      });
+      if (!response.ok) throw new Error(await responseMessage(response, "Geçici parola yenilenemedi."));
+      setResetAccount(null); setTemporaryPassword("");
+      setNotice("Geçici parola yenilendi ve açık oturumlar kapatıldı."); refresh();
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : "Parola yenilenemedi."); }
+    finally { setBusy(false); }
+  };
 
   return (
     <div className="yp-rise space-y-6">
-      <PageHeading
-        title="Şoför Yönetimi & Müşteri Tanımlama"
-        description="Saha şoförleri, plaka bilgileri, teslimat bölgeleri ve şoför-bayi eşleştirmeleri."
-        action={
-          <Button variant="primary" onClick={openNewDriver}>
-            <Plus className="size-4" strokeWidth={2} />
-            Yeni Şoför Ekle
-          </Button>
-        }
-      />
+      <PageHeading title="Şoför Giriş Yönetimi"
+        description="Şoför ve rota bilgileri eski programdan gelir; burada yalnızca uygulama giriş hesapları yönetilir."
+        action={<Button variant="secondary" onClick={refresh}>Yenile</Button>} />
 
-      {/* İstatistik Özet Kartları */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-[16px] bg-surface p-4 ring-1 ring-hairline shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] font-medium text-ink-2">Aktif Şoför Sayısı</span>
-            <span className="flex size-8 items-center justify-center rounded-full bg-surface-2 text-ink-2">
-              <Truck className="size-4" />
-            </span>
-          </div>
-          <p className="mt-2 text-[26px] font-bold tabular-nums text-ink">{drivers.length}</p>
-          <p className="mt-0.5 text-[11.5px] text-ink-3">saha dağıtım personeli</p>
-        </div>
+      {notice && <div className="flex items-center justify-between rounded-xl bg-accent/10 px-4 py-3 text-sm text-accent ring-1 ring-accent/20"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} className="text-xs font-semibold">Kapat</button></div>}
 
-        <div className="rounded-[16px] bg-surface p-4 ring-1 ring-hairline shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] font-medium text-ink-2">Tanımlı Bayi Sayısı</span>
-            <span className="flex size-8 items-center justify-center rounded-full bg-[var(--ok)]/10 text-[var(--ok)]">
-              <UserCheck className="size-4" />
-            </span>
-          </div>
-          <p className="mt-2 text-[26px] font-bold tabular-nums text-[var(--ok)]">{customers.length}</p>
-          <p className="mt-0.5 text-[11.5px] text-ink-3">şoförlere atanmış toplam bayi</p>
-        </div>
-
-        <div className="rounded-[16px] bg-surface p-4 ring-1 ring-hairline shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] font-medium text-ink-2">Ortalama Rota Yükü</span>
-            <span className="flex size-8 items-center justify-center rounded-full bg-surface-2 text-ink-2">
-              <Users className="size-4" />
-            </span>
-          </div>
-          <p className="mt-2 text-[26px] font-bold tabular-nums text-ink">
-            {drivers.length === 0 ? 0 : Math.round(customers.length / drivers.length)}
-          </p>
-          <p className="mt-0.5 text-[11.5px] text-ink-3">bayi / şoför başına</p>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Panel bodyClassName="px-5 py-4"><div className="flex items-center justify-between"><p className="text-xs text-ink-3">Rota personeli</p><Truck className="size-4 text-ink-3" /></div><p className="mt-1 text-2xl font-bold text-ink">{rows.length}</p></Panel>
+        <Panel bodyClassName="px-5 py-4"><div className="flex items-center justify-between"><p className="text-xs text-ink-3">Giriş hesabı</p><Users className="size-4 text-ink-3" /></div><p className="mt-1 text-2xl font-bold text-ink">{accountCount}</p></Panel>
+        <Panel bodyClassName="px-5 py-4"><div className="flex items-center justify-between"><p className="text-xs text-ink-3">Aktif giriş</p><UserCheck className="size-4 text-[var(--ok)]" /></div><p className="mt-1 text-2xl font-bold text-[var(--ok)]">{activeAccountCount}</p></Panel>
       </div>
 
-      {/* Şoför Kartları Izgarası */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-[15px] font-semibold text-ink">Saha Şoförleri ({drivers.length})</h2>
-          {selectedDriverId && (
-            <button
-              type="button"
-              onClick={() => setSelectedDriverId(null)}
-              className="text-[12.5px] font-medium text-accent hover:underline"
-            >
-              Filtreyi Temizle (Tüm Şoförler)
-            </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {drivers.map((driver) => {
-            const assignedCount = customers.filter((c) => c.driverId === driver.id).length;
-            const isSelected = selectedDriverId === driver.id;
-
-            return (
-              <div
-                key={driver.id}
-                onClick={() => setSelectedDriverId(isSelected ? null : driver.id)}
-                className={cn(
-                  "cursor-pointer overflow-hidden rounded-[16px] bg-surface ring-1 transition-all duration-300 ease-in-out p-4 hover:shadow-sm active:scale-[0.99]",
-                  isSelected
-                    ? "ring-2 ring-orange-500 bg-amber-500/10 dark:bg-amber-950/20 shadow-[0_4px_16px_rgba(249,115,22,0.15)]"
-                    : "ring-hairline hover:border-ink-3",
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[13px] font-bold text-ink-2 ring-1 ring-hairline">
-                      {initials(driver.name)}
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-ink text-[15px]">{driver.name}</h3>
-                        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink-3">
-                          {driver.code}
-                        </span>
-                      </div>
-                      <p className="text-[12px] text-ink-3 mt-0.5">Plaka: {driver.plate}</p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEditDriver(driver);
-                    }}
-                    className="flex size-7 items-center justify-center rounded-full text-ink-3 hover:bg-surface-3 hover:text-ink"
-                  >
-                    <Pencil className="size-3.5" />
-                  </button>
-                </div>
-
-                <div className="mt-3 flex items-center justify-between border-t border-hairline/60 pt-3 text-[12.5px]">
-                  <span className="text-ink-2 flex items-center gap-1">
-                    <MapPin className="size-3.5 text-ink-3" />
-                    {driver.region}
-                  </span>
-                  <span className="rounded-full bg-[var(--ok)]/10 px-2.5 py-0.5 text-[11.5px] font-semibold text-[var(--ok)]">
-                    {assignedCount} Bayi Tanımlı
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Müşteri - Şoför Tanımlama & Atama Tablosu */}
-      <Panel
-        title="Şoför - Bayi Tanımlama Listesi"
-        description="Şoför-müşteri atamaları eski programda yönetilir. Bu liste henüz örnek veridir; buradan atama değiştirilemez."
-        action={
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
-            <TextInput
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Bayi veya bölge ara..."
-              className="w-48 pl-9 sm:w-64"
-            />
-          </div>
-        }
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-[13.5px]">
-            <thead>
-              <tr className="border-b border-hairline text-[12px] font-semibold text-ink-3 uppercase tracking-wider">
-                <th className="px-4 py-3">Bayi Adı</th>
-                <th className="px-4 py-3">Bölge & Tip</th>
-                <th className="px-4 py-3">İletişim</th>
-                <th className="px-4 py-3 text-right">Atanan Şoför</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-hairline">
-              {filteredCustomers.map((customer) => {
-                const assignedDriver = drivers.find((d) => d.id === customer.driverId);
-
-                return (
-                  <tr key={customer.id} className="transition-colors hover:bg-surface-2/40">
-                    <td className="px-4 py-3 font-medium text-ink">
-                      <div className="flex items-center gap-2.5">
-                        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[11px] font-semibold text-ink-2">
-                          {initials(customer.name)}
-                        </span>
-                        <div>
-                          <p className="text-[14px] font-medium text-ink">{customer.name}</p>
-                          <p className="text-[11px] text-ink-3">Kod: {customer.code}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3 text-ink-2">
-                      <span className="font-medium text-ink">{customer.district}</span>
-                      <span className="block text-[11.5px] text-ink-3">{customer.type}</span>
-                    </td>
-
-                    <td className="px-4 py-3 text-ink-2">
-                      <span>{customer.contact}</span>
-                      <span className="block text-[11.5px] text-ink-3">{customer.phone}</span>
-                    </td>
-
-                    <td className="px-4 py-3 text-right">
-                      <span className="font-medium text-ink-2">
-                        {assignedDriver ? `${assignedDriver.name} (${assignedDriver.plate})` : "Atama yok"}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <Panel title="Eski Sistemdeki Rota Personelleri" description="Yeni şoför ve müşteri ataması eski programdan yapılır. Eski sistemde pasif olan personel uygulamaya giremez."
+        action={<div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" /><TextInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Kod, ad veya personel ID ara" className="w-72 pl-9" /></div>}>
+        {loading ? <div className="px-5 py-10 text-center text-sm text-ink-3">Şoförler yükleniyor…</div>
+          : loadError ? <div className="px-5 py-10 text-center text-sm text-[var(--bad)]">{loadError}</div>
+          : <div className="divide-y divide-hairline">
+            {filtered.map((row) => <div key={row.legacyPersonnelId} className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1.4fr)_0.7fr_1.2fr] lg:items-center">
+              <div className="flex min-w-0 items-center gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-xs font-bold text-ink-2 ring-1 ring-hairline">{initials(row.personnelName)}</span><div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">{row.personnelName}</p><p className="mt-0.5 text-xs text-ink-3">Kod {row.personnelCode} · Personel ID {row.legacyPersonnelId}</p></div></div>
+              <div><p className="text-xs text-ink-3">Eski sistem</p><div className="mt-1 flex items-center gap-2"><Badge tone={row.isLegacyActive ? "green" : "red"}>{row.isLegacyActive ? "Aktif" : "Pasif"}</Badge><span className="text-xs text-ink-3">{row.branchCount} şube</span></div></div>
+              <div><p className="text-xs text-ink-3">Uygulama hesabı</p>{row.account ? <><div className="mt-1 flex flex-wrap items-center gap-2"><span className="text-sm text-ink">{row.account.loginName}</span><Badge tone={row.account.isActive ? "green" : "red"}>{row.account.isActive ? "Açık" : "Kapalı"}</Badge>{row.account.mustChangePassword && <Badge tone="amber">Parola değişecek</Badge>}</div><div className="mt-2 flex flex-wrap gap-1"><Button size="sm" variant="ghost" disabled={busy || (!row.isLegacyActive && !row.account.isActive)} onClick={() => void setAccountStatus(row)}><Power className="size-3.5" />{row.account.isActive ? "Girişi kapat" : "Girişi aç"}</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => { setResetAccount(row.account); setTemporaryPassword(""); setActionError(null); }}><KeyRound className="size-3.5" />Parola</Button></div></> : <div className="mt-1"><p className="text-sm text-ink-3">Hesap açılmamış</p><Button size="sm" variant="ghost" className="mt-1" disabled={!row.isLegacyActive} onClick={() => openCreate(row)}>Giriş hesabı aç</Button></div>}</div>
+            </div>)}
+            {filtered.length === 0 && <div className="px-5 py-10 text-center text-sm text-ink-3">Filtreye uygun rota personeli bulunamadı.</div>}
+          </div>}
       </Panel>
 
-      {/* Şoför Ekle / Düzenle Modalı */}
-      {modalOpen && (
-        <Modal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          title={editingDriver ? "Şoför Bilgilerini Düzenle" : "Yeni Şoför Ekle"}
-          width="max-w-md"
-          footer={
-            <>
-              <Button variant="secondary" onClick={() => setModalOpen(false)}>
-                Vazgeç
-              </Button>
-              <Button variant="primary" onClick={handleSaveDriver}>
-                Kaydet
-              </Button>
-            </>
-          }
-        >
-          <div className="space-y-3.5">
-            <div>
-              <label className="block text-[12.5px] font-medium text-ink mb-1">Şoför Adı Soyadı</label>
-              <TextInput
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Örn: Hakan Demir"
-              />
-            </div>
+      <Modal open={Boolean(createDriver)} onClose={() => !busy && setCreateDriver(null)} title="Şoför giriş hesabı aç" subtitle={createDriver ? `${createDriver.personnelName} · Kod ${createDriver.personnelCode}` : undefined} width="max-w-md" footer={<><Button onClick={() => setCreateDriver(null)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void createAccount()} disabled={busy || loginName.trim().length < 2 || temporaryPassword.length < 12}>{busy ? "Kaydediliyor…" : "Hesabı oluştur"}</Button></>}>
+        <div className="space-y-4"><Field label="Kullanıcı adı" hint="Personel kodu benzersiz olduğu için varsayılan olarak kullanılır."><TextInput value={loginName} onChange={(event) => setLoginName(event.target.value)} autoComplete="off" maxLength={100} /></Field><Field label="Geçici parola" hint="12-128 karakter. Yedi gün geçerlidir; ilk girişte değiştirilir."><TextInput type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} autoComplete="new-password" maxLength={128} /></Field>{actionError && <p className="rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{actionError}</p>}</div>
+      </Modal>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[12.5px] font-medium text-ink mb-1">Şoför Kodu</label>
-                <TextInput
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="SFR-01"
-                />
-              </div>
-              <div>
-                <label className="block text-[12.5px] font-medium text-ink mb-1">Araç Plakası</label>
-                <TextInput
-                  value={plate}
-                  onChange={(e) => setPlate(e.target.value)}
-                  placeholder="06 YPS 401"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[12.5px] font-medium text-ink mb-1">Telefon Numarası</label>
-              <TextInput
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="0532 000 00 00"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[12.5px] font-medium text-ink mb-1">Teslimat Bölgesi</label>
-              <TextInput
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
-                placeholder="Örn: Kızılay · Ulus"
-              />
-            </div>
-          </div>
-        </Modal>
-      )}
+      <Modal open={Boolean(resetAccount)} onClose={() => !busy && setResetAccount(null)} title="Şoför parolasını yenile" subtitle={resetAccount ? `${resetAccount.loginName} hesabının açık oturumları kapatılacak.` : undefined} width="max-w-md" footer={<><Button onClick={() => setResetAccount(null)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void submitReset()} disabled={busy || temporaryPassword.length < 12}>{busy ? "Kaydediliyor…" : "Parolayı yenile"}</Button></>}>
+        <Field label="Yeni geçici parola" hint="Şoför sonraki girişte bu parolayı değiştirmek zorundadır."><TextInput type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} autoComplete="new-password" maxLength={128} /></Field>{actionError && <p className="mt-3 rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{actionError}</p>}
+      </Modal>
     </div>
   );
 }

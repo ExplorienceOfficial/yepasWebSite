@@ -12,6 +12,7 @@ interface ApiIdentity {
   userId: number;
   loginName: string;
   role: "ADMIN" | "DRIVER";
+  legacyPersonnelId?: number | null;
   mustChangePassword: boolean;
 }
 
@@ -44,9 +45,10 @@ function toSession(identity: ApiIdentity): Session | null {
     };
   }
   if (identity.role === "DRIVER") {
+    if (!identity.legacyPersonnelId) return null;
     return {
       role: "driver",
-      driverId: `legacy-${identity.userId}`,
+      driverId: String(identity.legacyPersonnelId),
       code: identity.loginName,
       name: identity.loginName,
       plate: "",

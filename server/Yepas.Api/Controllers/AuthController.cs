@@ -71,7 +71,8 @@ namespace Yepas.Api.Controllers
                 SetSessionCookie(token, false);
                 return Request.CreateResponse(HttpStatusCode.OK,
                     new { userId = identity.UserId, loginName = identity.LoginName,
-                          role = identity.Role, mustChangePassword = identity.MustChangePassword });
+                          role = identity.Role, legacyPersonnelId = identity.LegacyPersonnelId,
+                          mustChangePassword = identity.MustChangePassword });
             }
             catch (Exception)
             {
@@ -90,7 +91,8 @@ namespace Yepas.Api.Controllers
                 if (identity == null) return Request.CreateResponse(HttpStatusCode.Unauthorized);
                 return Request.CreateResponse(HttpStatusCode.OK,
                     new { userId = identity.UserId, loginName = identity.LoginName,
-                          role = identity.Role, mustChangePassword = identity.MustChangePassword });
+                          role = identity.Role, legacyPersonnelId = identity.LegacyPersonnelId,
+                          mustChangePassword = identity.MustChangePassword });
             }
             catch (Exception)
             {

@@ -1,4 +1,4 @@
-# YEPAS 0.1.0 smoke kurulumu
+# YEPAS smoke kurulumu
 
 Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir. PROD'a kurulmaz ve mevcut `C:\RSiparis` klasörüne dokunmaz.
 
@@ -6,7 +6,7 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
 
 - Uygulama sunucusu: `192.168.5.230`
 - Veritabanı: yalnızca DEV instance
-- Önerilen klasör: `C:\YepasApp\releases\0.1.0-smoke`
+- Önerilen klasör: `C:\YepasApp\releases\<sürüm>-smoke-<commit>`
 - Ayrı IIS site ve uygulama havuzu
 - Ayrı HTTPS binding
 
@@ -15,7 +15,7 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
 1. Windows 7 SP1, IIS 7.5 ASP.NET özellikleri ve .NET Framework 4.8'i doğrulayın.
 2. Hedef klasörü ve yeni `EkmekSiparis` veritabanını yedekleyin.
 3. Paketin SHA-256 listesini doğrulayın.
-4. `database\migrations` betiklerini `EkmekSiparis` üzerinde sırasıyla çalıştırın: `000`, `001`, `002`, `003`, `004`.
+4. `database\migrations` betiklerini `EkmekSiparis` üzerinde sırasıyla çalıştırın: `000`, `001`, `002`, `003`, `004`, `005`.
 5. `database\permissions` altındaki `003` ve `004` betiklerini `PrestoPlus` üzerinde çalıştırarak katalog hesabına yalnızca gereken salt-okunur izinleri ekleyin.
 6. `site` içeriğini yeni sürüm klasörüne kopyalayın.
 7. Ayrı, yönetici olmayan IIS uygulama havuzu ve site oluşturun. Uygulama havuzu `.NET v4.0`, Integrated pipeline ve 64-bit kullanmalıdır.
@@ -32,6 +32,9 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
 - Girişsiz `/api/v1/auth/me` isteği `401` döndürür.
 - Admin girişi HTTPS üzerinde çalışır ve parola ağ/log çıktısında görünmez.
 - `/admin/urunler/` gerçek DEV ürünlerini gösterir ve fiyat döndürmez.
+- `/admin/sofor-yonetimi/` eski sistemde rotası bulunan personeli gösterir; şoför ekleme veya rota atama işlemi sunmaz.
+- Şoför hesabı açma, kapatma ve geçici parola yenileme işlemleri çalışır; kapatılan hesabın açık oturumları iptal edilir.
+- Şoför girişiyle `/sofor/` yalnız oturumdaki personelin eski sistemde bağlı şubelerini ve uygulamadaki siparişlerini gösterir.
 - Girişsiz `/api/v1/admin/products` isteği `401` döndürür.
 - IIS uygulama havuzu yeniden başlatıldıktan sonra yeniden giriş yapılabilir.
 - Mevcut RSiparis uygulaması ve PROD veritabanı etkilenmez.

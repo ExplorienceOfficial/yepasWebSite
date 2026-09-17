@@ -34,7 +34,7 @@ namespace Yepas.Api.Controllers
             catch (InvalidOperationException exception)
             {
                 return Request.CreateResponse(HttpStatusCode.Conflict,
-                    new { code = "SCHEDULE_UNAVAILABLE", message = exception.Message });
+                    new { code = "PRODUCT_SOURCE_PENDING", message = exception.Message });
             }
             catch (Exception)
             {
@@ -92,6 +92,11 @@ namespace Yepas.Api.Controllers
             {
                 return Request.CreateResponse(HttpStatusCode.Conflict,
                     new { code = "IDEMPOTENCY_CONFLICT", message = "İstek anahtarı daha önce farklı içerikle kullanıldı." });
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.Conflict,
+                    new { code = "PRODUCT_SOURCE_PENDING", message = exception.Message });
             }
             catch (Exception)
             {

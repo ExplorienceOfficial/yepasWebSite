@@ -4,9 +4,9 @@ Bu betikler yalnızca yeni uygulama veritabanı içindir. `PrestoPlus` şemasın
 
 1. Hedef SQL instance ve yedeği doğrulayın.
 2. `master` bağlamında `000_create_database.sql` çalıştırın.
-3. `EkmekSiparis` bağlamında sırayla `001_identity.sql`, `002_session_role.sql`, `003_orders.sql`, `004_customer_management.sql` çalıştırın.
-4. `dbo.SchemaMigrations` tablosunda 1, 2, 3 ve 4 sürümlerini ve dört rolü (`ADMIN`, `OPERATOR`, `CUSTOMER`, `DRIVER`) doğrulayın.
-5. PrestoPlus DEV bağlamında `database/permissions/003_catalog_order_read.sql` ve `004_catalog_customer_read.sql` betiklerini çalıştırın. Bu izinler yalnızca müşteri, SG ve eski programdaki ürün atamalarını okumak içindir.
+3. `EkmekSiparis` bağlamında sırayla `001_identity.sql`, `002_session_role.sql`, `003_orders.sql`, `004_customer_management.sql`, `005_driver_management.sql` çalıştırın.
+4. `dbo.SchemaMigrations` tablosunda 1, 2, 3, 4 ve 5 sürümlerini ve dört rolü (`ADMIN`, `OPERATOR`, `CUSTOMER`, `DRIVER`) doğrulayın.
+5. PrestoPlus DEV bağlamında `database/permissions/003_catalog_order_read.sql` ve `004_catalog_customer_read.sql` betiklerini çalıştırın. Bu izinler müşteri, şube, SG, rota personeli ve ürün katalog bilgilerini salt okunur almak içindir. Müşteri ürün yetkisi, müşteri tarafından hazırlanacak yeni tablo geldikten sonra ayrıca yetkilendirilecektir.
 
 Migration betikleri aynı veritabanında yeniden çalıştırılabilir. SQL Server 2005'te gerçek uygulamadan önce ayrıca uyumluluk testi yapılacaktır; yerel SQL Server 2022 doğrulaması bunun yerine geçmez.
 

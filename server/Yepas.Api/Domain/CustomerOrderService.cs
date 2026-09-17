@@ -103,7 +103,8 @@ namespace Yepas.Api.Domain
 
         private static IList<CatalogProduct> AccessibleProducts(LegacyCustomerSchedule schedule)
         {
-            return new LegacyCustomerProductReader().Read(schedule);
+            throw new InvalidOperationException(
+                "Müşteri ürün tablosu henüz eski sistemde hazırlanmadı.");
         }
 
         private static string ProductKey(CatalogProduct product)
