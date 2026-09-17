@@ -32,6 +32,11 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
 - Girişsiz `/api/v1/auth/me` isteği `401` döndürür.
 - Admin girişi HTTPS üzerinde çalışır ve parola ağ/log çıktısında görünmez.
 - `/admin/urunler/` gerçek DEV ürünlerini gösterir ve fiyat döndürmez.
+- `/admin/musteriler/` şube bazındaki gerçek mobil ürün tanımı sayısını gösterir.
+- Müşteri girişinden sonra `/api/v1/customer/branches/{legacyMbId}/order` yalnızca o
+  şubeye `RS_MOBIL_SIPARIS_URUN_TANIMLARI` tablosunda tanımlanan ürünleri ve
+  `U_STOK_LIMIT` değerlerini döndürür.
+- Limit üzerindeki veya şubeye tanımlanmamış ürün içeren sipariş reddedilir.
 - `/admin/sofor-yonetimi/` eski sistemde rotası bulunan personeli gösterir; şoför ekleme veya rota atama işlemi sunmaz.
 - Şoför hesabı açma, kapatma ve geçici parola yenileme işlemleri çalışır; kapatılan hesabın açık oturumları iptal edilir.
 - Şoför girişiyle `/sofor/` yalnız oturumdaki personelin eski sistemde bağlı şubelerini ve uygulamadaki siparişlerini gösterir.

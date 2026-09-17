@@ -17,9 +17,9 @@ Hazır olan bölümler:
 - Zorunlu parola değiştirme
 - Hesaba bağlı müşteri şubelerini listeleme
 
-Bekleyen bölüm:
-
-- Sipariş bağlamı ve sipariş kaydetme uçları kodda hazırdır; ancak eski sistemde müşteri-ürün atama tablosu henüz hazırlanmadığı için şu anda `409 PRODUCT_SOURCE_PENDING` döndürür.
+Sipariş bağlamı ve sipariş kaydetme uçları, eski sistemdeki
+`D00013.RS_MOBIL_SIPARIS_URUN_TANIMLARI` tablosunu şube anahtarı `MB_ID`
+üzerinden kullanır.
 
 ## 2. Ortak kurallar
 
@@ -198,7 +198,8 @@ Olası cevaplar:
 
 ## 6. Sipariş uçları
 
-> Bu iki uç müşteri-ürün atama kaynağı tamamlanana kadar `409 PRODUCT_SOURCE_PENDING` döndürür. Mobil geliştirici sözleşmeye göre ekranı hazırlayabilir ancak gerçek ürün/sipariş testi beklemelidir.
+> Ürünler şube bazında döner. Aynı müşteri hesabına bağlı farklı şubeler farklı
+> ürün listeleri ve miktar sınırları alabilir.
 
 ### 6.1 Şubenin sipariş bağlamı
 
@@ -224,7 +225,8 @@ Başarılı cevap — `200 OK`:
       "name": "7 Lİ SANDVİÇ EKMEK 420 GR",
       "groupId": 1,
       "aStokId": 52,
-      "variantName": "6.4 7 Lİ SANDVİÇ 420 GR"
+      "variantName": "6.4 7 Lİ SANDVİÇ 420 GR",
+      "maxQuantity": 100
     }
   ],
   "order": null
@@ -261,7 +263,7 @@ Pencere modları:
 - `OPEN`: Admin tarafından geçici olarak açık
 - `CLOSED`: Admin tarafından geçici olarak kapalı
 
-Olası cevaplar: `400`, `401`, `403`, `404`, `409 PRODUCT_SOURCE_PENDING`, `503 ORDER_UNAVAILABLE`.
+Olası cevaplar: `400`, `401`, `403`, `404`, `503 ORDER_UNAVAILABLE`.
 
 ### 6.2 Sipariş oluşturma veya güncelleme
 
@@ -331,7 +333,6 @@ Başarılı cevap — `200 OK`: Güncel `order` nesnesi.
 - `409 ORDER_WINDOW_CLOSED`: Sipariş saati geçmiş/admin kapatmış
 - `409 ORDER_REVISION_CONFLICT`: Başka işlem siparişi güncellemiş; GET ile yenile
 - `409 IDEMPOTENCY_CONFLICT`: Aynı anahtar farklı gövdeyle tekrar kullanılmış
-- `409 PRODUCT_SOURCE_PENDING`: Müşteri ürün tablosu henüz hazır değil
 - `503 ORDER_UNAVAILABLE`
 
 ## 7. Kısa cURL örneği

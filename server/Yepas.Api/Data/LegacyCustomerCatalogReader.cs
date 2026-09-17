@@ -11,12 +11,22 @@ namespace Yepas.Api.Data
 SELECT MB.ID, MB.MUSTERI_ID, MB.BOLUM_ID, MB.PERSONEL_ID,
        M.MUST_KODU, M.MUST_ADI, B.BOLUM_ADI,
        ISNULL(P.PERSONEL_ADI, '') + ' ' + ISNULL(P.PERSONEL_SOYADI, ''),
+       ISNULL(PC.PRODUCT_COUNT, 0),
        MB.SG_1, MB.SG_2, MB.SG_3, MB.SG_4, MB.SG_5, MB.SG_6, MB.SG_7
 FROM D00013.RS_MUSTERI_BILGILERI MB
 INNER JOIN D00013.MUSTERILER M ON M.MUSTERI_ID = MB.MUSTERI_ID
 INNER JOIN D00013.BF_MUST_BOLUM B
     ON B.BOLUM_ID = MB.BOLUM_ID AND B.MUSTERI_ID = MB.MUSTERI_ID
 LEFT JOIN D00013.FIRMA_PERSONELI P ON P.PERSONEL_ID = MB.PERSONEL_ID
+LEFT JOIN (
+    SELECT X.MB_ID, COUNT(*) AS PRODUCT_COUNT
+    FROM (
+        SELECT MB_ID, U_STOK_ID, A_STOK_ID
+        FROM D00013.RS_MOBIL_SIPARIS_URUN_TANIMLARI
+        GROUP BY MB_ID, U_STOK_ID, A_STOK_ID
+    ) X
+    GROUP BY X.MB_ID
+) PC ON PC.MB_ID = MB.ID
 ORDER BY M.MUST_ADI, B.BOLUM_ADI, MB.ID";
 
         public IList<AdminCustomerView> Read()
@@ -33,7 +43,7 @@ ORDER BY M.MUST_ADI, B.BOLUM_ADI, MB.ID";
                         var days = new List<string>();
                         var names = new[] { "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz" };
                         for (var index = 0; index < 7; index++)
-                            if (String.Equals(Convert.ToString(reader.GetValue(8 + index)).Trim(), "+",
+                            if (String.Equals(Convert.ToString(reader.GetValue(9 + index)).Trim(), "+",
                                 StringComparison.Ordinal)) days.Add(names[index]);
                         rows.Add(new AdminCustomerView
                         {
@@ -45,7 +55,7 @@ ORDER BY M.MUST_ADI, B.BOLUM_ADI, MB.ID";
                             CustomerName = Convert.ToString(reader.GetValue(5)).Trim(),
                             DepartmentName = Convert.ToString(reader.GetValue(6)).Trim(),
                             PersonnelName = Convert.ToString(reader.GetValue(7)).Trim(),
-                            ProductCount = 0,
+                            ProductCount = reader.GetInt32(8),
                             DistributionDays = String.Join(", ", days)
                         });
                     }

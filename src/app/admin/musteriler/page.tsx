@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Building2, KeyRound, Plus, Power, Search, Users } from "lucide-react";
+import { Building2, KeyRound, Plus, Power, Search, Users } from "lucide-react";
 import { PageHeading, Panel } from "@/components/admin/Panel";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -27,7 +27,6 @@ interface CustomerBranch {
   personnelName: string;
   distributionDays: string;
   productCount: number;
-  productSourcePending: boolean;
   productAssignmentMissing: boolean;
   account: CustomerAccount | null;
 }
@@ -201,7 +200,7 @@ export default function CustomersPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Panel bodyClassName="px-5 py-4"><p className="text-xs text-ink-3">Operasyon şubesi</p><p className="mt-1 text-2xl font-bold text-ink">{rows.length}</p></Panel>
         <Panel bodyClassName="px-5 py-4"><p className="text-xs text-ink-3">Mobil müşteri hesabı</p><p className="mt-1 text-2xl font-bold text-ink">{accountCount}</p></Panel>
-        <Panel bodyClassName="px-5 py-4"><p className="text-xs text-ink-3">Ürün kaynağı</p><p className="mt-1 text-lg font-bold text-[var(--warn)]">Yeni tablo bekleniyor</p></Panel>
+        <Panel bodyClassName="px-5 py-4"><p className="text-xs text-ink-3">Ürün kaynağı</p><p className="mt-1 text-lg font-bold text-[var(--ok)]">Mobil ürün tanımları aktif</p></Panel>
       </div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -232,7 +231,7 @@ export default function CustomersPage() {
                   {row.account ? <><div className="mt-1 flex flex-wrap items-center gap-2"><span className="text-sm text-ink">{row.account.loginName}</span><Badge tone={row.account.isActive ? "green" : "red"}>{row.account.isActive ? "Aktif" : "Kapalı"}</Badge>{row.account.mustChangePassword && <Badge tone="amber">Parola değişecek</Badge>}</div><div className="mt-2 flex flex-wrap gap-1"><Button size="sm" variant="ghost" disabled={busy} onClick={() => openBranchManager(row.account!)}>Şubeler</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => { setResetAccount(row.account); setResetPassword(""); setActionError(null); }}><KeyRound className="size-3.5" />Parola</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => void setAccountStatus(row.account!)}><Power className="size-3.5" />{row.account.isActive ? "Kapat" : "Aç"}</Button></div></> : <div className="mt-1"><p className="text-sm text-ink-3">Hesap bağlı değil</p><Button size="sm" variant="ghost" className="mt-1" onClick={() => openCreate(row.legacyCustomerId)}><Plus className="size-3.5" />Hesap aç</Button></div>}
                 </div>
                 <div className="lg:text-right">
-                  {row.productSourcePending ? <div className="inline-flex max-w-xs items-start gap-2 rounded-xl bg-[var(--warn)]/10 px-3 py-2 text-left text-xs text-[var(--warn)] ring-1 ring-[var(--warn)]/20"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span><strong>Ürün tablosu bekleniyor.</strong><br />Müşteri yeni tabloyu hazırlayacak.</span></div> : row.productAssignmentMissing ? <Badge tone="red">Ürün ataması eksik</Badge> : <Badge tone="green">{row.productCount} ürün tanımlı</Badge>}
+                  {row.productAssignmentMissing ? <Badge tone="red">Ürün ataması eksik</Badge> : <Badge tone="green">{row.productCount} ürün tanımlı</Badge>}
                 </div>
               </div>
             ))}

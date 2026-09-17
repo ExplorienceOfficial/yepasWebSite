@@ -22,6 +22,8 @@ namespace Yepas.Api.Domain
     {
         private readonly OrderRepository orders = new OrderRepository();
         private readonly LegacyCustomerScheduleReader schedules = new LegacyCustomerScheduleReader();
+        private readonly LegacyCustomerProductReader customerProducts =
+            new LegacyCustomerProductReader();
 
         public CustomerOrderContextView GetContext(int legacyMbId)
         {
@@ -31,7 +33,7 @@ namespace Yepas.Api.Domain
             DateTime databaseUtcNow;
             var settings = orders.ReadSettings(out databaseUtcNow);
             var decision = OrderWindowPolicy.Evaluate(schedule, settings, databaseUtcNow);
-            var products = AccessibleProducts(schedule);
+            var products = customerProducts.Read(schedule.LegacyMbId);
 
             return new CustomerOrderContextView
             {
@@ -66,7 +68,7 @@ namespace Yepas.Api.Domain
             var schedule = schedules.Read(legacyMbId);
             if (schedule == null) throw new KeyNotFoundException("Müşteri operasyon kaydı bulunamadı.");
 
-            var products = AccessibleProducts(schedule);
+            var products = customerProducts.Read(schedule.LegacyMbId);
             var productMap = products.ToDictionary(ProductKey, StringComparer.Ordinal);
             var prepared = new List<PreparedOrderLine>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -86,6 +88,8 @@ namespace Yepas.Api.Domain
                 CatalogProduct product;
                 if (!seen.Add(key) || !productMap.TryGetValue(key, out product))
                     throw new ArgumentException("Ürün müşteriye tanımlı değil veya tekrarlı gönderildi.");
+                if (product.MaxQuantity > 0 && line.Quantity > product.MaxQuantity)
+                    throw new ArgumentException("Ürün miktarı müşteri limitini aşıyor.");
                 prepared.Add(new PreparedOrderLine
                 {
                     UStokId = line.UStokId,
@@ -99,12 +103,6 @@ namespace Yepas.Api.Domain
 
             return orders.SaveCustomerOrder(userId, schedule, input, status, prepared,
                 idempotencyKey.Trim(), RequestHash(legacyMbId, input, status));
-        }
-
-        private static IList<CatalogProduct> AccessibleProducts(LegacyCustomerSchedule schedule)
-        {
-            throw new InvalidOperationException(
-                "Müşteri ürün tablosu henüz eski sistemde hazırlanmadı.");
         }
 
         private static string ProductKey(CatalogProduct product)

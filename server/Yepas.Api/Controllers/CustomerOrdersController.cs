@@ -50,11 +50,6 @@ namespace Yepas.Api.Controllers
                 if (context == null) return Request.CreateResponse(HttpStatusCode.NotFound);
                 return Request.CreateResponse(HttpStatusCode.OK, context);
             }
-            catch (InvalidOperationException exception)
-            {
-                return Request.CreateResponse(HttpStatusCode.Conflict,
-                    new { code = "PRODUCT_SOURCE_PENDING", message = exception.Message });
-            }
             catch (Exception)
             {
                 return Request.CreateResponse(HttpStatusCode.ServiceUnavailable,
@@ -111,11 +106,6 @@ namespace Yepas.Api.Controllers
             {
                 return Request.CreateResponse(HttpStatusCode.Conflict,
                     new { code = "IDEMPOTENCY_CONFLICT", message = "İstek anahtarı daha önce farklı içerikle kullanıldı." });
-            }
-            catch (InvalidOperationException exception)
-            {
-                return Request.CreateResponse(HttpStatusCode.Conflict,
-                    new { code = "PRODUCT_SOURCE_PENDING", message = exception.Message });
             }
             catch (Exception)
             {

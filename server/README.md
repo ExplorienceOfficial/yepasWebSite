@@ -27,6 +27,7 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 - `GET /api/v1/admin/drivers` eski programdaki rota personellerini ve uygulama hesaplarını listeler. Hesap açma, kapatma/açma ve geçici parola yenileme uçları yalnız admin oturumuyla çalışır; kapatma açık oturumları iptal eder.
 - `GET /api/v1/driver/routes?scope=delivery|submitted` giriş yapan şoförün yalnız kendi personel kimliğine bağlı ve seçilen teslim gününde SG alanı `+` olan şubelerini getirir. `delivery` bugünü, `submitted` yarını esas alır; şoför ekranı bu gerçek uçtan beslenir.
 - `GET /api/v1/customer/branches/{legacyMbId}/order` müşteriye tanımlı ürünleri, yalnızca `SG_1`–`SG_7` alanlarından hesaplanan sıradaki teslim gününü, sipariş penceresini ve varsa mevcut siparişi getirir.
+- Müşteriye/şubeye tanımlı ürünler `D00013.RS_MOBIL_SIPARIS_URUN_TANIMLARI` tablosundan `MB_ID` ile okunur; `U_STOK_LIMIT` pozitifse sipariş üst sınırı olarak uygulanır.
 - `GET /api/v1/customer/branches` giriş yapan müşterinin yalnızca `CustomerAccess`
   üzerinden bağlı olduğu gerçek müşteri/şube kayıtlarını getirir.
 - `PUT /api/v1/customer/branches/{legacyMbId}/order` sipariş oluşturur, günceller, iptal eder veya `NO_PRODUCT` kaydı oluşturur. `Idempotency-Key` başlığı zorunludur; güncellemede en son `revision` gönderilir.
@@ -37,7 +38,7 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 - `POST /api/v1/auth/change-password` geçici parolayı değiştirir; diğer açık oturumları iptal eder.
 - Geçici parolayla giriş yapan kullanıcı diğer ekranlara geçmeden önce arayüzde zorunlu parola değiştirme adımını tamamlar.
 - Bir müşteri hesabı `CustomerAccess` ile birden fazla `MB_ID` şubesine bağlanabilir; her şubenin siparişi ayrıdır. Her `MB_ID` yalnızca bir mobil hesaba bağlanır.
-- Müşteri ürün yetkisi için müşteri tarafından `RS_SABIT_SIPARISLER` benzeri yeni bir tablo hazırlanacaktır. `BF_MUST_STOK` nihai ürün yetki kaynağı değildir; yeni tablo gelene kadar mobil ürün entegrasyonu beklemededir.
+- Müşteri ürün yetkisi `RS_MOBIL_SIPARIS_URUN_TANIMLARI` tablosundan şube bazında okunur. Uygulama bu tabloya yazmaz; ürün atamaları eski programdan yönetilir.
 - Fiyat hiçbir sipariş tablosunda tutulmaz ve API'den dönmez.
 - Tatil veya müşteriye özel tarih istisnası bu sürümde yoktur. Teslim günü sadece eski sistemdeki `RS_MUSTERI_BILGILERI.SG_1`–`SG_7` işaretlerine göre hesaplanır.
 - Ürün ekranındaki düzenleme/silme ve sahte talep/limit işlemleri gizlenmiştir. Eski ürün tablolarına yazma yapılmaz.

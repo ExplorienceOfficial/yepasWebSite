@@ -22,7 +22,6 @@ namespace Yepas.Api.Models
         public string PersonnelName { get; set; }
         public string DistributionDays { get; set; }
         public int ProductCount { get; set; }
-        public bool ProductSourcePending { get { return true; } }
         public bool ProductAssignmentMissing { get { return ProductCount == 0; } }
         public CustomerAccountSummary Account { get; set; }
     }
