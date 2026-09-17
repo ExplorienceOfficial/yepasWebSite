@@ -24,15 +24,15 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
   akışta dönen erişim anahtarını sonraki isteklerde `Authorization: Bearer`
   olarak gönderir. Canlıda HTTPS zorunludur ve anahtar cihazda düz metin saklanmaz.
 - Ürün API'si `GET /api/v1/admin/products` yolundadır ve yalnızca geçerli `ADMIN` oturumu kabul eder.
-- `GET /api/v1/admin/drivers` eski programdaki rota personellerini ve uygulama hesaplarını listeler. Hesap açma, kapatma/açma ve geçici parola yenileme uçları yalnız admin oturumuyla çalışır; kapatma açık oturumları iptal eder.
-- `GET /api/v1/driver/routes?scope=delivery|submitted` giriş yapan şoförün yalnız kendi personel kimliğine bağlı ve seçilen teslim gününde SG alanı `+` olan şubelerini getirir. `delivery` bugünü, `submitted` yarını esas alır; şoför ekranı bu gerçek uçtan beslenir.
+- `GET /api/v1/admin/drivers` `BF_PERS_MUST` tablosunda müşteri/şubesi ve `RS_MUSTERI_BILGILERI` tablosunda operasyon kaydı bulunan rota personellerini uygulama hesaplarıyla listeler. Hesap açma, kapatma/açma ve geçici parola yenileme uçları yalnız admin oturumuyla çalışır; kapatma açık oturumları iptal eder.
+- `GET /api/v1/driver/routes?scope=delivery|submitted` giriş yapan şoförün `BF_PERS_MUST` ile bağlı olduğu müşteri/şubeleri getirir; `MB_ID` ve seçilen teslim günündeki `SG_1`–`SG_7` filtresi `RS_MUSTERI_BILGILERI` üzerinden uygulanır. `delivery` bugünü, `submitted` yarını esas alır.
 - `GET /api/v1/customer/branches/{legacyMbId}/order` müşteriye tanımlı ürünleri, yalnızca `SG_1`–`SG_7` alanlarından hesaplanan sıradaki teslim gününü, sipariş penceresini ve varsa mevcut siparişi getirir.
 - Müşteriye/şubeye tanımlı ürünler `D00013.RS_MOBIL_SIPARIS_URUN_TANIMLARI` tablosundan `MB_ID` ile okunur; `U_STOK_LIMIT` pozitifse sipariş üst sınırı olarak uygulanır.
 - `GET /api/v1/customer/branches` giriş yapan müşterinin yalnızca `CustomerAccess`
   üzerinden bağlı olduğu gerçek müşteri/şube kayıtlarını getirir.
 - `PUT /api/v1/customer/branches/{legacyMbId}/order` sipariş oluşturur, günceller, iptal eder veya `NO_PRODUCT` kaydı oluşturur. `Idempotency-Key` başlığı zorunludur; güncellemede en son `revision` gönderilir.
 - `GET/PUT /api/v1/admin/order-settings` genel kesim saatini ve `AUTO`, `OPEN`, `CLOSED` manuel durumunu yönetir. Manuel değişikliklerde gerekçe zorunludur ve denetim kaydı tutulur.
-- `GET /api/v1/admin/customers` eski programdaki müşteri/şube, SG ve şoför bilgisini hesap durumuyla birlikte getirir. Müşteri ürün tablosu gelene kadar ürün atama durumu “bekleniyor” olarak gösterilir.
+- `GET /api/v1/admin/customers` eski programdaki müşteri/şube, SG ve şoför bilgisini hesap durumuyla birlikte getirir; şube bazındaki mobil ürün tanım sayısını gerçek ürün eşleştirme tablosundan gösterir.
 - `POST /api/v1/admin/customers/accounts` aynı müşteriye ait bir veya daha fazla `MB_ID` şubesi için tek mobil hesap açar. Geçici parola yedi gün geçerlidir ve ilk girişte değiştirilir.
 - `PUT /api/v1/admin/customers/accounts/{userId}/branches`, `status` ve `reset-password` uçları şube bağlantısı, giriş izni ve geçici parola yönetimini denetim kaydıyla yapar.
 - `POST /api/v1/auth/change-password` geçici parolayı değiştirir; diğer açık oturumları iptal eder.

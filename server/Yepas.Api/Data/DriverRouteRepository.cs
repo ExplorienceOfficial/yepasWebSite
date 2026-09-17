@@ -20,11 +20,12 @@ namespace Yepas.Api.Data
             string personnelName;
             ReadPersonnel(personnelId, out personnelCode, out personnelName);
             var stops = ReadStops(personnelId, deliveryDate);
-            var orders = ReadOrders(personnelId, scope, localDate, deliveryDate);
+            var orders = ReadOrders(stops, scope, localDate, deliveryDate);
             foreach (var stop in stops)
             {
                 OrderView order;
-                if (orders.TryGetValue(stop.LegacyMbId, out order)) stop.Order = order;
+                if (orders.TryGetValue(BranchKey(stop.LegacyCustomerId,
+                    stop.LegacyDepartmentId), out order)) stop.Order = order;
             }
 
             return new DriverRouteView {
@@ -64,13 +65,26 @@ WHERE P.PERSONEL_ID = @personnel", connection))
             var stops = new List<DriverRouteStopView>();
             using (var connection = new SqlConnection(DatabaseConnections.Catalog()))
             using (var command = new SqlCommand(@"
+;WITH RouteCandidates AS (
+    SELECT MB.ID, MB.MUSTERI_ID, MB.BOLUM_ID,
+           MB.SG_1, MB.SG_2, MB.SG_3, MB.SG_4, MB.SG_5, MB.SG_6, MB.SG_7,
+           ROW_NUMBER() OVER (
+               PARTITION BY PM.PERSONEL_ID, PM.MUSTERI_ID, PM.BOLUM_ID
+               ORDER BY CASE WHEN MB.PERSONEL_ID = PM.PERSONEL_ID THEN 0 ELSE 1 END,
+                        MB.ID DESC) AS ROUTE_ROW
+    FROM D00013.BF_PERS_MUST PM
+    INNER JOIN D00013.RS_MUSTERI_BILGILERI MB
+        ON MB.MUSTERI_ID = PM.MUSTERI_ID
+       AND MB.BOLUM_ID = PM.BOLUM_ID
+    WHERE PM.PERSONEL_ID = @personnel
+)
 SELECT MB.ID, MB.MUSTERI_ID, MB.BOLUM_ID,
        M.MUST_KODU, M.MUST_ADI, B.BOLUM_ADI
-FROM D00013.RS_MUSTERI_BILGILERI MB
+FROM RouteCandidates MB
 INNER JOIN D00013.MUSTERILER M ON M.MUSTERI_ID = MB.MUSTERI_ID
 INNER JOIN D00013.BF_MUST_BOLUM B
     ON B.MUSTERI_ID = MB.MUSTERI_ID AND B.BOLUM_ID = MB.BOLUM_ID
-WHERE MB.PERSONEL_ID = @personnel
+WHERE MB.ROUTE_ROW = 1
   AND ((@day = 1 AND MB.SG_1 = '+') OR
        (@day = 2 AND MB.SG_2 = '+') OR
        (@day = 3 AND MB.SG_3 = '+') OR
@@ -99,27 +113,42 @@ ORDER BY M.MUST_KODU, M.MUST_ADI, B.BOLUM_ADI, MB.ID", connection))
             return stops;
         }
 
-        private static IDictionary<int, OrderView> ReadOrders(int personnelId, string scope,
+        private static IDictionary<string, OrderView> ReadOrders(
+            IList<DriverRouteStopView> stops, string scope,
             DateTime localDate, DateTime deliveryDate)
         {
-            var orders = new Dictionary<int, OrderView>();
+            var orders = new Dictionary<string, OrderView>(StringComparer.Ordinal);
+            if (stops.Count == 0) return orders;
+
+            var routeFilters = new List<string>();
+            for (var index = 0; index < stops.Count; index++)
+                routeFilters.Add("(O.LegacyCustomerId = @customer" + index +
+                    " AND O.LegacyDepartmentId = @department" + index + ")");
             var utcStart = localDate.AddHours(-3);
             var utcEnd = utcStart.AddDays(1);
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
             using (var command = new SqlCommand(@"
-SELECT O.OrderId, O.LegacyMbId, O.DeliveryDate, O.Status, O.Revision,
+SELECT O.LegacyCustomerId, O.LegacyDepartmentId,
+       O.OrderId, O.LegacyMbId, O.DeliveryDate, O.Status, O.Revision,
        O.Note, O.UpdatedAtUtc, L.UStokId, L.AStokId, L.Quantity,
        L.ProductCode, L.ProductName, L.VariantName
 FROM dbo.Orders O
 LEFT JOIN dbo.OrderLines L ON L.OrderId = O.OrderId
-WHERE O.LegacyPersonnelId = @personnel
+WHERE (" + String.Join(" OR ", routeFilters.ToArray()) + @")
   AND O.DeliveryDate = @deliveryDate
   AND ((@scope = N'delivery')
        OR (@scope = N'submitted' AND O.CreatedAtUtc >= @utcStart
                                   AND O.CreatedAtUtc < @utcEnd))
-ORDER BY O.UpdatedAtUtc DESC, O.OrderId, L.ProductName, L.VariantName", connection))
+ORDER BY O.LegacyCustomerId, O.LegacyDepartmentId,
+         O.UpdatedAtUtc DESC, O.OrderId, L.ProductName, L.VariantName", connection))
             {
-                command.Parameters.Add("@personnel", SqlDbType.Int).Value = personnelId;
+                for (var index = 0; index < stops.Count; index++)
+                {
+                    command.Parameters.Add("@customer" + index, SqlDbType.Int).Value =
+                        stops[index].LegacyCustomerId;
+                    command.Parameters.Add("@department" + index, SqlDbType.Int).Value =
+                        stops[index].LegacyDepartmentId;
+                }
                 command.Parameters.Add("@scope", SqlDbType.NVarChar, 10).Value = scope;
                 command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate;
                 command.Parameters.Add("@utcStart", SqlDbType.DateTime).Value = utcStart;
@@ -128,34 +157,40 @@ ORDER BY O.UpdatedAtUtc DESC, O.OrderId, L.ProductName, L.VariantName", connecti
                 using (var reader = command.ExecuteReader())
                     while (reader.Read())
                     {
-                        var mbId = reader.GetInt32(1);
+                        var branchKey = BranchKey(reader.GetInt32(0), reader.GetInt32(1));
                         OrderView order;
-                        if (!orders.TryGetValue(mbId, out order))
+                        if (!orders.TryGetValue(branchKey, out order))
                         {
                             order = new OrderView {
-                                OrderId = reader.GetInt32(0),
-                                LegacyMbId = mbId,
-                                DeliveryDate = reader.GetDateTime(2),
-                                Status = reader.GetString(3),
-                                Revision = reader.GetInt32(4),
-                                Note = reader.IsDBNull(5) ? null : reader.GetString(5),
-                                UpdatedAtUtc = reader.GetDateTime(6),
+                                OrderId = reader.GetInt32(2),
+                                LegacyMbId = reader.GetInt32(3),
+                                DeliveryDate = reader.GetDateTime(4),
+                                Status = reader.GetString(5),
+                                Revision = reader.GetInt32(6),
+                                Note = reader.IsDBNull(7) ? null : reader.GetString(7),
+                                UpdatedAtUtc = reader.GetDateTime(8),
                                 Lines = new List<OrderLineView>()
                             };
-                            orders.Add(mbId, order);
+                            orders.Add(branchKey, order);
                         }
-                        if (!reader.IsDBNull(7) && order.OrderId == reader.GetInt32(0))
+                        if (!reader.IsDBNull(9) && order.OrderId == reader.GetInt32(2))
                             order.Lines.Add(new OrderLineView {
-                                UStokId = reader.GetInt32(7),
-                                AStokId = reader.GetInt32(8),
-                                Quantity = reader.GetInt32(9),
-                                ProductCode = reader.GetString(10),
-                                ProductName = reader.GetString(11),
-                                VariantName = reader.IsDBNull(12) ? null : reader.GetString(12)
+                                UStokId = reader.GetInt32(9),
+                                AStokId = reader.GetInt32(10),
+                                Quantity = reader.GetInt32(11),
+                                ProductCode = reader.GetString(12),
+                                ProductName = reader.GetString(13),
+                                VariantName = reader.IsDBNull(14) ? null : reader.GetString(14)
                             });
                     }
             }
             return orders;
+        }
+
+        private static string BranchKey(int customerId, int departmentId)
+        {
+            return customerId.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" +
+                departmentId.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
     }
 }

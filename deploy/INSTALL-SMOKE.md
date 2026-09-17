@@ -37,7 +37,9 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
   şubeye `RS_MOBIL_SIPARIS_URUN_TANIMLARI` tablosunda tanımlanan ürünleri ve
   `U_STOK_LIMIT` değerlerini döndürür.
 - Limit üzerindeki veya şubeye tanımlanmamış ürün içeren sipariş reddedilir.
-- `/admin/sofor-yonetimi/` eski sistemde rotası bulunan personeli gösterir; şoför ekleme veya rota atama işlemi sunmaz.
+- `/admin/sofor-yonetimi/` `BF_PERS_MUST` üzerinden müşteri/şubesi ve
+  `RS_MUSTERI_BILGILERI` üzerinden SG takvimi bulunan personeli gösterir;
+  şoför ekleme veya rota atama işlemi sunmaz.
 - Şoför hesabı açma, kapatma ve geçici parola yenileme işlemleri çalışır; kapatılan hesabın açık oturumları iptal edilir.
 - Şoför girişiyle `/sofor/` yalnız oturumdaki personelin eski sistemde bağlı şubelerini ve uygulamadaki siparişlerini gösterir.
 - Girişsiz `/api/v1/admin/products` isteği `401` döndürür.
