@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Field, TextInput } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
+import { invalidateSession } from "@/context/AuthContext";
+import { localApiUrl } from "@/lib/api";
 import { initials } from "@/lib/format";
 
 interface DriverAccount {
@@ -26,11 +28,7 @@ interface DriverRow {
 }
 
 function apiUrl(path = ""): string {
-  if (typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return `http://localhost:5057/api/v1/admin/drivers${path}`;
-  }
-  return `/api/v1/admin/drivers${path}`;
+  return localApiUrl(`/api/v1/admin/drivers${path}`);
 }
 
 async function responseMessage(response: Response, fallback: string): Promise<string> {
@@ -38,6 +36,12 @@ async function responseMessage(response: Response, fallback: string): Promise<st
     const body = (await response.json()) as { message?: string };
     return body.message || fallback;
   } catch { return fallback; }
+}
+
+function requireCurrentAdminSession(response: Response): boolean {
+  if (response.status !== 401) return true;
+  invalidateSession();
+  return false;
 }
 
 export default function DriverManagementPage() {
@@ -97,6 +101,7 @@ export default function DriverManagementPage() {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ loginName, temporaryPassword }),
       });
+      if (!requireCurrentAdminSession(response)) return;
       if (!response.ok) throw new Error(await responseMessage(response, "Şoför hesabı oluşturulamadı."));
       setCreateDriver(null); setNotice(`${createDriver.personnelName} için giriş hesabı oluşturuldu.`); refresh();
     } catch (cause) { setActionError(cause instanceof Error ? cause.message : "Hesap oluşturulamadı."); }
@@ -111,6 +116,7 @@ export default function DriverManagementPage() {
         method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: !row.account.isActive }),
       });
+      if (!requireCurrentAdminSession(response)) return;
       if (!response.ok) throw new Error(await responseMessage(response, "Şoför hesabı güncellenemedi."));
       setNotice(row.account.isActive
         ? "Şoför girişi kapatıldı ve açık oturumları sonlandırıldı."
@@ -128,6 +134,7 @@ export default function DriverManagementPage() {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ temporaryPassword }),
       });
+      if (!requireCurrentAdminSession(response)) return;
       if (!response.ok) throw new Error(await responseMessage(response, "Geçici parola yenilenemedi."));
       setResetAccount(null); setTemporaryPassword("");
       setNotice("Geçici parola yenilendi ve açık oturumlar kapatıldı."); refresh();

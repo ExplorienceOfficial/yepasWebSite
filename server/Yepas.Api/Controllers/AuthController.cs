@@ -18,6 +18,15 @@ namespace Yepas.Api.Controllers
     [RoutePrefix("api/v1/auth")]
     public sealed class AuthController : ApiController
     {
+        private const string MobileClientHeader = "X-Yepas-Client";
+
+        internal static bool IsMobileClient(HttpRequest request)
+        {
+            return request != null &&
+                String.Equals(request.Headers[MobileClientHeader], "mobile-v1",
+                    StringComparison.Ordinal);
+        }
+
         internal static bool PermittedOrigin(HttpRequest request)
         {
             var origin = request.Headers["Origin"];
@@ -26,6 +35,11 @@ namespace Yepas.Api.Controllers
             if (String.Equals(origin, ownOrigin, StringComparison.OrdinalIgnoreCase)) return true;
             return RuntimeSettings.DevelopmentMode && request.IsLocal &&
                 (origin == "http://127.0.0.1:3000" || origin == "http://localhost:3000");
+        }
+
+        internal static bool PermittedWriteRequest(HttpRequest request)
+        {
+            return PermittedOrigin(request) || IsMobileClient(request);
         }
 
         private static void SetSessionCookie(string value, bool delete)
@@ -44,6 +58,10 @@ namespace Yepas.Api.Controllers
 
         internal static string CurrentToken()
         {
+            var authorization = HttpContext.Current.Request.Headers["Authorization"];
+            if (!String.IsNullOrWhiteSpace(authorization) &&
+                authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                return authorization.Substring(7).Trim();
             var cookie = HttpContext.Current.Request.Cookies[AuthRepository.SessionCookieName];
             return cookie == null ? null : cookie.Value;
         }
@@ -52,7 +70,7 @@ namespace Yepas.Api.Controllers
         [Route("login")]
         public HttpResponseMessage Login(LoginRequest input)
         {
-            if (HttpContext.Current == null || !PermittedOrigin(HttpContext.Current.Request))
+            if (HttpContext.Current == null || !PermittedWriteRequest(HttpContext.Current.Request))
                 return Request.CreateResponse(HttpStatusCode.Forbidden);
             if (input == null || String.IsNullOrWhiteSpace(input.LoginName) ||
                 String.IsNullOrEmpty(input.Password) || String.IsNullOrWhiteSpace(input.Role))
@@ -68,11 +86,13 @@ namespace Yepas.Api.Controllers
                 if (identity == null)
                     return Request.CreateResponse(HttpStatusCode.Unauthorized,
                         new { code = "INVALID_LOGIN", message = "Kullanıcı adı veya parola hatalı ya da hesap kapalı." });
-                SetSessionCookie(token, false);
+                var mobile = IsMobileClient(HttpContext.Current.Request);
+                if (!mobile) SetSessionCookie(token, false);
                 return Request.CreateResponse(HttpStatusCode.OK,
                     new { userId = identity.UserId, loginName = identity.LoginName,
                           role = identity.Role, legacyPersonnelId = identity.LegacyPersonnelId,
-                          mustChangePassword = identity.MustChangePassword });
+                          mustChangePassword = identity.MustChangePassword,
+                          accessToken = mobile ? token : null });
             }
             catch (Exception)
             {
@@ -105,12 +125,13 @@ namespace Yepas.Api.Controllers
         [Route("logout")]
         public HttpResponseMessage Logout()
         {
-            if (HttpContext.Current == null || !PermittedOrigin(HttpContext.Current.Request))
+            if (HttpContext.Current == null || !PermittedWriteRequest(HttpContext.Current.Request))
                 return Request.CreateResponse(HttpStatusCode.Forbidden);
             try
             {
                 new AuthRepository().Revoke(CurrentToken());
-                SetSessionCookie(String.Empty, true);
+                if (!IsMobileClient(HttpContext.Current.Request))
+                    SetSessionCookie(String.Empty, true);
                 return Request.CreateResponse(HttpStatusCode.NoContent);
             }
             catch (Exception)
@@ -124,7 +145,7 @@ namespace Yepas.Api.Controllers
         [Route("change-password")]
         public HttpResponseMessage ChangePassword(ChangePasswordRequest input)
         {
-            if (HttpContext.Current == null || !PermittedOrigin(HttpContext.Current.Request))
+            if (HttpContext.Current == null || !PermittedWriteRequest(HttpContext.Current.Request))
                 return Request.CreateResponse(HttpStatusCode.Forbidden);
             if (input == null || String.IsNullOrEmpty(input.CurrentPassword) ||
                 String.IsNullOrEmpty(input.NewPassword))

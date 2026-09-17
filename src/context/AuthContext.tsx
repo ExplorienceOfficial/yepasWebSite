@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { localApiUrl } from "@/lib/api";
 
 export type Session =
   | { role: "admin"; username: string; name: string; title: string; mustChangePassword: boolean }
@@ -28,11 +29,7 @@ const serverSnapshot: AuthSnapshot = { session: null, loaded: false, unavailable
 let loading: Promise<void> | null = null;
 
 function apiUrl(path: string): string {
-  if (typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return `http://localhost:5057/api/v1/auth/${path}`;
-  }
-  return `/api/v1/auth/${path}`;
+  return localApiUrl(`/api/v1/auth/${path}`);
 }
 
 function toSession(identity: ApiIdentity): Session | null {
@@ -64,6 +61,15 @@ function update(next: AuthSnapshot) {
   listeners.forEach((listener) => listener());
 }
 
+/**
+ * Sunucu bir yetki hatası döndürdüğünde, ekranda kalmış eski rol bilgisini
+ * hemen temizler. RequireRole bu değişikliği görerek kullanıcıyı girişe taşır.
+ */
+export function invalidateSession() {
+  loading = null;
+  update({ session: null, loaded: true, unavailable: false });
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -78,7 +84,7 @@ function ensureLoaded(): Promise<void> {
   loading = fetch(apiUrl("me"), { credentials: "include", cache: "no-store" })
     .then(async (response) => {
       if (response.status === 401) {
-        update({ session: null, loaded: true, unavailable: false });
+        invalidateSession();
         return;
       }
       if (!response.ok) throw new Error("Oturum hizmetine erişilemiyor.");
@@ -160,5 +166,6 @@ export function useAuth() {
     (currentPassword: string, newPassword: string) => changePassword(currentPassword, newPassword), []);
 
   return { session: state.session, hydrated: state.loaded,
-    unavailable: state.unavailable, loginAdmin, loginDriver, changePassword: updatePassword, logout };
+    unavailable: state.unavailable, loginAdmin, loginDriver, changePassword: updatePassword, logout,
+    invalidateSession };
 }

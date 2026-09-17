@@ -20,10 +20,15 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 ## Güvenlik ve kapsam
 
 - `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout` oturum uçlarıdır.
+- Mobil istemci `X-Yepas-Client: mobile-v1` başlığıyla giriş yapar; yalnız bu
+  akışta dönen erişim anahtarını sonraki isteklerde `Authorization: Bearer`
+  olarak gönderir. Canlıda HTTPS zorunludur ve anahtar cihazda düz metin saklanmaz.
 - Ürün API'si `GET /api/v1/admin/products` yolundadır ve yalnızca geçerli `ADMIN` oturumu kabul eder.
 - `GET /api/v1/admin/drivers` eski programdaki rota personellerini ve uygulama hesaplarını listeler. Hesap açma, kapatma/açma ve geçici parola yenileme uçları yalnız admin oturumuyla çalışır; kapatma açık oturumları iptal eder.
 - `GET /api/v1/driver/routes?scope=delivery|submitted` giriş yapan şoförün yalnız kendi personel kimliğine bağlı ve seçilen teslim gününde SG alanı `+` olan şubelerini getirir. `delivery` bugünü, `submitted` yarını esas alır; şoför ekranı bu gerçek uçtan beslenir.
 - `GET /api/v1/customer/branches/{legacyMbId}/order` müşteriye tanımlı ürünleri, yalnızca `SG_1`–`SG_7` alanlarından hesaplanan sıradaki teslim gününü, sipariş penceresini ve varsa mevcut siparişi getirir.
+- `GET /api/v1/customer/branches` giriş yapan müşterinin yalnızca `CustomerAccess`
+  üzerinden bağlı olduğu gerçek müşteri/şube kayıtlarını getirir.
 - `PUT /api/v1/customer/branches/{legacyMbId}/order` sipariş oluşturur, günceller, iptal eder veya `NO_PRODUCT` kaydı oluşturur. `Idempotency-Key` başlığı zorunludur; güncellemede en son `revision` gönderilir.
 - `GET/PUT /api/v1/admin/order-settings` genel kesim saatini ve `AUTO`, `OPEN`, `CLOSED` manuel durumunu yönetir. Manuel değişikliklerde gerekçe zorunludur ve denetim kaydı tutulur.
 - `GET /api/v1/admin/customers` eski programdaki müşteri/şube, SG ve şoför bilgisini hesap durumuyla birlikte getirir. Müşteri ürün tablosu gelene kadar ürün atama durumu “bekleniyor” olarak gösterilir.

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ChevronDown, Search, X, XCircle } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
+import { localApiUrl } from "@/lib/api";
 import { cn, formatQty, initials } from "@/lib/format";
 
 type RouteScope = "delivery" | "submitted";
@@ -57,11 +58,7 @@ const scopes: { key: RouteScope; label: string; sub: string }[] = [
 
 function apiUrl(scope: RouteScope): string {
   const path = `/api/v1/driver/routes?scope=${scope}`;
-  if (typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return `http://localhost:5057${path}`;
-  }
-  return path;
+  return localApiUrl(path);
 }
 
 async function responseMessage(response: Response): Promise<string> {

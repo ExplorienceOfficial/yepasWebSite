@@ -54,4 +54,18 @@ namespace Yepas.Api.Models
         public string CurrentPassword { get; set; }
         public string NewPassword { get; set; }
     }
+
+    public sealed class CustomerBranchView
+    {
+        public int LegacyMbId { get; set; }
+        public int LegacyCustomerId { get; set; }
+        public int LegacyDepartmentId { get; set; }
+        public int LegacyPersonnelId { get; set; }
+        public string CustomerCode { get; set; }
+        public string CustomerName { get; set; }
+        public string DepartmentName { get; set; }
+        public string TaxNumber { get; set; }
+        public string PersonnelName { get; set; }
+        public string DistributionDays { get; set; }
+    }
 }

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
+import { localApiUrl } from "@/lib/api";
 
 interface CustomerAccount {
   userId: number;
@@ -32,11 +33,7 @@ interface CustomerBranch {
 }
 
 function apiUrl(path = ""): string {
-  if (typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return `http://localhost:5057/api/v1/admin/customers${path}`;
-  }
-  return `/api/v1/admin/customers${path}`;
+  return localApiUrl(`/api/v1/admin/customers${path}`);
 }
 
 async function responseMessage(response: Response, fallback: string): Promise<string> {

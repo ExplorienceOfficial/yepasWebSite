@@ -63,6 +63,7 @@
     <Compile Include="Data\OrderRepository.cs" />
     <Compile Include="Data\LegacyCustomerCatalogReader.cs" />
     <Compile Include="Data\CustomerManagementRepository.cs" />
+    <Compile Include="Data\CustomerPortalRepository.cs" />
     <Compile Include="Data\DriverManagementRepository.cs" />
     <Compile Include="Data\DriverRouteRepository.cs" />
     <Compile Include="Domain\CustomerOrderService.cs" />

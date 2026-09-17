@@ -15,6 +15,25 @@ namespace Yepas.Api.Controllers
     public sealed class CustomerOrdersController : ApiController
     {
         [HttpGet]
+        [Route("")]
+        public HttpResponseMessage GetBranches()
+        {
+            try
+            {
+                var identity = new AuthRepository().Authenticate(AuthController.CurrentToken(), "CUSTOMER");
+                if (identity == null) return Request.CreateResponse(HttpStatusCode.Unauthorized);
+                if (identity.MustChangePassword) return Request.CreateResponse(HttpStatusCode.Forbidden);
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    new CustomerPortalRepository().ReadBranches(identity.UserId));
+            }
+            catch (Exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.ServiceUnavailable,
+                    new { code = "BRANCHES_UNAVAILABLE", message = "Şube bilgilerine erişilemiyor." });
+            }
+        }
+
+        [HttpGet]
         [Route("{legacyMbId:int}/order")]
         public HttpResponseMessage Get(int legacyMbId)
         {
@@ -47,7 +66,7 @@ namespace Yepas.Api.Controllers
         [Route("{legacyMbId:int}/order")]
         public HttpResponseMessage Put(int legacyMbId, SaveCustomerOrderRequest input)
         {
-            if (HttpContext.Current == null || !AuthController.PermittedOrigin(HttpContext.Current.Request))
+            if (HttpContext.Current == null || !AuthController.PermittedWriteRequest(HttpContext.Current.Request))
                 return Request.CreateResponse(HttpStatusCode.Forbidden);
             if (legacyMbId <= 0) return Request.CreateResponse(HttpStatusCode.BadRequest);
 
