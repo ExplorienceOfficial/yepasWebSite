@@ -15,15 +15,16 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
 1. Windows 7 SP1, IIS 7.5 ASP.NET özellikleri ve .NET Framework 4.8'i doğrulayın.
 2. Hedef klasörü ve yeni `EkmekSiparis` veritabanını yedekleyin.
 3. Paketin SHA-256 listesini doğrulayın.
-4. `database` betiklerini SSMS ile sırasıyla çalıştırın: `000`, `001`, `002`.
-5. `site` içeriğini yeni sürüm klasörüne kopyalayın.
-6. Ayrı, yönetici olmayan IIS uygulama havuzu ve site oluşturun. Uygulama havuzu `.NET v4.0`, Integrated pipeline ve 64-bit kullanmalıdır.
-7. En az yetkili DEV SQL hesaplarını hazırlayın; `sa` kullanmayın.
-8. Sunucuda yönetici PowerShell'i açıp `tools\Configure-Smoke.ps1 -SitePath <site klasörü>` çalıştırın. Bağlantı dizeleri ekranda görünmeden girilir ve `web.config` içinde şifrelenir.
-9. İlk smoke adminini `tools\Yepas.AdminTool.exe --site-path <site klasörü> --login-name <ad>` ile oluşturun. Araç şifrelenmiş `YepasApp` bağlantısını site yapılandırmasından okur; admin parolası ekranda görünmeden istenir ve veritabanında yalnızca parola özeti tutulur.
-10. Geçerli sertifikayla HTTPS binding ekleyin. Windows 7 Schannel ile güncel tarayıcılar arasında ortak şifre takımı sağlamak için ECDSA P-256 sertifika veya modern TLS sonlandıran bir reverse proxy kullanın. Release girişi HTTP üzerinden bilerek reddedilir.
-11. PFX dosyasını IIS'e aktardıktan ve HTTPS'i doğruladıktan sonra sunucudaki aktarım kopyasını kaldırın; PFX özel anahtar içerir.
-12. Siteyi başlatın ve aşağıdaki kontrolleri yapın.
+4. `database\migrations` betiklerini `EkmekSiparis` üzerinde sırasıyla çalıştırın: `000`, `001`, `002`, `003`.
+5. `database\permissions\003_catalog_order_read.sql` betiğini `PrestoPlus` üzerinde çalıştırarak katalog hesabına yalnızca gerekli SG tablosu okuma yetkisini ekleyin.
+6. `site` içeriğini yeni sürüm klasörüne kopyalayın.
+7. Ayrı, yönetici olmayan IIS uygulama havuzu ve site oluşturun. Uygulama havuzu `.NET v4.0`, Integrated pipeline ve 64-bit kullanmalıdır.
+8. En az yetkili DEV SQL hesaplarını hazırlayın; `sa` kullanmayın.
+9. Sunucuda yönetici PowerShell'i açıp `tools\Configure-Smoke.ps1 -SitePath <site klasörü>` çalıştırın. Bağlantı dizeleri ekranda görünmeden girilir ve `web.config` içinde şifrelenir.
+10. İlk smoke adminini `tools\Yepas.AdminTool.exe --site-path <site klasörü> --login-name <ad>` ile oluşturun. Araç şifrelenmiş `YepasApp` bağlantısını site yapılandırmasından okur; admin parolası ekranda görünmeden istenir ve veritabanında yalnızca parola özeti tutulur.
+11. Geçerli sertifikayla HTTPS binding ekleyin. Windows 7 Schannel ile güncel tarayıcılar arasında ortak şifre takımı sağlamak için ECDSA P-256 sertifika veya modern TLS sonlandıran bir reverse proxy kullanın. Release girişi HTTP üzerinden bilerek reddedilir.
+12. PFX dosyasını IIS'e aktardıktan ve HTTPS'i doğruladıktan sonra sunucudaki aktarım kopyasını kaldırın; PFX özel anahtar içerir.
+13. Siteyi başlatın ve aşağıdaki kontrolleri yapın.
 
 ## Smoke kontrolleri
 

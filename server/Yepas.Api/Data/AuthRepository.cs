@@ -63,7 +63,7 @@ namespace Yepas.Api.Data
         {
             token = null;
             if (String.IsNullOrWhiteSpace(loginName) || String.IsNullOrEmpty(password) ||
-                (role != "ADMIN" && role != "DRIVER")) return null;
+                (role != "ADMIN" && role != "DRIVER" && role != "CUSTOMER")) return null;
 
             var normalized = loginName.Trim().ToUpperInvariant();
             if (normalized.Length > 100 || password.Length > 1024) return null;
@@ -123,6 +123,8 @@ WHERE UserId = @id", connection))
                         }
 
                         if (role == "DRIVER" && (!personnelId.HasValue || !PersonnelExists(personnelId.Value)))
+                            return null;
+                        if (role == "CUSTOMER" && !UserHasCustomerAccess(connection, userId))
                             return null;
 
                         using (var reset = new SqlCommand(@"
@@ -271,6 +273,31 @@ WHERE UserId = @id AND RevokedAtUtc IS NULL", connection, transaction))
                         throw;
                     }
                 }
+            }
+        }
+
+        public bool UserCanAccessCustomer(int userId, int legacyMbId)
+        {
+            if (userId <= 0 || legacyMbId <= 0) return false;
+            using (var connection = new SqlConnection(AppConnectionString()))
+            using (var command = new SqlCommand(@"
+SELECT 1 FROM dbo.CustomerAccess
+WHERE UserId = @userId AND LegacyMbId = @mbId", connection))
+            {
+                command.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                command.Parameters.Add("@mbId", SqlDbType.Int).Value = legacyMbId;
+                connection.Open();
+                return command.ExecuteScalar() != null;
+            }
+        }
+
+        private static bool UserHasCustomerAccess(SqlConnection connection, int userId)
+        {
+            using (var command = new SqlCommand(
+                "SELECT TOP 1 1 FROM dbo.CustomerAccess WHERE UserId = @userId", connection))
+            {
+                command.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                return command.ExecuteScalar() != null;
             }
         }
     }
