@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 export type Session =
-  | { role: "admin"; username: string; name: string; title: string }
-  | { role: "driver"; driverId: string; code: string; name: string; plate: string };
+  | { role: "admin"; username: string; name: string; title: string; mustChangePassword: boolean }
+  | { role: "driver"; driverId: string; code: string; name: string; plate: string; mustChangePassword: boolean };
 
 export type LoginResult = { ok: true } | { ok: false; message: string };
 
@@ -42,6 +42,7 @@ function toSession(identity: ApiIdentity): Session | null {
       username: identity.loginName,
       name: identity.loginName,
       title: "Yönetici",
+      mustChangePassword: identity.mustChangePassword,
     };
   }
   if (identity.role === "DRIVER") {
@@ -52,6 +53,7 @@ function toSession(identity: ApiIdentity): Session | null {
       code: identity.loginName,
       name: identity.loginName,
       plate: "",
+      mustChangePassword: identity.mustChangePassword,
     };
   }
   return null;
@@ -113,6 +115,28 @@ async function login(loginName: string, password: string, role: "ADMIN" | "DRIVE
   }
 }
 
+async function changePassword(currentPassword: string, newPassword: string): Promise<LoginResult> {
+  try {
+    const response = await fetch(apiUrl("change-password"), {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (!response.ok) {
+      try {
+        const body = (await response.json()) as { message?: string };
+        return { ok: false, message: body.message || "Parola değiştirilemedi." };
+      } catch { return { ok: false, message: "Parola değiştirilemedi." }; }
+    }
+    if (snapshot.session) {
+      update({ ...snapshot, session: { ...snapshot.session, mustChangePassword: false } });
+    }
+    return { ok: true };
+  } catch { return { ok: false, message: "Parola hizmetine erişilemiyor." }; }
+}
+
 export function useAuth() {
   const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   useEffect(() => { void ensureLoaded(); }, []);
@@ -132,6 +156,9 @@ export function useAuth() {
     } catch { return false; }
   }, []);
 
+  const updatePassword = useCallback(
+    (currentPassword: string, newPassword: string) => changePassword(currentPassword, newPassword), []);
+
   return { session: state.session, hydrated: state.loaded,
-    unavailable: state.unavailable, loginAdmin, loginDriver, logout };
+    unavailable: state.unavailable, loginAdmin, loginDriver, changePassword: updatePassword, logout };
 }

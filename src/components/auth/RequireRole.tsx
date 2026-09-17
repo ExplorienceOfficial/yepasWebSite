@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { useAuth, type Session } from "@/context/AuthContext";
+import { ChangePasswordGate } from "@/components/auth/ChangePasswordGate";
 
 /**
  * Yalnızca arayüz yönlendirmesi; gerçek yetki kontrolü API'dedir.
@@ -29,6 +30,7 @@ export function RequireRole({
   if (unavailable) return <div className="p-8 text-center">Oturum hizmetine erişilemiyor. Lütfen daha sonra tekrar deneyin.</div>;
 
   if (!allowed) return <AuthPending />;
+  if (session.mustChangePassword) return <ChangePasswordGate />;
   return <>{children}</>;
 }
 

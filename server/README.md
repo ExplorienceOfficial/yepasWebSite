@@ -22,7 +22,7 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 - `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout` oturum uçlarıdır.
 - Ürün API'si `GET /api/v1/admin/products` yolundadır ve yalnızca geçerli `ADMIN` oturumu kabul eder.
 - `GET /api/v1/admin/drivers` eski programdaki rota personellerini ve uygulama hesaplarını listeler. Hesap açma, kapatma/açma ve geçici parola yenileme uçları yalnız admin oturumuyla çalışır; kapatma açık oturumları iptal eder.
-- `GET /api/v1/driver/routes?scope=delivery|submitted` giriş yapan şoförün yalnız kendi personel kimliğine bağlı şubelerini ve seçilen kapsamdaki siparişleri getirir. Şoför ekranı bu gerçek uçtan beslenir.
+- `GET /api/v1/driver/routes?scope=delivery|submitted` giriş yapan şoförün yalnız kendi personel kimliğine bağlı ve seçilen teslim gününde SG alanı `+` olan şubelerini getirir. `delivery` bugünü, `submitted` yarını esas alır; şoför ekranı bu gerçek uçtan beslenir.
 - `GET /api/v1/customer/branches/{legacyMbId}/order` müşteriye tanımlı ürünleri, yalnızca `SG_1`–`SG_7` alanlarından hesaplanan sıradaki teslim gününü, sipariş penceresini ve varsa mevcut siparişi getirir.
 - `PUT /api/v1/customer/branches/{legacyMbId}/order` sipariş oluşturur, günceller, iptal eder veya `NO_PRODUCT` kaydı oluşturur. `Idempotency-Key` başlığı zorunludur; güncellemede en son `revision` gönderilir.
 - `GET/PUT /api/v1/admin/order-settings` genel kesim saatini ve `AUTO`, `OPEN`, `CLOSED` manuel durumunu yönetir. Manuel değişikliklerde gerekçe zorunludur ve denetim kaydı tutulur.
@@ -30,6 +30,7 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 - `POST /api/v1/admin/customers/accounts` aynı müşteriye ait bir veya daha fazla `MB_ID` şubesi için tek mobil hesap açar. Geçici parola yedi gün geçerlidir ve ilk girişte değiştirilir.
 - `PUT /api/v1/admin/customers/accounts/{userId}/branches`, `status` ve `reset-password` uçları şube bağlantısı, giriş izni ve geçici parola yönetimini denetim kaydıyla yapar.
 - `POST /api/v1/auth/change-password` geçici parolayı değiştirir; diğer açık oturumları iptal eder.
+- Geçici parolayla giriş yapan kullanıcı diğer ekranlara geçmeden önce arayüzde zorunlu parola değiştirme adımını tamamlar.
 - Bir müşteri hesabı `CustomerAccess` ile birden fazla `MB_ID` şubesine bağlanabilir; her şubenin siparişi ayrıdır. Her `MB_ID` yalnızca bir mobil hesaba bağlanır.
 - Müşteri ürün yetkisi için müşteri tarafından `RS_SABIT_SIPARISLER` benzeri yeni bir tablo hazırlanacaktır. `BF_MUST_STOK` nihai ürün yetki kaynağı değildir; yeni tablo gelene kadar mobil ürün entegrasyonu beklemededir.
 - Fiyat hiçbir sipariş tablosunda tutulmaz ve API'den dönmez.

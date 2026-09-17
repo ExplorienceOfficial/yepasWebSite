@@ -15,8 +15,12 @@ namespace Yepas.Api.Data
                 throw new ArgumentException("Kapsam delivery veya submitted olmalıdır.");
 
             var localDate = DateTime.UtcNow.AddHours(3).Date;
-            var stops = ReadStops(personnelId);
-            var orders = ReadOrders(personnelId, scope, localDate);
+            var deliveryDate = scope == "delivery" ? localDate : localDate.AddDays(1);
+            string personnelCode;
+            string personnelName;
+            ReadPersonnel(personnelId, out personnelCode, out personnelName);
+            var stops = ReadStops(personnelId, deliveryDate);
+            var orders = ReadOrders(personnelId, scope, localDate, deliveryDate);
             foreach (var stop in stops)
             {
                 OrderView order;
@@ -25,14 +29,37 @@ namespace Yepas.Api.Data
 
             return new DriverRouteView {
                 LegacyPersonnelId = personnelId,
+                PersonnelCode = personnelCode,
+                PersonnelName = personnelName,
                 Scope = scope,
                 LocalDate = localDate,
+                DeliveryDate = deliveryDate,
                 GeneratedAtUtc = DateTime.UtcNow,
                 Stops = stops
             };
         }
 
-        private static IList<DriverRouteStopView> ReadStops(int personnelId)
+        private static void ReadPersonnel(int personnelId, out string code, out string name)
+        {
+            using (var connection = new SqlConnection(DatabaseConnections.Catalog()))
+            using (var command = new SqlCommand(@"
+SELECT P.PERSONEL_KODU,
+       LTRIM(RTRIM(ISNULL(P.PERSONEL_ADI, '') + ' ' + ISNULL(P.PERSONEL_SOYADI, '')))
+FROM D00013.FIRMA_PERSONELI P
+WHERE P.PERSONEL_ID = @personnel", connection))
+            {
+                command.Parameters.Add("@personnel", SqlDbType.Int).Value = personnelId;
+                connection.Open();
+                using (var reader = command.ExecuteReader())
+                {
+                    if (!reader.Read()) throw new InvalidOperationException("Şoför eski sistemde bulunamadı.");
+                    code = Convert.ToString(reader.GetValue(0)).Trim();
+                    name = Convert.ToString(reader.GetValue(1)).Trim();
+                }
+            }
+        }
+
+        private static IList<DriverRouteStopView> ReadStops(int personnelId, DateTime deliveryDate)
         {
             var stops = new List<DriverRouteStopView>();
             using (var connection = new SqlConnection(DatabaseConnections.Catalog()))
@@ -44,9 +71,19 @@ INNER JOIN D00013.MUSTERILER M ON M.MUSTERI_ID = MB.MUSTERI_ID
 INNER JOIN D00013.BF_MUST_BOLUM B
     ON B.MUSTERI_ID = MB.MUSTERI_ID AND B.BOLUM_ID = MB.BOLUM_ID
 WHERE MB.PERSONEL_ID = @personnel
+  AND ((@day = 1 AND MB.SG_1 = '+') OR
+       (@day = 2 AND MB.SG_2 = '+') OR
+       (@day = 3 AND MB.SG_3 = '+') OR
+       (@day = 4 AND MB.SG_4 = '+') OR
+       (@day = 5 AND MB.SG_5 = '+') OR
+       (@day = 6 AND MB.SG_6 = '+') OR
+       (@day = 7 AND MB.SG_7 = '+'))
 ORDER BY M.MUST_KODU, M.MUST_ADI, B.BOLUM_ADI, MB.ID", connection))
             {
                 command.Parameters.Add("@personnel", SqlDbType.Int).Value = personnelId;
+                var day = deliveryDate.DayOfWeek == DayOfWeek.Sunday
+                    ? 7 : (int)deliveryDate.DayOfWeek;
+                command.Parameters.Add("@day", SqlDbType.Int).Value = day;
                 connection.Open();
                 using (var reader = command.ExecuteReader())
                     while (reader.Read())
@@ -63,7 +100,7 @@ ORDER BY M.MUST_KODU, M.MUST_ADI, B.BOLUM_ADI, MB.ID", connection))
         }
 
         private static IDictionary<int, OrderView> ReadOrders(int personnelId, string scope,
-            DateTime localDate)
+            DateTime localDate, DateTime deliveryDate)
         {
             var orders = new Dictionary<int, OrderView>();
             var utcStart = localDate.AddHours(-3);
@@ -76,14 +113,15 @@ SELECT O.OrderId, O.LegacyMbId, O.DeliveryDate, O.Status, O.Revision,
 FROM dbo.Orders O
 LEFT JOIN dbo.OrderLines L ON L.OrderId = O.OrderId
 WHERE O.LegacyPersonnelId = @personnel
-  AND ((@scope = N'delivery' AND O.DeliveryDate = @localDate)
+  AND O.DeliveryDate = @deliveryDate
+  AND ((@scope = N'delivery')
        OR (@scope = N'submitted' AND O.CreatedAtUtc >= @utcStart
                                   AND O.CreatedAtUtc < @utcEnd))
 ORDER BY O.UpdatedAtUtc DESC, O.OrderId, L.ProductName, L.VariantName", connection))
             {
                 command.Parameters.Add("@personnel", SqlDbType.Int).Value = personnelId;
                 command.Parameters.Add("@scope", SqlDbType.NVarChar, 10).Value = scope;
-                command.Parameters.Add("@localDate", SqlDbType.DateTime).Value = localDate;
+                command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate;
                 command.Parameters.Add("@utcStart", SqlDbType.DateTime).Value = utcStart;
                 command.Parameters.Add("@utcEnd", SqlDbType.DateTime).Value = utcEnd;
                 connection.Open();

@@ -17,8 +17,11 @@ namespace Yepas.Api.Models
     public sealed class DriverRouteView
     {
         public int LegacyPersonnelId { get; set; }
+        public string PersonnelCode { get; set; }
+        public string PersonnelName { get; set; }
         public string Scope { get; set; }
         public DateTime LocalDate { get; set; }
+        public DateTime DeliveryDate { get; set; }
         public DateTime GeneratedAtUtc { get; set; }
         public IList<DriverRouteStopView> Stops { get; set; }
     }

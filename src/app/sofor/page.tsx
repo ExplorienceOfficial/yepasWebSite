@@ -41,8 +41,11 @@ interface RouteStop {
 
 interface DriverRouteResponse {
   legacyPersonnelId: number;
+  personnelCode: string;
+  personnelName: string;
   scope: RouteScope;
   localDate: string;
+  deliveryDate: string;
   generatedAtUtc: string;
   stops: RouteStop[];
 }
@@ -133,8 +136,10 @@ export default function DriverRoutePage() {
       <div>
         <h1 className="text-[22px] font-bold tracking-tight text-ink">Dağıtım Listesi</h1>
         <p className="mt-0.5 text-[13px] text-ink-2">
-          {session?.role === "driver" ? `${session.code} · Personel ID ${session.driverId}` : "Şoför rotası"}
+          {route ? `${route.personnelName} · ${route.personnelCode} · Personel ID ${route.legacyPersonnelId}`
+            : session?.role === "driver" ? `${session.code} · Personel ID ${session.driverId}` : "Şoför rotası"}
         </p>
+        {route && <p className="mt-1 text-[12px] text-ink-3">Teslim günü: {new Intl.DateTimeFormat("tr-TR", { dateStyle: "long", timeZone: "UTC" }).format(new Date(route.deliveryDate))}</p>}
       </div>
 
       <div className="inline-flex items-center gap-1 rounded-[12px] bg-surface-2 p-1 ring-1 ring-hairline">
