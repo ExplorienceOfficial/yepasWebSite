@@ -26,5 +26,20 @@ namespace Yepas.Api.Models
         public DateTime ExpectedDeliveryDate { get; set; }
         public DateTime GeneratedAtUtc { get; set; }
         public IList<AdminOrderRowView> Rows { get; set; }
+        public OrderFinalizationView Finalization { get; set; }
+    }
+
+    public sealed class OrderFinalizationView
+    {
+        public int FinalizationId { get; set; }
+        public DateTime DeliveryDate { get; set; }
+        public string State { get; set; }
+        public int OrderCount { get; set; }
+        public int LineCount { get; set; }
+        public int TotalQuantity { get; set; }
+        public int AttemptCount { get; set; }
+        public DateTime StartedAtUtc { get; set; }
+        public DateTime? FinalizedAtUtc { get; set; }
+        public string LastError { get; set; }
     }
 }

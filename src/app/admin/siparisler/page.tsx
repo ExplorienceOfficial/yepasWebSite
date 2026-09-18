@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2, PackageOpen, Pencil, Plus, RefreshCw, Search, Truck } from "lucide-react";
+import { Building2, CheckCircle2, LockKeyhole, PackageOpen, Pencil, Plus, RefreshCw, Search, Send, Truck } from "lucide-react";
 
 import { PageHeading, Panel } from "@/components/admin/Panel";
 import { Badge } from "@/components/ui/Badge";
@@ -55,6 +55,20 @@ interface AdminOrderBoard {
   expectedDeliveryDate: string;
   generatedAtUtc: string;
   rows: AdminOrderRow[];
+  finalization: OrderFinalization | null;
+}
+
+interface OrderFinalization {
+  finalizationId: number;
+  deliveryDate: string;
+  state: "FINALIZING" | "FINALIZED" | "FAILED";
+  orderCount: number;
+  lineCount: number;
+  totalQuantity: number;
+  attemptCount: number;
+  startedAtUtc: string;
+  finalizedAtUtc: string | null;
+  lastError: string | null;
 }
 
 interface AssignedProduct {
@@ -135,6 +149,9 @@ export default function OrdersPage() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [note, setNote] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
+  const [finalizeOpen, setFinalizeOpen] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -282,18 +299,69 @@ export default function OrdersPage() {
     }
   };
 
+  const finalizeOrders = async () => {
+    setFinalizing(true);
+    setFinalizeError(null);
+    try {
+      const response = await fetch(localApiUrl("/api/v1/admin/orders/finalize"), {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (response.status === 401) {
+        invalidateSession();
+        throw new Error("Yönetici oturumu sona erdi.");
+      }
+      const body = await response.json().catch(() => null) as (OrderFinalization & { message?: string }) | null;
+      if (!response.ok) throw new Error(body?.message || "Siparişler nihai hale getirilemedi.");
+      setFinalizeOpen(false);
+      setBoard((current) => current && body ? { ...current, finalization: body } : current);
+      refresh();
+    } catch (cause) {
+      setFinalizeError(cause instanceof Error ? cause.message : "Siparişler nihai hale getirilemedi.");
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
   const submittedLineCount = formStatus === "SUBMITTED" && editContext
     ? editContext.products.filter((product) =>
       (quantities[productKey(product.uStokId, product.aStokId)] ?? 0) > 0).length
     : 0;
+
+  const finalization = board?.finalization ?? null;
+  const submittedOrderCount = counts.SUBMITTED;
+  const submittedTotalQuantity = useMemo(() => (board?.rows ?? [])
+    .filter((row) => row.boardStatus === "SUBMITTED")
+    .reduce((sum, row) => sum + (row.order?.lines.reduce((lineSum, line) => lineSum + line.quantity, 0) ?? 0), 0), [board]);
+  const boardLineCount = useMemo(() => (board?.rows ?? [])
+    .filter((row) => row.boardStatus === "SUBMITTED")
+    .reduce((sum, row) => sum + (row.order?.lines.length ?? 0), 0), [board]);
 
   return (
     <div className="yp-rise">
       <PageHeading
         title="Siparişler"
         description="Dağıtım planını ve mobil kanaldan gelen gerçek siparişleri inceleyin."
-        action={<Button variant="secondary" onClick={refresh} disabled={loading}><RefreshCw className={cn("size-4", loading && "animate-spin")} />Yenile</Button>}
+        action={<div className="flex items-center gap-2">
+          {scope === "submitted" && !finalization && <Button variant="primary" onClick={() => { setFinalizeError(null); setFinalizeOpen(true); }} disabled={loading}><Send className="size-4" />Nihai hale getir</Button>}
+          {scope === "submitted" && finalization && finalization.state !== "FINALIZED" && <Button variant="primary" onClick={() => { setFinalizeError(null); setFinalizeOpen(true); }} disabled={loading}><RefreshCw className="size-4" />{finalization.state === "FAILED" ? "Aktarımı tekrar dene" : "Aktarımı kontrol et"}</Button>}
+          <Button variant="secondary" onClick={refresh} disabled={loading || finalizing}><RefreshCw className={cn("size-4", loading && "animate-spin")} />Yenile</Button>
+        </div>}
       />
+
+      {scope === "submitted" && finalization && (
+        <div className={cn("mb-4 rounded-[14px] px-4 py-3 ring-1", finalization.state === "FINALIZED" ? "bg-[var(--good-soft)] text-[var(--good)] ring-[var(--good)]/20" : finalization.state === "FAILED" ? "bg-[var(--bad-soft)] text-[var(--bad)] ring-[var(--bad)]/20" : "bg-[var(--warn-soft)] text-[var(--warn)] ring-[var(--warn)]/20")}>
+          <div className="flex items-start gap-3">
+            {finalization.state === "FINALIZED" ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" /> : <LockKeyhole className="mt-0.5 size-5 shrink-0" />}
+            <div>
+              <p className="text-sm font-semibold">{finalization.state === "FINALIZED" ? "Siparişler nihai hale getirildi ve eski sisteme aktarıldı." : finalization.state === "FAILED" ? "Siparişler kilitlendi; aktarım tamamlanamadı." : "Siparişler kilitlendi ve aktarılıyor."}</p>
+              <p className="mt-1 text-xs opacity-80">{finalization.orderCount} sipariş · {finalization.lineCount} kalem · {formatQty(finalization.totalQuantity)} adet{finalization.attemptCount > 1 ? ` · ${finalization.attemptCount}. deneme` : ""}</p>
+              {finalization.lastError && <p className="mt-1 text-xs">{finalization.lastError}</p>}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="inline-flex w-fit items-center gap-1 rounded-[12px] bg-surface-2 p-1">
@@ -368,7 +436,7 @@ export default function OrdersPage() {
                         {row.order.note && <p className="rounded-xl bg-surface px-3 py-2 text-sm text-ink-2 ring-1 ring-hairline"><span className="font-medium text-ink">Not:</span> {row.order.note}</p>}
                       </div>
                     )}
-                    {scope === "submitted" && <div className="mt-4"><Button size="sm" variant="primary" onClick={() => void openEditor(row)}>{row.order ? <Pencil className="size-3.5" /> : <Plus className="size-3.5" />}{row.order ? "Siparişi düzenle" : "Müşteri adına sipariş gir"}</Button></div>}
+                    {scope === "submitted" && !finalization && <div className="mt-4"><Button size="sm" variant="primary" onClick={() => void openEditor(row)}>{row.order ? <Pencil className="size-3.5" /> : <Plus className="size-3.5" />}{row.order ? "Siparişi düzenle" : "Müşteri adına sipariş gir"}</Button></div>}
                   </div>
                 </details>
               );
@@ -378,6 +446,25 @@ export default function OrdersPage() {
       </Panel>
 
       {scope === "delivery" && <p className="mt-4 text-center text-xs text-ink-3">Bugün dağıtılacak siparişler kesinleşmiş operasyon listesidir. Yönetici düzenlemesi yalnızca “Bugün Verilen” ekranından yapılır.</p>}
+
+      <Modal
+        open={finalizeOpen}
+        onClose={() => { if (!finalizing) setFinalizeOpen(false); }}
+        title={finalization ? "Aktarımı kontrol et" : "Siparişleri nihai hale getir"}
+        subtitle={`${board ? formatDate(board.expectedDeliveryDate) : ""} teslimatı`}
+        footer={<><Button onClick={() => setFinalizeOpen(false)} disabled={finalizing}>Vazgeç</Button><Button variant="primary" onClick={() => void finalizeOrders()} disabled={finalizing}>{finalizing ? "Kontrol ediliyor…" : finalization ? "Kontrol et / tekrar dene" : "Kilitle ve eski sisteme aktar"}</Button></>}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl bg-surface-2 px-3 py-3"><p className="text-xs text-ink-3">Sipariş</p><p className="mt-1 text-xl font-semibold tabular-nums text-ink">{finalization?.orderCount ?? submittedOrderCount}</p></div>
+            <div className="rounded-xl bg-surface-2 px-3 py-3"><p className="text-xs text-ink-3">Kalem</p><p className="mt-1 text-xl font-semibold tabular-nums text-ink">{finalization?.lineCount ?? boardLineCount}</p></div>
+            <div className="rounded-xl bg-surface-2 px-3 py-3"><p className="text-xs text-ink-3">Toplam adet</p><p className="mt-1 text-xl font-semibold tabular-nums text-ink">{formatQty(finalization?.totalQuantity ?? submittedTotalQuantity)}</p></div>
+          </div>
+          <p className="text-sm leading-6 text-ink-2">Bu işlem siparişleri kilitler. Müşteriler ve yöneticiler artık bu teslim günü için değişiklik yapamaz. Yalnızca “Sipariş verdi” durumundaki kayıtlar eski sipariş programına aktarılır.</p>
+          <p className="rounded-xl bg-[var(--warn-soft)] px-3 py-2 text-sm text-[var(--warn)]">Aktarım için sipariş alımının Ayarlar ekranından kapatılmış veya son sipariş saatinin geçmiş olması gerekir.</p>
+          {finalizeError && <p className="rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{finalizeError}</p>}
+        </div>
+      </Modal>
 
       <Modal
         open={Boolean(editRow)}

@@ -76,7 +76,8 @@ namespace Yepas.Api.Data
                 LocalDate = localDate,
                 ExpectedDeliveryDate = expectedDelivery,
                 GeneratedAtUtc = DateTime.UtcNow,
-                Rows = rows
+                Rows = rows,
+                Finalization = new OrderFinalizationRepository().Read(expectedDelivery)
             };
         }
 

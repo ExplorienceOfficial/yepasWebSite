@@ -103,6 +103,11 @@ namespace Yepas.Api.Controllers
                 return Request.CreateResponse(HttpStatusCode.Conflict,
                     new { code = "ORDER_REVISION_CONFLICT", message = "Sipariş güncellendi; son halini yenileyin." });
             }
+            catch (OrderFinalizedException exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.Conflict,
+                    new { code = "ORDER_FINALIZED", message = exception.Message });
+            }
             catch (IdempotencyConflictException)
             {
                 return Request.CreateResponse(HttpStatusCode.Conflict,
@@ -112,6 +117,40 @@ namespace Yepas.Api.Controllers
             {
                 return Request.CreateResponse(HttpStatusCode.ServiceUnavailable,
                     new { code = "ADMIN_ORDER_UNAVAILABLE", message = "Sipariş kaydedilemiyor." });
+            }
+        }
+
+        [HttpPost]
+        [Route("finalize")]
+        public HttpResponseMessage FinalizeOrders()
+        {
+            if (HttpContext.Current == null ||
+                !AuthController.PermittedWriteRequest(HttpContext.Current.Request))
+                return Request.CreateResponse(HttpStatusCode.Forbidden);
+            try
+            {
+                var identity = new AuthRepository().Authenticate(
+                    AuthController.CurrentToken(), "ADMIN");
+                if (identity == null) return Request.CreateResponse(HttpStatusCode.Unauthorized);
+                if (identity.MustChangePassword) return Request.CreateResponse(HttpStatusCode.Forbidden);
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    new OrderFinalizationService().Finalize(identity.UserId));
+            }
+            catch (OrderStillOpenException exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.Conflict,
+                    new { code = "ORDER_WINDOW_OPEN", message = exception.Message });
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.Conflict,
+                    new { code = "FINALIZATION_INVALID", message = exception.Message });
+            }
+            catch (Exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.ServiceUnavailable,
+                    new { code = "FINALIZATION_FAILED",
+                          message = "Siparişler eski sisteme aktarılamadı; güvenle tekrar deneyebilirsiniz." });
             }
         }
     }

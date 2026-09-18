@@ -15,8 +15,8 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
 1. Windows 7 SP1, IIS 7.5 ASP.NET özellikleri ve .NET Framework 4.8'i doğrulayın.
 2. Hedef klasörü ve yeni `EkmekSiparis` veritabanını yedekleyin.
 3. Paketin SHA-256 listesini doğrulayın.
-4. `database\migrations` betiklerini `EkmekSiparis` üzerinde sırasıyla çalıştırın: `000`, `001`, `002`, `003`, `004`, `005`.
-5. `database\permissions` altındaki `003` ve `004` betiklerini `PrestoPlus` üzerinde çalıştırarak katalog hesabına yalnızca gereken salt-okunur izinleri ekleyin.
+4. `database\migrations` betiklerini `EkmekSiparis` üzerinde sırasıyla çalıştırın: `000`, `001`, `002`, `003`, `004`, `005`, `006`.
+5. `database\permissions` altındaki `003`, `004` ve `005` betiklerini `PrestoPlus` üzerinde çalıştırın. `005`, yalnız nihai sipariş aktarımı için gereken iki fiş tablosuna dar yazma yetkisi verir.
 6. `site` içeriğini yeni sürüm klasörüne kopyalayın.
 7. Ayrı, yönetici olmayan IIS uygulama havuzu ve site oluşturun. Uygulama havuzu `.NET v4.0`, Integrated pipeline ve 64-bit kullanmalıdır.
 8. En az yetkili DEV SQL hesaplarını hazırlayın; `sa` kullanmayın.
@@ -42,6 +42,8 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
   şoför ekleme veya rota atama işlemi sunmaz.
 - Şoför hesabı açma, kapatma ve geçici parola yenileme işlemleri çalışır; kapatılan hesabın açık oturumları iptal edilir.
 - Şoför girişiyle `/sofor/` yalnız oturumdaki personelin eski sistemde bağlı şubelerini ve uygulamadaki siparişlerini gösterir.
+- Sipariş alımı açıkken nihai hale getirme isteği reddedilir. Alım kapatıldıktan sonra yönetici onayı siparişleri kilitler ve yalnız `SUBMITTED` kayıtları eski `RS_FIS_BILGILERI` / `RS_FIS_SATIRLARI` tablolarına `MOBIL` kullanıcısı ve günlük `U-*` fiş numarasıyla aktarır.
+- Nihai hale getirilen teslim gününde müşteri ve yönetici sipariş değişikliği reddedilir. Yarım kalan aktarım tekrar denendiğinde aynı eski fiş güncellenir; ikinci fiş oluşmaz.
 - Girişsiz `/api/v1/admin/products` isteği `401` döndürür.
 - IIS uygulama havuzu yeniden başlatıldıktan sonra yeniden giriş yapılabilir.
 - Mevcut RSiparis uygulaması ve PROD veritabanı etkilenmez.

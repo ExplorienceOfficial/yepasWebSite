@@ -119,6 +119,8 @@ VALUES (@cutoff, @mode, @until, @reason, @userId);", connection, transaction))
                         deliveryDate = requestedDeliveryDate.Value.Date;
                     }
 
+                    EnsureDeliveryEditable(connection, transaction, deliveryDate);
+
                     int existingRevision;
                     var existingOrderId = FindOrderForUpdate(connection, transaction,
                         schedule.LegacyMbId, deliveryDate, out existingRevision);
@@ -263,6 +265,18 @@ WHERE LegacyMbId = @mbId AND DeliveryDate = @deliveryDate", connection, transact
                     revision = reader.GetInt32(1);
                     return reader.GetInt32(0);
                 }
+            }
+        }
+
+        private static void EnsureDeliveryEditable(SqlConnection connection,
+            SqlTransaction transaction, DateTime deliveryDate)
+        {
+            using (var command = new SqlCommand(@"
+SELECT FinalizationId FROM dbo.OrderFinalizations WITH (UPDLOCK,HOLDLOCK)
+WHERE DeliveryDate=@deliveryDate", connection, transaction))
+            {
+                command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate.Date;
+                if (command.ExecuteScalar() != null) throw new OrderFinalizedException();
             }
         }
 
