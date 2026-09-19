@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../utils/in_app_browser.dart';
 import 'login_screen.dart';
 import 'main_shell.dart';
 
@@ -26,6 +27,8 @@ class ProfileScreen extends StatelessWidget {
           _AccountCard(customer: customer),
           const SizedBox(height: 14),
           _BranchesSection(app: app, activeId: customer.id),
+          const SizedBox(height: 14),
+          const _WebSiteSection(),
           const SizedBox(height: 20),
           OutlinedButton.icon(
             onPressed: () {
@@ -244,3 +247,66 @@ class _ActiveChip extends StatelessWidget {
     );
   }
 }
+
+class _WebSiteSection extends StatelessWidget {
+  const _WebSiteSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Hızlı Bağlantılar',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: YpColors.ink2)),
+            const SizedBox(height: 8),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => AppBrowser.open(
+                context,
+                url: 'https://yepaswebsitev1.vercel.app/',
+                title: 'YEPAŞ Web Portalı',
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: YpColors.accentSoft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.language_rounded, color: YpColors.accent, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('YEPAŞ Web Portalı',
+                              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600)),
+                          SizedBox(height: 2),
+                          Text('yepaswebsitev1.vercel.app',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12, color: YpColors.ink2)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: YpColors.ink3),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
