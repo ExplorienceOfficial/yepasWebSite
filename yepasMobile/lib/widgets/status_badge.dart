@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 
-/// Sipariş durumuna göre renkli rozet.
+/// Sipariş durumuna göre renkli rozet. [status] null ise henüz sipariş yok.
 class StatusBadge extends StatelessWidget {
-  final OrderStatus status;
+  final OrderStatus? status;
   const StatusBadge(this.status, {super.key});
 
   @override
@@ -16,19 +16,25 @@ class StatusBadge extends StatelessWidget {
     late final IconData icon;
 
     switch (status) {
-      case OrderStatus.ordered:
+      case OrderStatus.submitted:
         fg = YpColors.ok;
         bg = YpColors.okSoft;
         label = 'Sipariş verildi';
         icon = Icons.check_circle_rounded;
         break;
-      case OrderStatus.declined:
+      case OrderStatus.noProduct:
         fg = YpColors.bad;
         bg = YpColors.badSoft;
-        label = 'İstenmedi';
+        label = 'Ürün istenmedi';
+        icon = Icons.do_not_disturb_on_rounded;
+        break;
+      case OrderStatus.cancelled:
+        fg = YpColors.ink2;
+        bg = YpColors.surface3;
+        label = 'İptal edildi';
         icon = Icons.cancel_rounded;
         break;
-      case OrderStatus.pending:
+      case null:
         fg = YpColors.warn;
         bg = YpColors.warnSoft;
         label = 'Bekliyor';

@@ -1,275 +1,249 @@
-// Yepas mobil — uygulama durumu.
-// Admin panelindeki OperationsContext'in müşteri tarafını taşır:
-// sipariş kuralı (limit/ortalama), kesim saati, sistem açık/kapalı, sipariş girişi.
+// Yepas mobil — uygulama durumu (gerçek API v1 üzerinde).
+//
+// Oturum tokenını, kimliği, şubeleri ve seçili şubenin sipariş bağlamını taşır.
+// Ekranlar bu duruma AppScope üzerinden erişir ve değişimlerde yeniden çizilir.
 
 import 'package:flutter/widgets.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../data/seed_data.dart';
+import '../api/api_client.dart';
+import '../api/api_exception.dart';
+import '../api/yepas_api.dart';
 import '../models/models.dart';
+import 'token_store.dart';
 
-/// Uygulama arka plandayken oturumun geçerli kalacağı süre.
-/// Bu süreden kısa arka plan geçişlerinde tekrar giriş istenmez.
-const Duration kSessionTimeout = Duration(minutes: 30);
-
-const String _kAccounts = 'yepas.accounts';
-const String _kActiveBranch = 'yepas.activeBranch';
-const String _kActiveAt = 'yepas.activeAt';
+/// Uygulamanın oturum aşaması — kök widget buna göre ekran seçer.
+enum AuthPhase {
+  loading, // açılışta token doğrulanıyor
+  bootstrapFailed, // açılışta ağ hatası — yeniden dene
+  loggedOut, // giriş ekranı
+  mustChangePassword, // geçici parola değiştirilmeli
+  ready, // ana uygulama
+}
 
 class AppState extends ChangeNotifier {
-  // ---- katalog / statik veri ----
-  final List<ProductCategory> categories = kCategories;
-  final List<Product> products = kProducts;
-  final List<Customer> customers = kCustomers;
-  final List<Driver> drivers = kDrivers;
+  late final YepasApi api;
+  final TokenStore _store;
 
-  // ---- sistem ayarları (admin tarafından belirlenir) ----
-  bool orderSystemOpen = true;
-  OrderRule orderRule = kDefaultOrderRule;
-  int maxQtyLimit = kDefaultMaxQty;
-  String cutoffTime = kOrderCutoff;
-
-  // ---- oturum ----
-  String? currentCustomerId;
-
-  /// Oturumda kayıtlı şubeler (aynı vergi numarasına bağlı tüm bayiler).
-  /// Giriş sonrası bunlar arasında tekrar şifre girmeden geçiş yapılabilir.
-  List<Customer> sessionBranches = [];
-
-  bool get hasMultipleBranches => sessionBranches.length > 1;
-
-  /// Kayıtlı hesaplar (vergi numaraları). Login ekranında tek dokunuşla
-  /// otomatik giriş için listelenir.
-  List<String> rememberedTaxNumbers = [];
-
-  SharedPreferences? _prefs;
-  DateTime? _activeAt;
-
-  // ---- sipariş verileri ----
-  late final Map<String, DailyOrder> _orders;
-  late final Map<String, DailyOrder> _deliveryOrders; // bugün teslim — salt okunur
-
-  AppState() {
-    _orders = {for (final o in kDailyOrders) o.customerId: o};
-    _deliveryOrders = {for (final o in kDeliveryOrders) o.customerId: o};
+  AppState({YepasApi? api, TokenStore? store})
+      : _store = store ?? TokenStore() {
+    this.api = api ?? YepasApi(ApiClient(() => _token));
   }
 
-  /// Uygulama açılışında çağrılır: kayıtlı hesapları ve — süresi geçmediyse —
-  /// son oturumu geri yükler.
-  Future<void> loadPersisted() async {
-    final prefs = await SharedPreferences.getInstance();
-    _prefs = prefs;
-    rememberedTaxNumbers = (prefs.getStringList(_kAccounts) ?? [])
-        .where((t) => branchesForTax(t).isNotEmpty)
-        .toList();
+  // ---- oturum ----
+  AuthPhase phase = AuthPhase.loading;
+  Identity? identity;
+  String? _token;
+  String? lastLoginName;
 
-    final branchId = prefs.getString(_kActiveBranch);
-    final at = prefs.getInt(_kActiveAt);
-    if (branchId != null && at != null) {
-      final elapsed = DateTime.now().millisecondsSinceEpoch - at;
-      final branch = customerById(branchId);
-      if (branch != null && elapsed < kSessionTimeout.inMilliseconds) {
-        currentCustomerId = branch.id;
-        sessionBranches = branchesForTax(branch.taxNumber);
-        _activeAt = DateTime.fromMillisecondsSinceEpoch(at);
+  String? get token => _token;
+
+  // ---- şubeler ----
+  List<CustomerBranch> branches = const [];
+  int? selectedMbId;
+
+  CustomerBranch? get currentBranch {
+    for (final b in branches) {
+      if (b.legacyMbId == selectedMbId) return b;
+    }
+    return branches.isNotEmpty ? branches.first : null;
+  }
+
+  bool get hasMultipleBranches => branches.length > 1;
+
+  // ---- seçili şubenin sipariş bağlamı ----
+  CustomerOrderContext? context;
+  bool contextLoading = false;
+  ApiException? contextError;
+
+  // ------------------------------------------------------------- açılış
+
+  /// Uygulama açılışında: token varsa doğrular, şubeleri ve bağlamı yükler.
+  Future<void> bootstrap() async {
+    lastLoginName = await _store.readLastLoginName();
+    _token = await _store.readToken();
+
+    if (_token == null) {
+      _set(AuthPhase.loggedOut);
+      return;
+    }
+
+    try {
+      identity = await api.me();
+      if (identity!.mustChangePassword) {
+        _set(AuthPhase.mustChangePassword);
+        return;
+      }
+      await _loadBranches();
+      _set(AuthPhase.ready);
+    } on ApiException catch (e) {
+      if (e.isUnauthorized) {
+        await _forgetSession();
+        _set(AuthPhase.loggedOut);
+      } else if (e.passwordChangeRequired || e.isForbidden) {
+        _set(AuthPhase.mustChangePassword);
       } else {
-        // Süre doldu → kilitli başla (kayıtlı hesap kalır, aktif oturum silinir).
-        await prefs.remove(_kActiveBranch);
-        await prefs.remove(_kActiveAt);
+        // Ağ/servis hatası: token silinmez, yeniden denenebilir.
+        _set(AuthPhase.bootstrapFailed);
       }
     }
   }
 
-  // ---------------------------------------------------------------- seçiciler
+  // ------------------------------------------------------------- giriş
 
-  Customer? get currentCustomer =>
-      currentCustomerId == null ? null : customerById(currentCustomerId!);
+  /// Kullanıcı adı + parola ile giriş. Hata ApiException olarak fırlatılır.
+  Future<void> login(String loginName, String password) async {
+    final result = await api.login(loginName: loginName, password: password);
+    _token = result.accessToken;
+    identity = result.identity;
+    await _store.writeToken(result.accessToken);
+    await _store.writeLastLoginName(loginName);
+    lastLoginName = loginName;
 
-  Customer? customerById(String id) {
-    for (final c in customers) {
-      if (c.id == id) return c;
+    if (result.mustChangePassword) {
+      _set(AuthPhase.mustChangePassword);
+      return;
     }
-    return null;
+    await _loadBranches();
+    _set(AuthPhase.ready);
   }
 
-  /// Bir vergi numarasına bağlı tüm şubeler (şube no'ya göre sıralı).
-  List<Customer> branchesForTax(String taxNumber) {
-    final norm = taxNumber.trim();
-    final list = customers.where((c) => c.taxNumber == norm).toList();
-    list.sort((a, b) => a.branchNo.compareTo(b.branchNo));
-    return list;
-  }
-
-  Product? productById(String id) {
-    for (final p in products) {
-      if (p.id == id) return p;
-    }
-    return null;
-  }
-
-  Driver? driverById(String id) {
-    for (final d in drivers) {
-      if (d.id == id) return d;
-    }
-    return null;
-  }
-
-  ProductCategory categoryById(String id) =>
-      categories.firstWhere((c) => c.id == id);
-
-  List<Product> productsInCategory(String categoryId) =>
-      products.where((p) => p.categoryId == categoryId).toList();
-
-  DailyOrder? orderFor(String customerId) => _orders[customerId];
-  DailyOrder? deliveryFor(String customerId) => _deliveryOrders[customerId];
-
-  /// Aktif kurala göre bir ürünün üst sınırı.
-  int maxQtyFor(String productId) {
-    final p = productById(productId);
-    if (p == null) return 0;
-    return orderRule == OrderRule.average
-        ? p.avgOrder
-        : (p.maxOrderLimit < maxQtyLimit ? p.maxOrderLimit : maxQtyLimit);
-  }
-
-  // ---------------------------------------------------------------- oturum
-
-  /// Seçilen şubenin şifresini doğrular ve oturumu açar. Şifre yanlışsa false.
-  /// Aynı vergi numarasına bağlı tüm şubeler oturuma + kayıtlı hesaplara eklenir.
-  bool loginWith(Customer branch, String password) {
-    if (branch.password != password) return false;
-    _openSession(branch);
-    _rememberAccount(branch.taxNumber);
-    return true;
-  }
-
-  /// Kayıtlı hesaptan tek dokunuşla giriş (şifre sorulmaz).
-  void quickLogin(Customer branch) {
-    _openSession(branch);
-    _rememberAccount(branch.taxNumber);
-  }
-
-  void _openSession(Customer branch) {
-    sessionBranches = branchesForTax(branch.taxNumber);
-    currentCustomerId = branch.id;
-    _touchAndPersist();
-    notifyListeners();
-  }
-
-  /// Oturumdaki şubeler arasında geçiş yapar (tekrar şifre gerekmez).
-  void switchBranch(String customerId) {
-    if (customerId == currentCustomerId) return;
-    if (sessionBranches.any((b) => b.id == customerId)) {
-      currentCustomerId = customerId;
-      _touchAndPersist();
+  /// Parola değiştirir. Mecburi akıştan geliyorsa uygulamaya devam eder.
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    await api.changePassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+    identity = identity?.copyWith(mustChangePassword: false);
+    if (phase == AuthPhase.mustChangePassword) {
+      await _loadBranches();
+      _set(AuthPhase.ready);
+    } else {
       notifyListeners();
     }
   }
 
-  /// Tam çıkış: aktif oturumu kapatır ve bu hesabı kayıtlılardan siler.
-  void logout() {
-    final tax = currentCustomer?.taxNumber;
-    currentCustomerId = null;
-    sessionBranches = [];
-    if (tax != null) rememberedTaxNumbers.remove(tax);
-    _prefs?.setStringList(_kAccounts, rememberedTaxNumbers);
-    _prefs?.remove(_kActiveBranch);
-    _prefs?.remove(_kActiveAt);
+  /// Çıkış — tokenı sunucuda iptal eder ve yereli temizler.
+  Future<void> logout() async {
+    try {
+      await api.logout();
+    } catch (_) {/* en iyi çaba — yerel temizlik yine yapılır */}
+    await _forgetSession();
+    _set(AuthPhase.loggedOut);
+  }
+
+  /// Açılış ağ hatasından sonra yeniden dener.
+  Future<void> retryBootstrap() async {
+    _set(AuthPhase.loading);
+    await bootstrap();
+  }
+
+  // ------------------------------------------------------------- şubeler
+
+  Future<void> _loadBranches() async {
+    branches = await api.branches();
+    if (branches.isEmpty) {
+      selectedMbId = null;
+      context = null;
+      return;
+    }
+    selectedMbId = branches.first.legacyMbId;
+    await _loadContext();
+  }
+
+  /// Oturumdaki şubeler arasında geçiş (tekrar giriş gerekmez).
+  Future<void> selectBranch(int legacyMbId) async {
+    if (legacyMbId == selectedMbId) return;
+    selectedMbId = legacyMbId;
+    context = null;
+    contextError = null;
     notifyListeners();
+    await _loadContext();
   }
 
-  /// Kayıtlı bir hesabı (vergi numarası) login ekranından kaldırır.
-  void forgetAccount(String taxNumber) {
-    rememberedTaxNumbers.remove(taxNumber);
-    _prefs?.setStringList(_kAccounts, rememberedTaxNumbers);
+  /// Seçili şubenin sipariş bağlamını (yeniden) yükler.
+  Future<void> refreshContext() => _loadContext();
+
+  Future<void> _loadContext() async {
+    final mbId = selectedMbId;
+    if (mbId == null) return;
+    contextLoading = true;
+    contextError = null;
     notifyListeners();
-  }
-
-  // ---- oturum süresi (arka plan) ----
-
-  /// Uygulama arka plana geçerken çağrılır — ayrılma zamanını kaydeder.
-  void touchSession() {
-    if (currentCustomerId == null) return;
-    _touchAndPersist();
-  }
-
-  /// Arka planda kalınan süre eşiği aştıysa true.
-  bool get isSessionExpired {
-    if (_activeAt == null) return false;
-    return DateTime.now().difference(_activeAt!) > kSessionTimeout;
-  }
-
-  /// Oturumu kilitler (login'e döner) ama kayıtlı hesapları korur.
-  void lockSession() {
-    currentCustomerId = null;
-    sessionBranches = [];
-    _prefs?.remove(_kActiveBranch);
-    _prefs?.remove(_kActiveAt);
-    notifyListeners();
-  }
-
-  void _rememberAccount(String taxNumber) {
-    if (!rememberedTaxNumbers.contains(taxNumber)) {
-      rememberedTaxNumbers.add(taxNumber);
-      _prefs?.setStringList(_kAccounts, rememberedTaxNumbers);
+    try {
+      context = await api.orderContext(mbId);
+    } on ApiException catch (e) {
+      contextError = e;
+      if (e.isUnauthorized) {
+        await _forgetSession();
+        _set(AuthPhase.loggedOut);
+        return;
+      }
+      if (e.passwordChangeRequired) {
+        _set(AuthPhase.mustChangePassword);
+        return;
+      }
+    } finally {
+      contextLoading = false;
+      notifyListeners();
     }
   }
 
-  void _touchAndPersist() {
-    _activeAt = DateTime.now();
-    _prefs?.setString(_kActiveBranch, currentCustomerId ?? '');
-    _prefs?.setInt(_kActiveAt, _activeAt!.millisecondsSinceEpoch);
-  }
+  // ------------------------------------------------------------- sipariş
 
-  // ---- demo: admin sistem açık/kapalı ----
-
-  /// Sipariş sistemini açar/kapatır. Kapalıyken müşteri giriş yapamaz.
-  void setSystemOpen(bool open) {
-    orderSystemOpen = open;
-    notifyListeners();
-  }
-
-  // ---------------------------------------------------------------- aksiyonlar
-
-  String _clock() {
-    final now = DateTime.now();
-    final h = now.hour.toString().padLeft(2, '0');
-    final m = now.minute.toString().padLeft(2, '0');
-    return '$h:$m';
-  }
-
-  /// Müşteri siparişini kaydeder. Adetler aktif kurala göre kırpılır.
-  void submitOrder(String customerId, Map<String, int> draft) {
-    final lines = <OrderLine>[];
-    draft.forEach((productId, qty) {
-      if (qty <= 0) return;
-      final capped = qty.clamp(0, maxQtyFor(productId));
-      if (capped > 0) lines.add(OrderLine(productId, capped));
-    });
-
-    final existing = _orders[customerId];
-    _orders[customerId] = (existing ??
-            DailyOrder(customerId: customerId, status: OrderStatus.pending, lines: const []))
-        .copyWith(
-      status: OrderStatus.ordered,
-      lines: lines,
-      updatedAt: _clock(),
-      editedByAdmin: false,
-    );
-    notifyListeners();
-  }
-
-  /// "Yarın ürün istemiyorum" — siparişi reddeder.
-  void declineOrder(String customerId, {String? note}) {
-    final existing = _orders[customerId];
-    _orders[customerId] = (existing ??
-            DailyOrder(customerId: customerId, status: OrderStatus.pending, lines: const []))
-        .copyWith(
-      status: OrderStatus.declined,
-      lines: const [],
-      updatedAt: _clock(),
+  /// Sipariş oluşturur/günceller (SUBMITTED). Çağıran ApiException'ı yakalar.
+  Future<Order> submitOrder({
+    required List<OrderLineInput> lines,
+    String? note,
+    required int revision,
+    required String idempotencyKey,
+  }) {
+    return _save(SaveOrderRequest(
+      revision: revision,
+      status: OrderStatus.submitted,
       note: note,
-    );
+      lines: lines,
+    ), idempotencyKey);
+  }
+
+  /// "Ürün istemiyorum" (NO_PRODUCT) — satırlar boş olmalı (README §3).
+  Future<Order> declineOrder({
+    String? note,
+    required int revision,
+    required String idempotencyKey,
+  }) {
+    return _save(SaveOrderRequest(
+      revision: revision,
+      status: OrderStatus.noProduct,
+      note: note,
+      lines: const [],
+    ), idempotencyKey);
+  }
+
+  Future<Order> _save(SaveOrderRequest request, String idempotencyKey) async {
+    final mbId = selectedMbId;
+    if (mbId == null) {
+      throw const ApiException(message: 'Şube seçili değil.');
+    }
+    final order = await api.saveOrder(mbId, request, idempotencyKey: idempotencyKey);
+    context = context?.copyWith(order: order);
+    notifyListeners();
+    return order;
+  }
+
+  // ------------------------------------------------------------- yardımcılar
+
+  Future<void> _forgetSession() async {
+    await _store.clearToken();
+    _token = null;
+    identity = null;
+    branches = const [];
+    selectedMbId = null;
+    context = null;
+    contextError = null;
+  }
+
+  void _set(AuthPhase p) {
+    phase = p;
     notifyListeners();
   }
 }

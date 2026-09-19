@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 
+import 'screens/change_password_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_shell.dart';
+import 'screens/splash_screen.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
-
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final state = AppState();
-  await state.loadPersisted();
   runApp(YepasApp(state: state));
+  // İlk kare çizildikten sonra oturumu doğrula (splash gösterilir).
+  state.bootstrap();
 }
 
 class YepasApp extends StatefulWidget {
@@ -41,34 +42,42 @@ class _YepasAppState extends State<YepasApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
-    if (lifecycle == AppLifecycleState.paused ||
-        lifecycle == AppLifecycleState.hidden) {
-      // Ayrılma zamanını kaydet — kısa süreli arka plan geçişlerinde
-      // oturum korunur.
-      _state.touchSession();
-    } else if (lifecycle == AppLifecycleState.resumed) {
-      // Uzun süre arka planda kalındıysa oturumu kilitle ve login'e dön.
-      if (_state.currentCustomerId != null && _state.isSessionExpired) {
-        _state.lockSession();
-        navigatorKey.currentState?.pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (r) => false,
-        );
-      }
+    // Uzun süre arka planda kalıp öne dönüldüğünde seçili şubenin bağlamını
+    // tazele; token geçersizse durum kendini giriş ekranına düşürür.
+    if (lifecycle == AppLifecycleState.resumed &&
+        _state.phase == AuthPhase.ready) {
+      _state.refreshContext();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final loggedIn = _state.currentCustomerId != null;
     return AppScope(
       state: _state,
       child: MaterialApp(
         title: 'Yepas Bayi Sipariş',
-        navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
         theme: buildYepasTheme(),
-        home: loggedIn ? const MainShell() : const LoginScreen(),
+        home: AnimatedBuilder(
+          animation: _state,
+          builder: (context, _) {
+            switch (_state.phase) {
+              case AuthPhase.loading:
+                return const SplashScreen();
+              case AuthPhase.bootstrapFailed:
+                return SplashScreen(
+                  error: 'Sunucuya ulaşılamadı.',
+                  onRetry: _state.retryBootstrap,
+                );
+              case AuthPhase.loggedOut:
+                return const LoginScreen();
+              case AuthPhase.mustChangePassword:
+                return const ChangePasswordScreen(mandatory: true);
+              case AuthPhase.ready:
+                return const MainShell();
+            }
+          },
+        ),
       ),
     );
   }

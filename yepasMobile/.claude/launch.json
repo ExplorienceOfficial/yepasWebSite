@@ -4,7 +4,16 @@
     {
       "name": "yepas-web",
       "runtimeExecutable": "flutter",
-      "runtimeArgs": ["run", "-d", "web-server", "--web-port", "8080", "--web-hostname", "localhost"],
+      "runtimeArgs": [
+        "run",
+        "-d",
+        "web-server",
+        "--web-port",
+        "8080",
+        "--web-hostname",
+        "localhost",
+        "--dart-define=YEPAS_BASE_URL=https://192.168.5.230:8443/api/v1"
+      ],
       "port": 8080
     }
   ]

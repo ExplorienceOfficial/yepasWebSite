@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../models/models.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 
 /// Oturumdaki şubeler arasında geçiş için alt sayfa (bottom sheet).
+/// Şube geçişi tekrar giriş gerektirmez (README §3).
 Future<void> showBranchSwitcher(BuildContext context) {
   final app = AppScope.of(context);
   return showModalBottomSheet<void>(
@@ -25,24 +27,25 @@ Future<void> showBranchSwitcher(BuildContext context) {
               const Padding(
                 padding: EdgeInsets.fromLTRB(4, 0, 4, 4),
                 child: Text('Şube değiştir',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3)),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
-                child: Text('Vergi No ${app.currentCustomer?.taxNumber ?? ''} · ${app.sessionBranches.length} şube',
+                child: Text('${app.branches.length} şube',
                     style: const TextStyle(fontSize: 13, color: YpColors.ink2)),
               ),
-              for (final b in app.sessionBranches)
+              for (final b in app.branches)
                 _BranchTile(
-                  active: b.id == app.currentCustomerId,
-                  branchNo: b.branchNo,
-                  name: b.name,
-                  district: b.district,
+                  branch: b,
+                  active: b.legacyMbId == app.selectedMbId,
                   onTap: () {
-                    app.switchBranch(b.id);
                     Navigator.pop(ctx);
+                    app.selectBranch(b.legacyMbId);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${b.name} şubesine geçildi')),
+                      SnackBar(content: Text('${b.departmentName} şubesine geçildi')),
                     );
                   },
                 ),
@@ -55,17 +58,13 @@ Future<void> showBranchSwitcher(BuildContext context) {
 }
 
 class _BranchTile extends StatelessWidget {
+  final CustomerBranch branch;
   final bool active;
-  final int branchNo;
-  final String name;
-  final String district;
   final VoidCallback onTap;
 
   const _BranchTile({
+    required this.branch,
     required this.active,
-    required this.branchNo,
-    required this.name,
-    required this.district,
     required this.onTap,
   });
 
@@ -91,28 +90,32 @@ class _BranchTile extends StatelessWidget {
                     color: active ? YpColors.accent : YpColors.surface3,
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: Text('$branchNo',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: active ? Colors.white : YpColors.ink2)),
+                  child: Icon(Icons.store_mall_directory_rounded,
+                      size: 20, color: active ? Colors.white : YpColors.ink2),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name,
+                      Text(branch.departmentName.isEmpty
+                          ? branch.customerName
+                          : branch.departmentName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600)),
-                      Text('$branchNo. Şube · $district',
-                          style: const TextStyle(fontSize: 12.5, color: YpColors.ink2)),
+                          style: const TextStyle(
+                              fontSize: 14.5, fontWeight: FontWeight.w600)),
+                      Text('${branch.customerCode} · ${branch.customerName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12.5, color: YpColors.ink2)),
                     ],
                   ),
                 ),
                 if (active)
-                  const Icon(Icons.check_circle_rounded, color: YpColors.accent, size: 22)
+                  const Icon(Icons.check_circle_rounded,
+                      color: YpColors.accent, size: 22)
                 else
                   const Icon(Icons.chevron_right_rounded, color: YpColors.ink3),
               ],
