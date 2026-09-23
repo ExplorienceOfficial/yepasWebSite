@@ -255,7 +255,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-6 text-center text-[12px] text-ink-3">
-          Girişler sunucuda doğrulanır. Diğer operasyon ekranlarındaki örnek veriler henüz entegrasyona bağlanmadı.
+          Girişler sunucuda doğrulanır. Şoför rota ekranı ve yönetim hesapları gerçek verilerle çalışır.
         </p>
       </div>
     </div>

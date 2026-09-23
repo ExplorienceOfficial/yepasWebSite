@@ -1,5 +1,10 @@
 # Yepaş · Ekmek Dağıtım Bilgi Sistemi (Demo)
 
+> **Güncel durum:** Bu dosyanın aşağıdaki bölümleri ilk arayüz prototipini anlatır ve
+> gerçek sunucu entegrasyonunu yansıtmaz. Mobil uygulama için geçerli sözleşme
+> [`docs/mobile-api/README.md`](docs/mobile-api/README.md), makine tarafından okunabilir
+> tanım ise [`docs/mobile-api/openapi.yaml`](docs/mobile-api/openapi.yaml) dosyasındadır.
+
 Ertesi günün ekmek ve unlu mamul üretim/dağıtım operasyonu için hazırlanmış iki ayrı
 girişli panel demosu:
 

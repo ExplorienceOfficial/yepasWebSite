@@ -9,6 +9,7 @@ import {
   MessageSquareQuote,
   Package,
   Truck,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,6 +28,7 @@ const items: Item[] = [
   { href: "/admin", label: "Kontrol Paneli", icon: LayoutGrid },
   { href: "/admin/siparisler", label: "Siparişler", icon: ClipboardList, badgeKey: "pending" },
   { href: "/admin/urunler", label: "Ürünler", icon: Package },
+  { href: "/admin/musteriler", label: "Müşteriler", icon: Users },
   { href: "/admin/sofor-yonetimi", label: "Şoför Yönetimi", icon: Truck },
   { href: "/admin/musteri-yanitlari", label: "Müşteri Yanıtları", icon: MessageSquareQuote },
 ];

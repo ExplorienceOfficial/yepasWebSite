@@ -7,6 +7,7 @@ import { PageHeading, Panel } from "@/components/admin/Panel";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { TextInput } from "@/components/ui/Field";
+import { localApiUrl } from "@/lib/api";
 
 interface CatalogProduct {
   uStokId: number;
@@ -18,12 +19,7 @@ interface CatalogProduct {
 }
 
 function catalogUrl(): string {
-  if (typeof window === "undefined") return "/api/v1/admin/products";
-  const host = window.location.hostname;
-  if (host === "localhost" || host === "127.0.0.1") {
-    return "http://localhost:5057/api/v1/admin/products";
-  }
-  return "/api/v1/admin/products";
+  return localApiUrl("/api/v1/admin/products");
 }
 
 export default function ProductsPage() {

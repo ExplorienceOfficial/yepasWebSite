@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { localApiUrl } from "@/lib/api";
 
 export type Session =
-  | { role: "admin"; username: string; name: string; title: string }
-  | { role: "driver"; driverId: string; code: string; name: string; plate: string };
+  | { role: "admin"; username: string; name: string; title: string; mustChangePassword: boolean }
+  | { role: "driver"; driverId: string; code: string; name: string; plate: string; mustChangePassword: boolean };
 
 export type LoginResult = { ok: true } | { ok: false; message: string };
 
@@ -12,6 +13,7 @@ interface ApiIdentity {
   userId: number;
   loginName: string;
   role: "ADMIN" | "DRIVER";
+  legacyPersonnelId?: number | null;
   mustChangePassword: boolean;
 }
 
@@ -27,11 +29,7 @@ const serverSnapshot: AuthSnapshot = { session: null, loaded: false, unavailable
 let loading: Promise<void> | null = null;
 
 function apiUrl(path: string): string {
-  if (typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return `http://localhost:5057/api/v1/auth/${path}`;
-  }
-  return `/api/v1/auth/${path}`;
+  return localApiUrl(`/api/v1/auth/${path}`);
 }
 
 function toSession(identity: ApiIdentity): Session | null {
@@ -41,15 +39,18 @@ function toSession(identity: ApiIdentity): Session | null {
       username: identity.loginName,
       name: identity.loginName,
       title: "Yönetici",
+      mustChangePassword: identity.mustChangePassword,
     };
   }
   if (identity.role === "DRIVER") {
+    if (!identity.legacyPersonnelId) return null;
     return {
       role: "driver",
-      driverId: `legacy-${identity.userId}`,
+      driverId: String(identity.legacyPersonnelId),
       code: identity.loginName,
       name: identity.loginName,
       plate: "",
+      mustChangePassword: identity.mustChangePassword,
     };
   }
   return null;
@@ -58,6 +59,15 @@ function toSession(identity: ApiIdentity): Session | null {
 function update(next: AuthSnapshot) {
   snapshot = next;
   listeners.forEach((listener) => listener());
+}
+
+/**
+ * Sunucu bir yetki hatası döndürdüğünde, ekranda kalmış eski rol bilgisini
+ * hemen temizler. RequireRole bu değişikliği görerek kullanıcıyı girişe taşır.
+ */
+export function invalidateSession() {
+  loading = null;
+  update({ session: null, loaded: true, unavailable: false });
 }
 
 function subscribe(listener: () => void): () => void {
@@ -74,7 +84,7 @@ function ensureLoaded(): Promise<void> {
   loading = fetch(apiUrl("me"), { credentials: "include", cache: "no-store" })
     .then(async (response) => {
       if (response.status === 401) {
-        update({ session: null, loaded: true, unavailable: false });
+        invalidateSession();
         return;
       }
       if (!response.ok) throw new Error("Oturum hizmetine erişilemiyor.");
@@ -111,6 +121,28 @@ async function login(loginName: string, password: string, role: "ADMIN" | "DRIVE
   }
 }
 
+async function changePassword(currentPassword: string, newPassword: string): Promise<LoginResult> {
+  try {
+    const response = await fetch(apiUrl("change-password"), {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (!response.ok) {
+      try {
+        const body = (await response.json()) as { message?: string };
+        return { ok: false, message: body.message || "Parola değiştirilemedi." };
+      } catch { return { ok: false, message: "Parola değiştirilemedi." }; }
+    }
+    if (snapshot.session) {
+      update({ ...snapshot, session: { ...snapshot.session, mustChangePassword: false } });
+    }
+    return { ok: true };
+  } catch { return { ok: false, message: "Parola hizmetine erişilemiyor." }; }
+}
+
 export function useAuth() {
   const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   useEffect(() => { void ensureLoaded(); }, []);
@@ -130,6 +162,10 @@ export function useAuth() {
     } catch { return false; }
   }, []);
 
+  const updatePassword = useCallback(
+    (currentPassword: string, newPassword: string) => changePassword(currentPassword, newPassword), []);
+
   return { session: state.session, hydrated: state.loaded,
-    unavailable: state.unavailable, loginAdmin, loginDriver, logout };
+    unavailable: state.unavailable, loginAdmin, loginDriver, changePassword: updatePassword, logout,
+    invalidateSession };
 }

@@ -51,7 +51,17 @@ namespace Yepas.Api.Data
         private static bool PersonnelExists(int personnelId)
         {
             using (var connection = new SqlConnection(LegacyConnectionString()))
-            using (var command = new SqlCommand("SELECT 1 FROM D00013.FIRMA_PERSONELI WHERE PERSONEL_ID = @id", connection))
+            using (var command = new SqlCommand(@"SELECT 1 FROM D00013.FIRMA_PERSONELI P
+WHERE P.PERSONEL_ID = @id AND P.PERSONEL_DURUM = 1
+  AND EXISTS (
+      SELECT 1
+      FROM D00013.BF_PERS_MUST PM
+      INNER JOIN D00013.RS_MUSTERI_BILGILERI MB
+          ON MB.MUSTERI_ID = PM.MUSTERI_ID
+         AND MB.BOLUM_ID = PM.BOLUM_ID
+         AND MB.SS = 12
+      WHERE PM.PERSONEL_ID = P.PERSONEL_ID
+  )", connection))
             {
                 command.Parameters.Add("@id", SqlDbType.Int).Value = personnelId;
                 connection.Open();
@@ -63,7 +73,7 @@ namespace Yepas.Api.Data
         {
             token = null;
             if (String.IsNullOrWhiteSpace(loginName) || String.IsNullOrEmpty(password) ||
-                (role != "ADMIN" && role != "DRIVER")) return null;
+                (role != "ADMIN" && role != "DRIVER" && role != "CUSTOMER")) return null;
 
             var normalized = loginName.Trim().ToUpperInvariant();
             if (normalized.Length > 100 || password.Length > 1024) return null;
@@ -123,6 +133,8 @@ WHERE UserId = @id", connection))
                         }
 
                         if (role == "DRIVER" && (!personnelId.HasValue || !PersonnelExists(personnelId.Value)))
+                            return null;
+                        if (role == "CUSTOMER" && !UserHasCustomerAccess(connection, userId))
                             return null;
 
                         using (var reset = new SqlCommand(@"
@@ -271,6 +283,105 @@ WHERE UserId = @id AND RevokedAtUtc IS NULL", connection, transaction))
                         throw;
                     }
                 }
+            }
+        }
+
+        public bool ChangePassword(int userId, string currentToken, string currentPassword,
+            string newPassword, out string error)
+        {
+            error = null;
+            if (String.IsNullOrEmpty(newPassword) || newPassword.Length < 12 || newPassword.Length > 128)
+            {
+                error = "Yeni parola 12-128 karakter olmalıdır.";
+                return false;
+            }
+            if (String.Equals(currentPassword, newPassword, StringComparison.Ordinal))
+            {
+                error = "Yeni parola mevcut paroladan farklı olmalıdır.";
+                return false;
+            }
+            var tokenBytes = ParseToken(currentToken);
+            if (tokenBytes == null) { error = "Oturum geçersiz."; return false; }
+            using (var connection = new SqlConnection(AppConnectionString()))
+            {
+                connection.Open();
+                using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
+                {
+                    byte[] storedHash;
+                    byte[] storedSalt;
+                    int iterations;
+                    using (var command = new SqlCommand(@"
+SELECT PasswordHash, PasswordSalt, PasswordIterations, PasswordAlgorithm
+FROM dbo.Users WITH (UPDLOCK, HOLDLOCK)
+WHERE UserId = @userId AND IsActive = 1", connection, transaction))
+                    {
+                        command.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (!reader.Read() || reader.IsDBNull(0) || reader.IsDBNull(1) ||
+                                reader.IsDBNull(2) || reader.IsDBNull(3) ||
+                                reader.GetString(3) != "PBKDF2-SHA256")
+                            { error = "Hesap parolası doğrulanamadı."; return false; }
+                            storedHash = (byte[])reader[0];
+                            storedSalt = (byte[])reader[1];
+                            iterations = reader.GetInt32(2);
+                        }
+                    }
+                    var actualHash = HashPassword(currentPassword, storedSalt, iterations);
+                    if (!Equal(storedHash, actualHash))
+                    {
+                        error = "Mevcut parola hatalı.";
+                        return false;
+                    }
+                    var salt = new byte[32];
+                    using (var random = RandomNumberGenerator.Create()) random.GetBytes(salt);
+                    var hash = HashPassword(newPassword, salt, 150000);
+                    using (var command = new SqlCommand(@"
+UPDATE dbo.Users SET PasswordHash = @hash, PasswordSalt = @salt,
+    PasswordIterations = 150000, PasswordAlgorithm = N'PBKDF2-SHA256',
+    MustChangePassword = 0, TemporaryPasswordExpiresUtc = NULL,
+    FailedLoginCount = 0, LockoutUntilUtc = NULL, UpdatedAtUtc = GETUTCDATE()
+WHERE UserId = @userId;
+UPDATE dbo.AuthSessions SET RevokedAtUtc = GETUTCDATE()
+WHERE UserId = @userId AND RevokedAtUtc IS NULL AND TokenHash <> @tokenHash;",
+                        connection, transaction))
+                    {
+                        command.Parameters.Add("@hash", SqlDbType.VarBinary, 32).Value = hash;
+                        command.Parameters.Add("@salt", SqlDbType.VarBinary, 32).Value = salt;
+                        command.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                        command.Parameters.Add("@tokenHash", SqlDbType.VarBinary, 32).Value = Sha256(tokenBytes);
+                        command.ExecuteNonQuery();
+                    }
+                    transaction.Commit();
+                    Array.Clear(salt, 0, salt.Length);
+                    Array.Clear(hash, 0, hash.Length);
+                    return true;
+                }
+            }
+        }
+
+        public bool UserCanAccessCustomer(int userId, int legacyMbId)
+        {
+            if (userId <= 0 || legacyMbId <= 0) return false;
+            using (var connection = new SqlConnection(AppConnectionString()))
+            using (var command = new SqlCommand(@"
+SELECT 1 FROM dbo.CustomerAccess
+WHERE UserId = @userId AND LegacyMbId = @mbId", connection))
+            {
+                command.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                command.Parameters.Add("@mbId", SqlDbType.Int).Value = legacyMbId;
+                connection.Open();
+                return command.ExecuteScalar() != null;
+            }
+        }
+
+        private static bool UserHasCustomerAccess(SqlConnection connection, int userId)
+        {
+            using (var command = new SqlCommand(
+                "SELECT TOP 1 1 FROM dbo.CustomerAccess WHERE UserId = @userId", connection))
+            {
+                command.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                return command.ExecuteScalar() != null;
             }
         }
     }

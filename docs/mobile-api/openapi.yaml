@@ -1,0 +1,524 @@
+openapi: 3.0.3
+info:
+  title: YEPAS Mobile API
+  version: 1.0.0
+  description: CUSTOMER ve DRIVER mobil istemcileri için v1 sözleşmesi.
+  license:
+    name: Proprietary
+servers:
+  - url: https://192.168.5.230:8443/api/v1
+    description: DEV - yalnız VPN/fabrika ağı
+tags:
+  - name: Auth
+    description: Mobil giriş, token, parola ve çıkış işlemleri.
+  - name: Customer
+    description: Müşteri şubeleri, ürün tanımları ve sipariş işlemleri.
+  - name: Driver
+    description: Şoförün eski sistem ilişkilerinden türetilen rotaları.
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Mobil kullanıcı girişi
+      operationId: loginMobile
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/MobileClient'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Başarılı giriş
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Kullanıcı adı/parola hatalı, hesap kapalı, kilitli veya geçici parola süresi dolmuş
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Aktif mobil oturumu doğrula
+      operationId: getCurrentIdentity
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Aktif kullanıcı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Identity'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Parolayı değiştir
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MobileClient'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Parola değiştirildi
+        '400':
+          description: Parola politikası veya mevcut parola doğrulaması başarısız
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Aktif tokenı iptal et
+      operationId: logoutMobile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MobileClient'
+      responses:
+        '204':
+          description: Oturum kapatıldı
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /customer/branches:
+    get:
+      tags: [Customer]
+      summary: Müşteri hesabına bağlı şubeleri getir
+      operationId: listCustomerBranches
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Yetkili şubeler
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomerBranch'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PasswordChangeRequired'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /customer/branches/{legacyMbId}/order:
+    parameters:
+      - $ref: '#/components/parameters/LegacyMbId'
+    get:
+      tags: [Customer]
+      summary: Şubenin sipariş penceresi, ürünleri ve mevcut siparişini getir
+      operationId: getCustomerOrderContext
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sipariş bağlamı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerOrderContext'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    put:
+      tags: [Customer]
+      summary: Şube siparişini oluştur veya güncelle
+      operationId: saveCustomerOrder
+      description: Teslim tarihi sunucu tarafından hesaplanır. Ağ tekrarında aynı Idempotency-Key ve aynı gövde kullanılmalıdır.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MobileClient'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveOrderRequest'
+      responses:
+        '200':
+          description: Kaydedilen sipariş
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Geçersiz sipariş, ürün, miktar veya idempotency anahtarı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Sipariş penceresi kapalı, revision çakışması, finalizasyon veya idempotency çakışması
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /driver/routes:
+    get:
+      tags: [Driver]
+      summary: Şoförün dağıtım rotasını ve siparişleri getir
+      operationId: getDriverRoutes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [delivery, submitted]
+            default: delivery
+      responses:
+        '200':
+          description: Şoför rotası
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverRoute'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PasswordChangeRequired'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+  parameters:
+    MobileClient:
+      name: X-Yepas-Client
+      in: header
+      required: true
+      schema:
+        type: string
+        enum: [mobile-v1]
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: En fazla 100 karakter; yeni kullanıcı işlemi için benzersiz UUID.
+      schema:
+        type: string
+        maxLength: 100
+        example: 9d2691ab-21ec-4c54-93c8-173dfaa408c8
+    LegacyMbId:
+      name: legacyMbId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    BadRequest:
+      description: Geçersiz istek
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Token yok, geçersiz, iptal edilmiş veya süresi dolmuş
+    Forbidden:
+      description: Rol, şube veya istek kaynağı yetkili değil
+    PasswordChangeRequired:
+      description: Geçici parola değiştirilmeden operasyon yapılamaz
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Şube veya sipariş bağlamı bulunamadı
+    Unavailable:
+      description: Hizmet geçici olarak kullanılamıyor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      description: Bazı 401/403/404 yanıtları gövdesiz olabilir.
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    LoginRequest:
+      type: object
+      properties:
+        loginName:
+          type: string
+          maxLength: 100
+        password:
+          type: string
+          format: password
+        role:
+          type: string
+          enum: [CUSTOMER, DRIVER]
+      required: [loginName, password, role]
+    Identity:
+      type: object
+      properties:
+        userId:
+          type: integer
+        loginName:
+          type: string
+        role:
+          type: string
+          enum: [CUSTOMER, DRIVER]
+        legacyPersonnelId:
+          type: integer
+          nullable: true
+        mustChangePassword:
+          type: boolean
+      required: [userId, loginName, role, mustChangePassword]
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/Identity'
+        - type: object
+          properties:
+            accessToken:
+              type: string
+              description: Sekiz saatlik opaque bearer token.
+          required: [accessToken]
+    ChangePasswordRequest:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+          minLength: 12
+          maxLength: 128
+      required: [currentPassword, newPassword]
+    CustomerBranch:
+      type: object
+      properties:
+        legacyMbId: { type: integer }
+        legacyCustomerId: { type: integer }
+        legacyDepartmentId: { type: integer }
+        legacyPersonnelId: { type: integer }
+        customerCode: { type: string }
+        customerName: { type: string }
+        departmentName: { type: string }
+        taxNumber: { type: string }
+        personnelName: { type: string }
+        distributionDays: { type: string }
+      required: [legacyMbId, legacyCustomerId, legacyDepartmentId, legacyPersonnelId, customerCode, customerName, departmentName, taxNumber, personnelName, distributionDays]
+    OrderWindow:
+      type: object
+      properties:
+        isOpen: { type: boolean }
+        mode:
+          type: string
+          enum: [AUTO, OPEN, CLOSED]
+        cutoffMinute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        deadlineUtc:
+          type: string
+          format: date-time
+          nullable: true
+        overrideUntilUtc:
+          type: string
+          format: date-time
+          nullable: true
+      required: [isOpen, mode, cutoffMinute]
+    Product:
+      type: object
+      description: Fiyat içermez; uStokId ve aStokId birlikte ürün anahtarıdır.
+      properties:
+        uStokId: { type: integer }
+        aStokId: { type: integer }
+        code: { type: string }
+        name: { type: string }
+        groupId: { type: integer }
+        variantName:
+          type: string
+          nullable: true
+        maxQuantity:
+          type: integer
+          minimum: 0
+      required: [uStokId, aStokId, code, name, groupId, maxQuantity]
+    OrderLineInput:
+      type: object
+      properties:
+        uStokId:
+          type: integer
+          minimum: 1
+        aStokId:
+          type: integer
+          minimum: 0
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 100000
+      required: [uStokId, aStokId, quantity]
+    SaveOrderRequest:
+      type: object
+      properties:
+        revision:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Yeni siparişte 0/null; güncellemede sunucudan son okunan revision.
+        status:
+          type: string
+          enum: [SUBMITTED, NO_PRODUCT, CANCELLED]
+        note:
+          type: string
+          maxLength: 500
+          nullable: true
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLineInput'
+      required: [status, lines]
+    OrderLine:
+      allOf:
+        - $ref: '#/components/schemas/OrderLineInput'
+        - type: object
+          properties:
+            productCode: { type: string }
+            productName: { type: string }
+            variantName:
+              type: string
+              nullable: true
+          required: [productCode, productName]
+    Order:
+      type: object
+      properties:
+        orderId: { type: integer }
+        legacyMbId: { type: integer }
+        deliveryDate:
+          type: string
+          format: date-time
+          description: Saat dilimi dönüşümü uygulanmaması gereken teslim takvim günü.
+        status:
+          type: string
+          enum: [SUBMITTED, NO_PRODUCT, CANCELLED]
+        revision: { type: integer }
+        note:
+          type: string
+          nullable: true
+        updatedAtUtc:
+          type: string
+          format: date-time
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLine'
+      required: [orderId, legacyMbId, deliveryDate, status, revision, updatedAtUtc, lines]
+    CustomerOrderContext:
+      type: object
+      properties:
+        legacyMbId: { type: integer }
+        deliveryDate:
+          type: string
+          format: date-time
+        window:
+          $ref: '#/components/schemas/OrderWindow'
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        order:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/Order'
+          nullable: true
+      required: [legacyMbId, deliveryDate, window, products]
+    DriverRouteStop:
+      type: object
+      properties:
+        legacyMbId: { type: integer }
+        legacyCustomerId: { type: integer }
+        legacyDepartmentId: { type: integer }
+        customerCode: { type: string }
+        customerName: { type: string }
+        departmentName: { type: string }
+        order:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/Order'
+          nullable: true
+      required: [legacyMbId, legacyCustomerId, legacyDepartmentId, customerCode, customerName, departmentName]
+    DriverRoute:
+      type: object
+      properties:
+        legacyPersonnelId: { type: integer }
+        personnelCode: { type: string }
+        personnelName: { type: string }
+        scope:
+          type: string
+          enum: [delivery, submitted]
+        localDate:
+          type: string
+          format: date-time
+        deliveryDate:
+          type: string
+          format: date-time
+        generatedAtUtc:
+          type: string
+          format: date-time
+        stops:
+          type: array
+          items:
+            $ref: '#/components/schemas/DriverRouteStop'
+      required: [legacyPersonnelId, personnelCode, personnelName, scope, localDate, deliveryDate, generatedAtUtc, stops]

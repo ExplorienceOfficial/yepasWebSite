@@ -53,8 +53,10 @@ try {
 
     $siteRoot = Join-Path $stageRoot 'site'
     $databaseRoot = Join-Path $stageRoot 'database'
+    $databaseMigrationsRoot = Join-Path $databaseRoot 'migrations'
+    $databasePermissionsRoot = Join-Path $databaseRoot 'permissions'
     $toolsRoot = Join-Path $stageRoot 'tools'
-    New-Item -ItemType Directory -Path $siteRoot,$databaseRoot,$toolsRoot | Out-Null
+    New-Item -ItemType Directory -Path $siteRoot,$databaseRoot,$databaseMigrationsRoot,$databasePermissionsRoot,$toolsRoot | Out-Null
 
     Copy-Item -Path (Join-Path $repositoryRoot 'out\*') -Destination $siteRoot -Recurse -Force
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'server\Yepas.Api\Global.asax') -Destination $siteRoot
@@ -70,7 +72,8 @@ try {
     New-Item -ItemType Directory -Path $siteBin | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'server\Yepas.Api\bin') -File -Filter '*.dll' |
         ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $siteBin }
-    Copy-Item -Path (Join-Path $repositoryRoot 'database\migrations\*') -Destination $databaseRoot -Recurse -Force
+    Copy-Item -Path (Join-Path $repositoryRoot 'database\migrations\*') -Destination $databaseMigrationsRoot -Recurse -Force
+    Copy-Item -Path (Join-Path $repositoryRoot 'database\permissions\*') -Destination $databasePermissionsRoot -Recurse -Force
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'deploy\Configure-Smoke.ps1') -Destination $toolsRoot
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'server\Yepas.AdminTool\bin\Release\Yepas.AdminTool.exe') -Destination $toolsRoot
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'server\Yepas.AdminTool\bin\Release\Yepas.AdminTool.exe.config') -Destination $toolsRoot

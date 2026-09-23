@@ -30,7 +30,7 @@ export function DriverHeader() {
             </span>
           </div>
           <p className="truncate text-[12px] tabular-nums text-ink-3">
-            {session.code} · {session.plate}
+            {session.code} · Personel ID {session.driverId}
           </p>
         </div>
         <ThemeToggle />

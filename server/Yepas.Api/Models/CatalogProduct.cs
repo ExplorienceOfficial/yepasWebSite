@@ -8,5 +8,6 @@ namespace Yepas.Api.Models
         public int GroupId { get; set; }
         public int AStokId { get; set; }
         public string VariantName { get; set; }
+        public int MaxQuantity { get; set; }
     }
 }
