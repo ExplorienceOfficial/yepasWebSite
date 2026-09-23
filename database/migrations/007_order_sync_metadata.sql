@@ -18,22 +18,25 @@ BEGIN
     IF COL_LENGTH(N'dbo.Orders', N'LastExportedRevision') IS NULL
         ALTER TABLE dbo.Orders ADD LastExportedRevision INT NULL;
 
-    UPDATE O
-    SET O.LastExportedAtUtc = (
-            SELECT MAX(F.FinalizedAtUtc)
-            FROM dbo.OrderFinalizations F
-            WHERE F.DeliveryDate = O.DeliveryDate
-        ),
-        O.LastExportedRevision = O.Revision
-    FROM dbo.Orders O
-    WHERE O.IntegrationStatus = N'EXPORTED'
-      AND O.LastExportedAtUtc IS NULL
-      AND EXISTS (
-          SELECT 1
-          FROM dbo.OrderFinalizations F
-          WHERE F.DeliveryDate = O.DeliveryDate
-            AND F.FinalizedAtUtc IS NOT NULL
-      );
+    -- SQL Server 2005 tüm batch'i ALTER TABLE çalışmadan önce derlediği için
+    -- yeni kolonlara dokunan sorgu dinamik olarak ayrı derlenmelidir.
+    EXEC sp_executesql N'
+        UPDATE O
+        SET O.LastExportedAtUtc = (
+                SELECT MAX(F.FinalizedAtUtc)
+                FROM dbo.OrderFinalizations F
+                WHERE F.DeliveryDate = O.DeliveryDate
+            ),
+            O.LastExportedRevision = O.Revision
+        FROM dbo.Orders O
+        WHERE O.IntegrationStatus = N''EXPORTED''
+          AND O.LastExportedAtUtc IS NULL
+          AND EXISTS (
+              SELECT 1
+              FROM dbo.OrderFinalizations F
+              WHERE F.DeliveryDate = O.DeliveryDate
+                AND F.FinalizedAtUtc IS NOT NULL
+          );';
 
     INSERT INTO dbo.SchemaMigrations (VersionNumber) VALUES (7);
     COMMIT TRANSACTION;
