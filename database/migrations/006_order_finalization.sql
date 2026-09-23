@@ -1,4 +1,4 @@
--- SQL Server 2005 uyumlu günlük sipariş finalizasyonu.
+-- SQL Server 2005 uyumlu günlük sipariş senkronizasyon durumu.
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 

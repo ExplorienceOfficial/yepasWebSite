@@ -103,11 +103,6 @@ namespace Yepas.Api.Controllers
                 return Request.CreateResponse(HttpStatusCode.Conflict,
                     new { code = "ORDER_REVISION_CONFLICT", message = "Sipariş güncellendi; son halini yenileyin." });
             }
-            catch (OrderFinalizedException exception)
-            {
-                return Request.CreateResponse(HttpStatusCode.Conflict,
-                    new { code = "ORDER_FINALIZED", message = exception.Message });
-            }
             catch (IdempotencyConflictException)
             {
                 return Request.CreateResponse(HttpStatusCode.Conflict,

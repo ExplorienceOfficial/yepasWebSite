@@ -55,16 +55,30 @@ WHERE DeliveryDate = @deliveryDate", connection, transaction))
                     }
                     if (existing != null)
                     {
-                        if (existing.State == "FINALIZED") { transaction.Commit(); return existing; }
+                        if (existing.State == "FINALIZED" &&
+                            !HasPending(connection, transaction, deliveryDate))
+                        {
+                            transaction.Commit();
+                            return existing;
+                        }
+                        int retryOrderCount;
+                        int retryLineCount;
+                        int retryTotalQuantity;
+                        ReadTotals(connection, transaction, deliveryDate,
+                            out retryOrderCount, out retryLineCount, out retryTotalQuantity);
                         using (var retry = new SqlCommand(@"
 UPDATE dbo.OrderFinalizations
 SET State=N'FINALIZING', AttemptCount=AttemptCount+1,
-    LastAttemptAtUtc=GETUTCDATE(), LastError=NULL
+    OrderCount=@orders, LineCount=@lines, TotalQuantity=@quantity,
+    LastAttemptAtUtc=GETUTCDATE(), FinalizedAtUtc=NULL, LastError=NULL
 WHERE FinalizationId=@id
-  AND (State=N'FAILED' OR
+  AND (State=N'FAILED' OR State=N'FINALIZED' OR
        (State=N'FINALIZING' AND LastAttemptAtUtc<=DATEADD(minute,-5,GETUTCDATE())))", connection, transaction))
                         {
                             retry.Parameters.Add("@id", SqlDbType.Int).Value = existing.FinalizationId;
+                            retry.Parameters.Add("@orders", SqlDbType.Int).Value = retryOrderCount;
+                            retry.Parameters.Add("@lines", SqlDbType.Int).Value = retryLineCount;
+                            retry.Parameters.Add("@quantity", SqlDbType.Int).Value = retryTotalQuantity;
                             if (retry.ExecuteNonQuery() != 1)
                             {
                                 transaction.Commit();
@@ -176,6 +190,20 @@ WHERE FinalizationId=@id AND State=N'FINALIZING'
                     throw new InvalidOperationException("Tüm siparişler eski sisteme aktarılamadı.");
             }
             return Read(deliveryDate);
+        }
+
+        private static bool HasPending(SqlConnection connection, SqlTransaction transaction,
+            DateTime deliveryDate)
+        {
+            using (var command = new SqlCommand(@"
+SELECT TOP 1 OrderId
+FROM dbo.Orders WITH (UPDLOCK,HOLDLOCK)
+WHERE DeliveryDate=@deliveryDate AND Status=N'SUBMITTED'
+  AND IntegrationStatus<>N'EXPORTED'", connection, transaction))
+            {
+                command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate.Date;
+                return command.ExecuteScalar() != null;
+            }
         }
 
         public void Fail(int id, string message)

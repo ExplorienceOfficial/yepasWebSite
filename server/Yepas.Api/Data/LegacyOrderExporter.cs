@@ -15,7 +15,7 @@ namespace Yepas.Api.Data
                 connection.Open();
                 using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
-                    AcquireLock(connection, transaction, order.DeliveryDate);
+                    AcquireLock(connection, transaction, DateTime.UtcNow.AddHours(3).Date);
                     var receiptId = FindReceipt(connection, transaction, order);
                     if (!receiptId.HasValue)
                         receiptId = InsertReceipt(connection, transaction, order);
@@ -46,7 +46,7 @@ VALUES (@receipt,@uStok,@aStok,@quantity)", connection, transaction))
         }
 
         private static void AcquireLock(SqlConnection connection, SqlTransaction transaction,
-            DateTime deliveryDate)
+            DateTime localCreationDate)
         {
             using (var command = new SqlCommand(@"
 DECLARE @result INT;
@@ -55,7 +55,7 @@ EXEC @result=sp_getapplock @Resource=@resource, @LockMode='Exclusive',
 SELECT @result;", connection, transaction))
             {
                 command.Parameters.Add("@resource", SqlDbType.NVarChar, 255).Value =
-                    "YepasMobileFis-" + deliveryDate.ToString("yyyyMMdd");
+                    "YepasMobileFisNumber-" + localCreationDate.ToString("yyyyMMdd");
                 if (Convert.ToInt32(command.ExecuteScalar()) < 0)
                     throw new InvalidOperationException("Eski sistem fiş kilidi alınamadı.");
             }
@@ -69,17 +69,23 @@ SELECT @result;", connection, transaction))
                 using (var byId = new SqlCommand(@"
 SELECT ID
 FROM D00013.RS_FIS_BILGILERI WITH (UPDLOCK,HOLDLOCK)
-WHERE ID=@receiptId", connection, transaction))
+WHERE ID=@receiptId
+  AND O_KULLANICI='MOBIL' AND FIS_NO LIKE 'U-%'
+  AND DTTARIH=@deliveryDate
+  AND MUSTERI_ID=@customer AND BOLUM_ID=@department", connection, transaction))
                 {
                     byId.Parameters.Add("@receiptId", SqlDbType.Int).Value = order.LegacyReceiptId.Value;
+                    AddIdentityParameters(byId, order);
                     var existing = byId.ExecuteScalar();
                     if (existing != null) return Convert.ToInt32(existing);
+                    throw new InvalidOperationException(
+                        "Kayıtlı eski sistem fişi bulunamadı veya mobil uygulamaya ait değil.");
                 }
             }
             using (var command = new SqlCommand(@"
 SELECT TOP 1 ID
 FROM D00013.RS_FIS_BILGILERI WITH (UPDLOCK,HOLDLOCK)
-WHERE O_KULLANICI='MOBIL' AND DTTARIH=@deliveryDate
+WHERE O_KULLANICI='MOBIL' AND FIS_NO LIKE 'U-%' AND DTTARIH=@deliveryDate
   AND PERSONEL_ID=@personnel AND MUSTERI_ID=@customer AND BOLUM_ID=@department
 ORDER BY ID", connection, transaction))
             {
@@ -130,7 +136,10 @@ UPDATE D00013.RS_FIS_BILGILERI SET
     DTTARIH=@deliveryDate,PERSONEL_ID=@personnel,MUSTERI_ID=@customer,
     BOLUM_ID=@department,BIREYSEL_ID=0,O_KULLANICI='MOBIL',
     D_KULLANICI=NULL,D_TARIHI=NULL,ST=1,SNG_1=NULL,SNG_2=NULL,SNG_3=NULL
-WHERE ID=@id", connection, transaction))
+WHERE ID=@id
+  AND O_KULLANICI='MOBIL' AND FIS_NO LIKE 'U-%'
+  AND DTTARIH=@deliveryDate
+  AND MUSTERI_ID=@customer AND BOLUM_ID=@department", connection, transaction))
             {
                 AddIdentityParameters(command, order);
                 command.Parameters.Add("@id", SqlDbType.Int).Value = receiptId;

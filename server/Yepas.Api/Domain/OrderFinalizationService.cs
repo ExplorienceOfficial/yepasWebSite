@@ -42,11 +42,6 @@ namespace Yepas.Api.Domain
 
     public sealed class OrderStillOpenException : Exception
     {
-        public OrderStillOpenException() : base("Sipariş alımı kapatılmadan nihai hale getirilemez.") { }
-    }
-
-    public sealed class OrderFinalizedException : Exception
-    {
-        public OrderFinalizedException() : base("Bu teslim gününün siparişleri nihai hale getirildi.") { }
+        public OrderStillOpenException() : base("İlk aktarım için sipariş alımı kapatılmalıdır.") { }
     }
 }

@@ -6,7 +6,7 @@ Bu betikler yalnızca yeni uygulama veritabanı içindir. `PrestoPlus` şemasın
 2. `master` bağlamında `000_create_database.sql` çalıştırın.
 3. `EkmekSiparis` bağlamında sırayla `001_identity.sql`, `002_session_role.sql`, `003_orders.sql`, `004_customer_management.sql`, `005_driver_management.sql`, `006_order_finalization.sql` çalıştırın.
 4. `dbo.SchemaMigrations` tablosunda 1-6 sürümlerini ve dört rolü (`ADMIN`, `OPERATOR`, `CUSTOMER`, `DRIVER`) doğrulayın.
-5. PrestoPlus DEV bağlamında `database/permissions` altındaki `003`, `004` ve `005` betiklerini çalıştırın. `005`, yalnız nihai siparişlerin iki eski fiş tablosuna aktarımı için gereken dar yazma yetkilerini verir.
+5. PrestoPlus DEV bağlamında `database/permissions` altındaki `003`, `004` ve `005` betiklerini çalıştırın. `005`, yalnız mobil sipariş fişlerini oluşturmak ve aynı fişi yeniden senkronize etmek için gereken dar yazma yetkilerini verir.
 
 Migration betikleri aynı veritabanında yeniden çalıştırılabilir. SQL Server 2005'te gerçek uygulamadan önce ayrıca uyumluluk testi yapılacaktır; yerel SQL Server 2022 doğrulaması bunun yerine geçmez.
 

@@ -44,7 +44,7 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 - Ürün ekranındaki düzenleme/silme ve sahte talep/limit işlemleri gizlenmiştir. Eski ürün tablolarına yazma yapılmaz.
 - `Debug` yerel bağlantı kullanır. `Release` için `YEPAS_APP_CONNECTION` ve `YEPAS_CATALOG_CONNECTION` ayrıca yapılandırılmalıdır; gerçek şifreler dosyaya yazılmaz.
 - Giriş artık demo hesapları kullanmaz. Admin müşteri ekranında hesap açma, aynı müşterinin şubelerini bağlama, hesabı açıp kapatma ve geçici parola yenileme işlemleri gerçek API'ye bağlıdır.
-- Sipariş çekirdeği, müşteri hesap yönetimi, şoför hesap yönetimi ve salt-okunur şoför rota ekranı hazırdır; mobil sipariş arayüzü, admin sipariş ekranı, iki günlük saklama görevi ve eski programa aktarım henüz tamamlanmamıştır.
+- Sipariş çekirdeği, müşteri ve şoför hesap yönetimi, şoför rota ekranı, admin sipariş ekranı ve eski programa yeniden gönderilebilir mobil fiş senkronizasyonu hazırdır. İki günlük saklama görevi ayrıca planlanacaktır.
 
 ## Dağıtım günü politika testi
 

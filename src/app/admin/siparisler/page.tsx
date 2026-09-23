@@ -107,7 +107,7 @@ const sourceLabels: Record<string, string> = {
 
 const integrationLabels: Record<string, string> = {
   PENDING: "Aktarım bekliyor",
-  EXPORTED: "Eski sisteme aktarıldı",
+  EXPORTED: "Eski sistemle senkronize",
   FAILED: "Aktarım başarısız",
   NOT_REQUIRED: "Aktarım gerekmiyor",
 };
@@ -313,12 +313,12 @@ export default function OrdersPage() {
         throw new Error("Yönetici oturumu sona erdi.");
       }
       const body = await response.json().catch(() => null) as (OrderFinalization & { message?: string }) | null;
-      if (!response.ok) throw new Error(body?.message || "Siparişler nihai hale getirilemedi.");
+      if (!response.ok) throw new Error(body?.message || "Siparişler eski sisteme gönderilemedi.");
       setFinalizeOpen(false);
       setBoard((current) => current && body ? { ...current, finalization: body } : current);
       refresh();
     } catch (cause) {
-      setFinalizeError(cause instanceof Error ? cause.message : "Siparişler nihai hale getirilemedi.");
+      setFinalizeError(cause instanceof Error ? cause.message : "Siparişler eski sisteme gönderilemedi.");
     } finally {
       setFinalizing(false);
     }
@@ -337,6 +337,16 @@ export default function OrdersPage() {
   const boardLineCount = useMemo(() => (board?.rows ?? [])
     .filter((row) => row.boardStatus === "SUBMITTED")
     .reduce((sum, row) => sum + (row.order?.lines.length ?? 0), 0), [board]);
+  const hasPendingSync = useMemo(() => (board?.rows ?? []).some((row) =>
+    row.boardStatus === "SUBMITTED" && row.integrationStatus !== "EXPORTED"), [board]);
+  const isSynchronized = finalization?.state === "FINALIZED" && !hasPendingSync;
+  const syncButtonLabel = finalization?.state === "FAILED"
+    ? "Aktarımı tekrar dene"
+    : finalization && hasPendingSync
+      ? "Değişiklikleri gönder"
+      : finalization?.state === "FINALIZING"
+        ? "Aktarımı kontrol et"
+        : "Eski sisteme gönder";
 
   return (
     <div className="yp-rise">
@@ -344,18 +354,17 @@ export default function OrdersPage() {
         title="Siparişler"
         description="Dağıtım planını ve mobil kanaldan gelen gerçek siparişleri inceleyin."
         action={<div className="flex items-center gap-2">
-          {scope === "submitted" && !finalization && <Button variant="primary" onClick={() => { setFinalizeError(null); setFinalizeOpen(true); }} disabled={loading}><Send className="size-4" />Nihai hale getir</Button>}
-          {scope === "submitted" && finalization && finalization.state !== "FINALIZED" && <Button variant="primary" onClick={() => { setFinalizeError(null); setFinalizeOpen(true); }} disabled={loading}><RefreshCw className="size-4" />{finalization.state === "FAILED" ? "Aktarımı tekrar dene" : "Aktarımı kontrol et"}</Button>}
+          {scope === "submitted" && (!isSynchronized || hasPendingSync) && <Button variant="primary" onClick={() => { setFinalizeError(null); setFinalizeOpen(true); }} disabled={loading}>{finalization ? <RefreshCw className="size-4" /> : <Send className="size-4" />}{syncButtonLabel}</Button>}
           <Button variant="secondary" onClick={refresh} disabled={loading || finalizing}><RefreshCw className={cn("size-4", loading && "animate-spin")} />Yenile</Button>
         </div>}
       />
 
       {scope === "submitted" && finalization && (
-        <div className={cn("mb-4 rounded-[14px] px-4 py-3 ring-1", finalization.state === "FINALIZED" ? "bg-[var(--good-soft)] text-[var(--good)] ring-[var(--good)]/20" : finalization.state === "FAILED" ? "bg-[var(--bad-soft)] text-[var(--bad)] ring-[var(--bad)]/20" : "bg-[var(--warn-soft)] text-[var(--warn)] ring-[var(--warn)]/20")}>
+        <div className={cn("mb-4 rounded-[14px] px-4 py-3 ring-1", isSynchronized ? "bg-[var(--good-soft)] text-[var(--good)] ring-[var(--good)]/20" : finalization.state === "FAILED" ? "bg-[var(--bad-soft)] text-[var(--bad)] ring-[var(--bad)]/20" : "bg-[var(--warn-soft)] text-[var(--warn)] ring-[var(--warn)]/20")}>
           <div className="flex items-start gap-3">
-            {finalization.state === "FINALIZED" ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" /> : <LockKeyhole className="mt-0.5 size-5 shrink-0" />}
+            {isSynchronized ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" /> : <LockKeyhole className="mt-0.5 size-5 shrink-0" />}
             <div>
-              <p className="text-sm font-semibold">{finalization.state === "FINALIZED" ? "Siparişler nihai hale getirildi ve eski sisteme aktarıldı." : finalization.state === "FAILED" ? "Siparişler kilitlendi; aktarım tamamlanamadı." : "Siparişler kilitlendi ve aktarılıyor."}</p>
+              <p className="text-sm font-semibold">{isSynchronized ? "Siparişlerin son hali eski sistemle senkronize." : finalization.state === "FAILED" ? "Aktarım tamamlanamadı; güvenle tekrar deneyebilirsiniz." : hasPendingSync ? "Eski sisteme gönderilmeyi bekleyen değişiklikler var." : "Siparişler eski sisteme aktarılıyor."}</p>
               <p className="mt-1 text-xs opacity-80">{finalization.orderCount} sipariş · {finalization.lineCount} kalem · {formatQty(finalization.totalQuantity)} adet{finalization.attemptCount > 1 ? ` · ${finalization.attemptCount}. deneme` : ""}</p>
               {finalization.lastError && <p className="mt-1 text-xs">{finalization.lastError}</p>}
             </div>
@@ -436,7 +445,7 @@ export default function OrdersPage() {
                         {row.order.note && <p className="rounded-xl bg-surface px-3 py-2 text-sm text-ink-2 ring-1 ring-hairline"><span className="font-medium text-ink">Not:</span> {row.order.note}</p>}
                       </div>
                     )}
-                    {scope === "submitted" && !finalization && <div className="mt-4"><Button size="sm" variant="primary" onClick={() => void openEditor(row)}>{row.order ? <Pencil className="size-3.5" /> : <Plus className="size-3.5" />}{row.order ? "Siparişi düzenle" : "Müşteri adına sipariş gir"}</Button></div>}
+                    {scope === "submitted" && finalization?.state !== "FINALIZING" && <div className="mt-4"><Button size="sm" variant="primary" onClick={() => void openEditor(row)}>{row.order ? <Pencil className="size-3.5" /> : <Plus className="size-3.5" />}{row.order ? "Siparişi düzenle" : "Müşteri adına sipariş gir"}</Button></div>}
                   </div>
                 </details>
               );
@@ -450,18 +459,20 @@ export default function OrdersPage() {
       <Modal
         open={finalizeOpen}
         onClose={() => { if (!finalizing) setFinalizeOpen(false); }}
-        title={finalization ? "Aktarımı kontrol et" : "Siparişleri nihai hale getir"}
+        title={finalization && hasPendingSync ? "Değişiklikleri eski sisteme gönder" : "Siparişleri eski sisteme gönder"}
         subtitle={`${board ? formatDate(board.expectedDeliveryDate) : ""} teslimatı`}
-        footer={<><Button onClick={() => setFinalizeOpen(false)} disabled={finalizing}>Vazgeç</Button><Button variant="primary" onClick={() => void finalizeOrders()} disabled={finalizing}>{finalizing ? "Kontrol ediliyor…" : finalization ? "Kontrol et / tekrar dene" : "Kilitle ve eski sisteme aktar"}</Button></>}
+        footer={<><Button onClick={() => setFinalizeOpen(false)} disabled={finalizing}>Vazgeç</Button><Button variant="primary" onClick={() => void finalizeOrders()} disabled={finalizing}>{finalizing ? "Gönderiliyor…" : syncButtonLabel}</Button></>}
       >
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl bg-surface-2 px-3 py-3"><p className="text-xs text-ink-3">Sipariş</p><p className="mt-1 text-xl font-semibold tabular-nums text-ink">{finalization?.orderCount ?? submittedOrderCount}</p></div>
-            <div className="rounded-xl bg-surface-2 px-3 py-3"><p className="text-xs text-ink-3">Kalem</p><p className="mt-1 text-xl font-semibold tabular-nums text-ink">{finalization?.lineCount ?? boardLineCount}</p></div>
-            <div className="rounded-xl bg-surface-2 px-3 py-3"><p className="text-xs text-ink-3">Toplam adet</p><p className="mt-1 text-xl font-semibold tabular-nums text-ink">{formatQty(finalization?.totalQuantity ?? submittedTotalQuantity)}</p></div>
+            <div className="rounded-xl bg-surface-2 px-3 py-3"><p className="text-xs text-ink-3">Sipariş</p><p className="mt-1 text-xl font-semibold tabular-nums text-ink">{submittedOrderCount}</p></div>
+            <div className="rounded-xl bg-surface-2 px-3 py-3"><p className="text-xs text-ink-3">Kalem</p><p className="mt-1 text-xl font-semibold tabular-nums text-ink">{boardLineCount}</p></div>
+            <div className="rounded-xl bg-surface-2 px-3 py-3"><p className="text-xs text-ink-3">Toplam adet</p><p className="mt-1 text-xl font-semibold tabular-nums text-ink">{formatQty(submittedTotalQuantity)}</p></div>
           </div>
-          <p className="text-sm leading-6 text-ink-2">Bu işlem siparişleri kilitler. Müşteriler ve yöneticiler artık bu teslim günü için değişiklik yapamaz. Yalnızca “Sipariş verdi” durumundaki kayıtlar eski sipariş programına aktarılır.</p>
-          <p className="rounded-xl bg-[var(--warn-soft)] px-3 py-2 text-sm text-[var(--warn)]">Aktarım için sipariş alımının Ayarlar ekranından kapatılmış veya son sipariş saatinin geçmiş olması gerekir.</p>
+          <p className="text-sm leading-6 text-ink-2">Yalnızca “Sipariş verdi” durumundaki kayıtların son hali eski sipariş programına aktarılır. Sonradan yapılan değişiklikler yeni bir fiş oluşturmaz; uygulamanın daha önce oluşturduğu aynı MOBIL fişi güncellenir.</p>
+          {!finalization
+            ? <p className="rounded-xl bg-[var(--warn-soft)] px-3 py-2 text-sm text-[var(--warn)]">İlk aktarım için sipariş alımının Ayarlar ekranından kapatılmış veya son sipariş saatinin geçmiş olması gerekir.</p>
+            : <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm text-ink-2">Bu gönderim mevcut mobil fişleri günceller; yeni fiş numarası üretmez.</p>}
           {finalizeError && <p className="rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{finalizeError}</p>}
         </div>
       </Modal>

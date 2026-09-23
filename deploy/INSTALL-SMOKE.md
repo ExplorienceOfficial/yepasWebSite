@@ -16,7 +16,7 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
 2. Hedef klasörü ve yeni `EkmekSiparis` veritabanını yedekleyin.
 3. Paketin SHA-256 listesini doğrulayın.
 4. `database\migrations` betiklerini `EkmekSiparis` üzerinde sırasıyla çalıştırın: `000`, `001`, `002`, `003`, `004`, `005`, `006`.
-5. `database\permissions` altındaki `003`, `004` ve `005` betiklerini `PrestoPlus` üzerinde çalıştırın. `005`, yalnız nihai sipariş aktarımı için gereken iki fiş tablosuna dar yazma yetkisi verir.
+5. `database\permissions` altındaki `003`, `004` ve `005` betiklerini `PrestoPlus` üzerinde çalıştırın. `005`, yalnız mobil sipariş fişlerini oluşturmak ve yeniden senkronize etmek için gereken iki fiş tablosuna dar yazma yetkisi verir.
 6. `site` içeriğini yeni sürüm klasörüne kopyalayın.
 7. Ayrı, yönetici olmayan IIS uygulama havuzu ve site oluşturun. Uygulama havuzu `.NET v4.0`, Integrated pipeline ve 64-bit kullanmalıdır.
 8. En az yetkili DEV SQL hesaplarını hazırlayın; `sa` kullanmayın.
@@ -42,8 +42,8 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
   şoför ekleme veya rota atama işlemi sunmaz.
 - Şoför hesabı açma, kapatma ve geçici parola yenileme işlemleri çalışır; kapatılan hesabın açık oturumları iptal edilir.
 - Şoför girişiyle `/sofor/` yalnız oturumdaki personelin eski sistemde bağlı şubelerini ve uygulamadaki siparişlerini gösterir.
-- Sipariş alımı açıkken nihai hale getirme isteği reddedilir. Alım kapatıldıktan sonra yönetici onayı siparişleri kilitler ve yalnız `SUBMITTED` kayıtları eski `RS_FIS_BILGILERI` / `RS_FIS_SATIRLARI` tablolarına `MOBIL` kullanıcısı ve günlük `U-*` fiş numarasıyla aktarır.
-- Nihai hale getirilen teslim gününde müşteri ve yönetici sipariş değişikliği reddedilir. Yarım kalan aktarım tekrar denendiğinde aynı eski fiş güncellenir; ikinci fiş oluşmaz.
+- İlk eski sistem aktarımı sipariş alımı açıkken reddedilir. Alım kapatıldıktan sonra yalnız `SUBMITTED` kayıtları eski `RS_FIS_BILGILERI` / `RS_FIS_SATIRLARI` tablolarına `MOBIL` kullanıcısı ve her gün `U-1`'den başlayan fiş numarasıyla aktarılır.
+- Aktarım siparişi kalıcı kilitlemez. Sonraki değişiklik `PENDING` olur; yeniden gönderimde yalnızca kayıtlı `LegacyReceiptId` ile eşleşen `MOBIL` / `U-*` fişi güncellenir ve ikinci fiş oluşmaz.
 - Girişsiz `/api/v1/admin/products` isteği `401` döndürür.
 - IIS uygulama havuzu yeniden başlatıldıktan sonra yeniden giriş yapılabilir.
 - Mevcut RSiparis uygulaması ve PROD veritabanı etkilenmez.
