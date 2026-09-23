@@ -16,6 +16,7 @@ namespace Yepas.Api.Data
         public int LegacyPersonnelId { get; set; }
         public int? LegacyReceiptId { get; set; }
         public DateTime DeliveryDate { get; set; }
+        public string Status { get; set; }
         public IList<OrderLineView> Lines { get; set; }
     }
 
@@ -120,12 +121,11 @@ VALUES (@deliveryDate, N'FINALIZING', @orders, @lines, @quantity, @userId)", con
             using (var command = new SqlCommand(@"
 SELECT O.OrderId, O.Revision, O.LegacyMbId, O.LegacyCustomerId,
        O.LegacyDepartmentId, O.LegacyPersonnelId, O.LegacyReceiptId,
-       O.DeliveryDate, L.UStokId, L.AStokId, L.Quantity,
+       O.DeliveryDate, O.Status, L.UStokId, L.AStokId, L.Quantity,
        L.ProductCode, L.ProductName, L.VariantName
 FROM dbo.Orders O
 LEFT JOIN dbo.OrderLines L ON L.OrderId=O.OrderId
-WHERE O.DeliveryDate=@deliveryDate AND O.Status=N'SUBMITTED'
-  AND O.IntegrationStatus<>N'EXPORTED'
+WHERE O.DeliveryDate=@deliveryDate AND O.IntegrationStatus=N'PENDING'
 ORDER BY O.OrderId,L.OrderLineId", connection))
             {
                 command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate.Date;
@@ -142,14 +142,15 @@ ORDER BY O.OrderId,L.OrderLineId", connection))
                                 LegacyCustomerId=reader.GetInt32(3), LegacyDepartmentId=reader.GetInt32(4),
                                 LegacyPersonnelId=reader.GetInt32(5),
                                 LegacyReceiptId=reader.IsDBNull(6) ? (int?)null : reader.GetInt32(6),
-                                DeliveryDate=reader.GetDateTime(7), Lines=new List<OrderLineView>()
+                                DeliveryDate=reader.GetDateTime(7), Status=reader.GetString(8),
+                                Lines=new List<OrderLineView>()
                             };
                             orders.Add(orderId, order);
                         }
-                        if (!reader.IsDBNull(8)) order.Lines.Add(new OrderLineView {
-                            UStokId=reader.GetInt32(8), AStokId=reader.GetInt32(9), Quantity=reader.GetInt32(10),
-                            ProductCode=reader.GetString(11), ProductName=reader.GetString(12),
-                            VariantName=reader.IsDBNull(13) ? null : reader.GetString(13)
+                        if (!reader.IsDBNull(9)) order.Lines.Add(new OrderLineView {
+                            UStokId=reader.GetInt32(9), AStokId=reader.GetInt32(10), Quantity=reader.GetInt32(11),
+                            ProductCode=reader.GetString(12), ProductName=reader.GetString(13),
+                            VariantName=reader.IsDBNull(14) ? null : reader.GetString(14)
                         });
                     }
             }
@@ -160,8 +161,9 @@ ORDER BY O.OrderId,L.OrderLineId", connection))
         {
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
             using (var command = new SqlCommand(@"
-UPDATE dbo.Orders SET IntegrationStatus=N'EXPORTED', LegacyReceiptId=@receiptId
-WHERE OrderId=@orderId AND Revision=@revision AND Status=N'SUBMITTED'", connection))
+UPDATE dbo.Orders SET IntegrationStatus=N'EXPORTED', LegacyReceiptId=@receiptId,
+    LastExportedAtUtc=GETUTCDATE(), LastExportedRevision=@revision
+WHERE OrderId=@orderId AND Revision=@revision AND IntegrationStatus=N'PENDING'", connection))
             {
                 command.Parameters.Add("@receiptId", SqlDbType.Int).Value = receiptId;
                 command.Parameters.Add("@orderId", SqlDbType.Int).Value = order.OrderId;
@@ -180,8 +182,8 @@ UPDATE dbo.OrderFinalizations
 SET State=N'FINALIZED', FinalizedAtUtc=GETUTCDATE(), LastError=NULL
 WHERE FinalizationId=@id AND State=N'FINALIZING'
   AND NOT EXISTS (SELECT 1 FROM dbo.Orders
-                  WHERE DeliveryDate=@deliveryDate AND Status=N'SUBMITTED'
-                    AND IntegrationStatus<>N'EXPORTED')", connection))
+                  WHERE DeliveryDate=@deliveryDate
+                    AND IntegrationStatus=N'PENDING')", connection))
             {
                 command.Parameters.Add("@id", SqlDbType.Int).Value = id;
                 command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate.Date;
@@ -198,8 +200,7 @@ WHERE FinalizationId=@id AND State=N'FINALIZING'
             using (var command = new SqlCommand(@"
 SELECT TOP 1 OrderId
 FROM dbo.Orders WITH (UPDLOCK,HOLDLOCK)
-WHERE DeliveryDate=@deliveryDate AND Status=N'SUBMITTED'
-  AND IntegrationStatus<>N'EXPORTED'", connection, transaction))
+WHERE DeliveryDate=@deliveryDate AND IntegrationStatus=N'PENDING'", connection, transaction))
             {
                 command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate.Date;
                 return command.ExecuteScalar() != null;

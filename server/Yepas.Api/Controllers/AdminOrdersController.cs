@@ -41,6 +41,27 @@ namespace Yepas.Api.Controllers
         }
 
         [HttpGet]
+        [Route("sync-status")]
+        public HttpResponseMessage GetSyncStatus()
+        {
+            try
+            {
+                var identity = new AuthRepository().Authenticate(
+                    AuthController.CurrentToken(), "ADMIN");
+                if (identity == null) return Request.CreateResponse(HttpStatusCode.Unauthorized);
+                if (identity.MustChangePassword) return Request.CreateResponse(HttpStatusCode.Forbidden);
+                return Request.CreateResponse(HttpStatusCode.OK,
+                    new AdminOrderBoardRepository().ReadSyncStatus());
+            }
+            catch (Exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.ServiceUnavailable,
+                    new { code = "ORDER_SYNC_STATUS_UNAVAILABLE",
+                          message = "Sipariş aktarım durumu alınamıyor." });
+            }
+        }
+
+        [HttpGet]
         [Route("{legacyMbId:int}/context")]
         public HttpResponseMessage GetContext(int legacyMbId)
         {

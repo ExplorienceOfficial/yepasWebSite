@@ -22,6 +22,7 @@ namespace Yepas.Api.Data
             public int PersonnelId { get; set; }
             public string IntegrationStatus { get; set; }
             public string SourceRole { get; set; }
+            public DateTime? RowLastExportedAtUtc { get; set; }
         }
 
         public AdminOrderBoardView Read(string scope)
@@ -81,6 +82,27 @@ namespace Yepas.Api.Data
             };
         }
 
+        public OrderSyncStatusView ReadSyncStatus()
+        {
+            using (var connection = new SqlConnection(DatabaseConnections.Application()))
+            using (var command = new SqlCommand(@"
+SELECT ISNULL(SUM(CASE WHEN IntegrationStatus=N'PENDING' THEN 1 ELSE 0 END),0),
+       MAX(LastExportedAtUtc), GETUTCDATE()
+FROM dbo.Orders", connection))
+            {
+                connection.Open();
+                using (var reader = command.ExecuteReader())
+                {
+                    reader.Read();
+                    return new OrderSyncStatusView {
+                        PendingCount = reader.GetInt32(0),
+                        LastExportedAtUtc = reader.IsDBNull(1) ? (DateTime?)null : reader.GetDateTime(1),
+                        GeneratedAtUtc = reader.GetDateTime(2)
+                    };
+                }
+            }
+        }
+
         private static IList<LegacyBranch> ReadBranches()
         {
             var branches = new List<LegacyBranch>();
@@ -134,7 +156,7 @@ WHERE MB.SS = 12", connection))
             using (var command = new SqlCommand(@"
 SELECT O.OrderId, O.LegacyMbId, O.LegacyCustomerId, O.LegacyDepartmentId,
        O.LegacyPersonnelId, O.DeliveryDate, O.Status, O.Revision, O.Note,
-       O.UpdatedAtUtc, O.IntegrationStatus, O.SourceRole,
+       O.UpdatedAtUtc, O.IntegrationStatus, O.SourceRole, O.LastExportedAtUtc,
        L.UStokId, L.AStokId, L.Quantity, L.ProductCode, L.ProductName, L.VariantName
 FROM dbo.Orders O
 LEFT JOIN dbo.OrderLines L ON L.OrderId = O.OrderId
@@ -171,16 +193,18 @@ ORDER BY O.UpdatedAtUtc DESC, O.OrderId, L.ProductName, L.VariantName", connecti
                                     Lines = new List<OrderLineView>()
                                 }
                             };
+                            record.RowLastExportedAtUtc = reader.IsDBNull(12)
+                                ? (DateTime?)null : reader.GetDateTime(12);
                             records.Add(mbId, record);
                         }
-                        if (!reader.IsDBNull(12) && record.Order.OrderId == reader.GetInt32(0))
+                        if (!reader.IsDBNull(13) && record.Order.OrderId == reader.GetInt32(0))
                             record.Order.Lines.Add(new OrderLineView {
-                                UStokId = reader.GetInt32(12),
-                                AStokId = reader.GetInt32(13),
-                                Quantity = reader.GetInt32(14),
-                                ProductCode = reader.GetString(15),
-                                ProductName = reader.GetString(16),
-                                VariantName = reader.IsDBNull(17) ? null : reader.GetString(17)
+                                UStokId = reader.GetInt32(13),
+                                AStokId = reader.GetInt32(14),
+                                Quantity = reader.GetInt32(15),
+                                ProductCode = reader.GetString(16),
+                                ProductName = reader.GetString(17),
+                                VariantName = reader.IsDBNull(18) ? null : reader.GetString(18)
                             });
                     }
             }
@@ -197,6 +221,7 @@ ORDER BY O.UpdatedAtUtc DESC, O.OrderId, L.ProductName, L.VariantName", connecti
             row.BoardStatus = record.Order.Status;
             row.IntegrationStatus = record.IntegrationStatus;
             row.SourceRole = record.SourceRole;
+            row.LastExportedAtUtc = record.RowLastExportedAtUtc;
         }
 
         private static int DayIndex(DayOfWeek day)

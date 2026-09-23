@@ -8,8 +8,13 @@ namespace Yepas.Api.Data
     {
         public int Export(LegacyExportOrder order)
         {
-            if (order == null || order.Lines == null || order.Lines.Count == 0)
+            if (order == null || order.Lines == null)
+                throw new InvalidOperationException("Aktarılacak sipariş bulunmuyor.");
+            var submitted = String.Equals(order.Status, "SUBMITTED", StringComparison.Ordinal);
+            if (submitted && order.Lines.Count == 0)
                 throw new InvalidOperationException("Aktarılacak sipariş satırı bulunmuyor.");
+            if (!submitted && !order.LegacyReceiptId.HasValue)
+                throw new InvalidOperationException("İptal edilecek mobil fiş bağlantısı bulunmuyor.");
             using (var connection = new SqlConnection(DatabaseConnections.Catalog()))
             {
                 connection.Open();
@@ -18,7 +23,11 @@ namespace Yepas.Api.Data
                     AcquireLock(connection, transaction, DateTime.UtcNow.AddHours(3).Date);
                     var receiptId = FindReceipt(connection, transaction, order);
                     if (!receiptId.HasValue)
+                    {
+                        if (!submitted)
+                            throw new InvalidOperationException("İptal edilecek mobil fiş bulunamadı.");
                         receiptId = InsertReceipt(connection, transaction, order);
+                    }
                     else
                         UpdateReceipt(connection, transaction, receiptId.Value, order);
 
@@ -135,7 +144,7 @@ SELECT CAST(SCOPE_IDENTITY() AS INT);", connection, transaction))
 UPDATE D00013.RS_FIS_BILGILERI SET
     DTTARIH=@deliveryDate,PERSONEL_ID=@personnel,MUSTERI_ID=@customer,
     BOLUM_ID=@department,BIREYSEL_ID=0,O_KULLANICI='MOBIL',
-    D_KULLANICI=NULL,D_TARIHI=NULL,ST=1,SNG_1=NULL,SNG_2=NULL,SNG_3=NULL
+    D_KULLANICI='MOBIL',D_TARIHI=@modified,ST=1,SNG_1=NULL,SNG_2=NULL,SNG_3=NULL
 WHERE ID=@id
   AND O_KULLANICI='MOBIL' AND FIS_NO LIKE 'U-%'
   AND DTTARIH=@deliveryDate
@@ -143,6 +152,8 @@ WHERE ID=@id
             {
                 AddIdentityParameters(command, order);
                 command.Parameters.Add("@id", SqlDbType.Int).Value = receiptId;
+                command.Parameters.Add("@modified", SqlDbType.SmallDateTime).Value =
+                    DateTime.UtcNow.AddHours(3);
                 if (command.ExecuteNonQuery() != 1)
                     throw new InvalidOperationException("Eski sistem fişi güncellenemedi.");
             }

@@ -120,24 +120,20 @@ VALUES (@cutoff, @mode, @until, @reason, @userId);", connection, transaction))
                     }
 
                     int existingRevision;
-                    int? existingReceiptId;
                     var existingOrderId = FindOrderForUpdate(connection, transaction,
-                        schedule.LegacyMbId, deliveryDate, out existingRevision,
-                        out existingReceiptId);
+                        schedule.LegacyMbId, deliveryDate, out existingRevision);
                     if (existingOrderId.HasValue)
                     {
                         if (!input.Revision.HasValue || input.Revision.Value != existingRevision)
                             throw new OrderRevisionConflictException();
-                        if (existingReceiptId.HasValue && status != "SUBMITTED")
-                            throw new ArgumentException(
-                                "Eski sisteme aktarılmış sipariş yalnız ürün ve miktar olarak güncellenebilir.");
                         orderId = existingOrderId.Value;
                         using (var update = new SqlCommand(@"
 UPDATE dbo.Orders SET
     LegacyCustomerId = @customerId, LegacyDepartmentId = @departmentId,
     LegacyPersonnelId = @personnelId, Status = @status,
     Revision = Revision + 1, Note = @note, SourceRole = @actorRole,
-    IntegrationStatus = @integration,
+    IntegrationStatus = CASE WHEN LegacyReceiptId IS NOT NULL
+                             THEN N'PENDING' ELSE @integration END,
     UpdatedByUserId = @userId, UpdatedAtUtc = GETUTCDATE()
 WHERE OrderId = @orderId", connection, transaction))
                         {
@@ -253,12 +249,11 @@ WHERE UserId = @userId AND IdempotencyKey = @key", connection, transaction))
         }
 
         private static int? FindOrderForUpdate(SqlConnection connection, SqlTransaction transaction,
-            int legacyMbId, DateTime deliveryDate, out int revision, out int? legacyReceiptId)
+            int legacyMbId, DateTime deliveryDate, out int revision)
         {
             revision = 0;
-            legacyReceiptId = null;
             using (var command = new SqlCommand(@"
-SELECT OrderId, Revision, LegacyReceiptId FROM dbo.Orders WITH (UPDLOCK, HOLDLOCK)
+SELECT OrderId, Revision FROM dbo.Orders WITH (UPDLOCK, HOLDLOCK)
 WHERE LegacyMbId = @mbId AND DeliveryDate = @deliveryDate", connection, transaction))
             {
                 command.Parameters.Add("@mbId", SqlDbType.Int).Value = legacyMbId;
@@ -267,7 +262,6 @@ WHERE LegacyMbId = @mbId AND DeliveryDate = @deliveryDate", connection, transact
                 {
                     if (!reader.Read()) return null;
                     revision = reader.GetInt32(1);
-                    legacyReceiptId = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2);
                     return reader.GetInt32(0);
                 }
             }

@@ -16,6 +16,7 @@ namespace Yepas.Api.Models
         public string BoardStatus { get; set; }
         public string IntegrationStatus { get; set; }
         public string SourceRole { get; set; }
+        public DateTime? LastExportedAtUtc { get; set; }
         public OrderView Order { get; set; }
     }
 
@@ -41,5 +42,12 @@ namespace Yepas.Api.Models
         public DateTime StartedAtUtc { get; set; }
         public DateTime? FinalizedAtUtc { get; set; }
         public string LastError { get; set; }
+    }
+
+    public sealed class OrderSyncStatusView
+    {
+        public int PendingCount { get; set; }
+        public DateTime? LastExportedAtUtc { get; set; }
+        public DateTime GeneratedAtUtc { get; set; }
     }
 }

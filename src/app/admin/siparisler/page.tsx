@@ -46,6 +46,7 @@ interface AdminOrderRow {
   boardStatus: BoardStatus;
   integrationStatus: string | null;
   sourceRole: string | null;
+  lastExportedAtUtc: string | null;
   order: OrderView | null;
 }
 
@@ -291,6 +292,7 @@ export default function OrdersPage() {
       }
       setEditRow(null);
       setEditContext(null);
+      window.dispatchEvent(new Event("yepas:order-sync-changed"));
       refresh();
     } catch (cause) {
       setEditError(cause instanceof Error ? cause.message : "Sipariş kaydedilemedi.");
@@ -316,6 +318,7 @@ export default function OrdersPage() {
       if (!response.ok) throw new Error(body?.message || "Siparişler eski sisteme gönderilemedi.");
       setFinalizeOpen(false);
       setBoard((current) => current && body ? { ...current, finalization: body } : current);
+      window.dispatchEvent(new Event("yepas:order-sync-changed"));
       refresh();
     } catch (cause) {
       setFinalizeError(cause instanceof Error ? cause.message : "Siparişler eski sisteme gönderilemedi.");
@@ -337,8 +340,9 @@ export default function OrdersPage() {
   const boardLineCount = useMemo(() => (board?.rows ?? [])
     .filter((row) => row.boardStatus === "SUBMITTED")
     .reduce((sum, row) => sum + (row.order?.lines.length ?? 0), 0), [board]);
-  const hasPendingSync = useMemo(() => (board?.rows ?? []).some((row) =>
-    row.boardStatus === "SUBMITTED" && row.integrationStatus !== "EXPORTED"), [board]);
+  const pendingSyncCount = useMemo(() => (board?.rows ?? []).filter((row) =>
+    row.integrationStatus === "PENDING").length, [board]);
+  const hasPendingSync = pendingSyncCount > 0;
   const isSynchronized = finalization?.state === "FINALIZED" && !hasPendingSync;
   const syncButtonLabel = finalization?.state === "FAILED"
     ? "Aktarımı tekrar dene"
@@ -369,6 +373,13 @@ export default function OrdersPage() {
               {finalization.lastError && <p className="mt-1 text-xs">{finalization.lastError}</p>}
             </div>
           </div>
+        </div>
+      )}
+
+      {scope === "submitted" && hasPendingSync && (
+        <div className="mb-4 rounded-[14px] bg-[var(--warn-soft)] px-4 py-3 text-[var(--warn)] ring-1 ring-[var(--warn)]/20">
+          <p className="text-sm font-semibold">Eski sisteme aktarılmamış {pendingSyncCount} sipariş değişikliği var.</p>
+          <p className="mt-1 text-xs opacity-80">Yeni siparişler, miktar değişiklikleri ve iptaller “Değişiklikleri gönder” işlemiyle aynı mobil fişlere yansıtılır.</p>
         </div>
       )}
 
@@ -426,8 +437,8 @@ export default function OrdersPage() {
                       <div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">{row.customerName}</p><p className="mt-0.5 truncate text-xs text-ink-3">{row.customerCode || "Kod yok"} · {row.departmentName} · MB ID {row.legacyMbId}</p></div>
                     </div>
                     <div><p className="text-xs text-ink-3">Dağıtım personeli</p><p className="mt-1 flex items-center gap-1.5 text-sm text-ink"><Truck className="size-3.5 text-ink-3" />{row.personnelName || `Personel ${row.legacyPersonnelId}`}</p></div>
-                    <div><p className="text-xs text-ink-3">Sipariş</p><p className="mt-1 text-sm text-ink">{row.order ? `${row.order.lines.length} kalem · ${formatQty(totalQuantity)} adet` : "Henüz sipariş yok"}</p></div>
-                    <div className="lg:text-right"><Badge tone={meta.tone} dot>{meta.label}</Badge><p className="mt-1 text-[11px] text-ink-3">Detay için aç</p></div>
+                    <div><p className="text-xs text-ink-3">Sipariş</p><p className="mt-1 text-sm text-ink">{row.order ? `${row.order.lines.length} kalem · ${formatQty(totalQuantity)} adet` : "Henüz sipariş yok"}</p>{row.order && <p className="mt-1 text-[11px] text-ink-3">{sourceLabels[row.sourceRole ?? ""] ?? "Bilinmiyor"} · {formatDateTime(row.order.updatedAtUtc)}</p>}</div>
+                    <div className="lg:text-right"><Badge tone={meta.tone} dot>{meta.label}</Badge><p className="mt-1 text-[11px] text-ink-3">{row.lastExportedAtUtc ? `Son aktarım ${formatDateTime(row.lastExportedAtUtc)}` : row.order ? "Henüz aktarılmadı" : "Detay için aç"}</p></div>
                   </summary>
 
                   <div className="mt-4 border-t border-hairline pt-4 lg:ml-[52px]">
@@ -438,9 +449,10 @@ export default function OrdersPage() {
                         </div> : <p className="text-sm text-ink-3">Bu siparişte ürün satırı yok.</p>}
                         <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-ink-3">
                           <span>Revizyon: <strong className="font-medium text-ink-2">{row.order.revision}</strong></span>
-                          <span>Kaynak: <strong className="font-medium text-ink-2">{sourceLabels[row.sourceRole ?? ""] ?? row.sourceRole ?? "—"}</strong></span>
+                          <span>Son değiştiren: <strong className="font-medium text-ink-2">{sourceLabels[row.sourceRole ?? ""] ?? row.sourceRole ?? "—"}</strong></span>
                           <span>Entegrasyon: <strong className="font-medium text-ink-2">{integrationLabels[row.integrationStatus ?? ""] ?? row.integrationStatus ?? "—"}</strong></span>
                           <span>Son işlem: <strong className="font-medium text-ink-2">{formatDateTime(row.order.updatedAtUtc)}</strong></span>
+                          <span>Son aktarım: <strong className="font-medium text-ink-2">{row.lastExportedAtUtc ? formatDateTime(row.lastExportedAtUtc) : "Henüz aktarılmadı"}</strong></span>
                         </div>
                         {row.order.note && <p className="rounded-xl bg-surface px-3 py-2 text-sm text-ink-2 ring-1 ring-hairline"><span className="font-medium text-ink">Not:</span> {row.order.note}</p>}
                       </div>
