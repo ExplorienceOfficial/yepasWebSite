@@ -29,9 +29,9 @@ namespace Yepas.Api.Data
 
         public OrderSettingsView ReadSettingsView()
         {
-            DateTime ignored;
-            var setting = ReadSettings(out ignored);
-            return SettingsView(setting);
+            DateTime databaseUtcNow;
+            var setting = ReadSettings(out databaseUtcNow);
+            return SettingsView(setting, databaseUtcNow);
         }
 
         public OrderSettingsView UpdateSettings(int actorUserId, int cutoffMinute,
@@ -383,7 +383,7 @@ ORDER BY ProductName, VariantName, UStokId, AStokId", connection, transaction))
             return difference == 0;
         }
 
-        private static OrderSettingsView SettingsView(OrderWindowSettings settings)
+        private static OrderSettingsView SettingsView(OrderWindowSettings settings, DateTime databaseUtcNow)
         {
             var hours = settings.CutoffMinute / 60;
             var minutes = settings.CutoffMinute % 60;
@@ -392,9 +392,12 @@ ORDER BY ProductName, VariantName, UStokId, AStokId", connection, transaction))
                 CutoffMinute = settings.CutoffMinute,
                 CutoffTime = hours.ToString("00") + ":" + minutes.ToString("00"),
                 OverrideMode = settings.OverrideMode,
+                EffectiveMode = OrderWindowPolicy.EffectiveMode(settings, databaseUtcNow),
+                IsOpen = OrderWindowPolicy.IsGloballyOpen(settings, databaseUtcNow),
                 OverrideUntilUtc = settings.OverrideUntilUtc,
                 OverrideReason = settings.OverrideReason,
-                UpdatedAtUtc = settings.UpdatedAtUtc
+                UpdatedAtUtc = settings.UpdatedAtUtc,
+                ServerNowUtc = DateTime.SpecifyKind(databaseUtcNow, DateTimeKind.Utc)
             };
         }
     }

@@ -16,7 +16,7 @@ namespace Yepas.Api.Domain
             var settings = orders.ReadSettings(out databaseUtcNow);
             var deliveryDate = databaseUtcNow.AddHours(3).Date.AddDays(1);
             var current = finalizations.Read(deliveryDate);
-            if (current == null && IsOrderingOpen(settings, databaseUtcNow))
+            if (current == null && OrderWindowPolicy.IsGloballyOpen(settings, databaseUtcNow))
                 throw new OrderStillOpenException();
 
             bool shouldExport;
@@ -38,17 +38,6 @@ namespace Yepas.Api.Domain
             }
         }
 
-        private static bool IsOrderingOpen(OrderWindowSettings settings, DateTime utcNow)
-        {
-            var mode = String.IsNullOrWhiteSpace(settings.OverrideMode)
-                ? "AUTO" : settings.OverrideMode.Trim().ToUpperInvariant();
-            if ((mode == "OPEN" || mode == "CLOSED") && settings.OverrideUntilUtc.HasValue &&
-                settings.OverrideUntilUtc.Value <= utcNow) mode = "AUTO";
-            if (mode == "OPEN") return true;
-            if (mode == "CLOSED") return false;
-            var localNow = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc).AddHours(3);
-            return localNow.Hour * 60 + localNow.Minute <= settings.CutoffMinute;
-        }
     }
 
     public sealed class OrderStillOpenException : Exception

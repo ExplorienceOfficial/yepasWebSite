@@ -41,13 +41,11 @@ namespace Yepas.Api.Domain
 
             var effectiveMode = EffectiveMode(settings, utcNow);
             var localNow = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc).AddHours(TurkeyUtcOffsetHours);
-            DateTime? firstScheduled = null;
 
             for (var offset = 1; offset <= 14; offset++)
             {
                 var candidate = localNow.Date.AddDays(offset);
                 if (!IsDistributionDay(schedule.DistributionDays, candidate.DayOfWeek)) continue;
-                if (!firstScheduled.HasValue) firstScheduled = candidate;
 
                 var localDeadline = candidate.AddDays(-1).AddMinutes(settings.CutoffMinute);
                 var deadlineUtc = DateTime.SpecifyKind(localDeadline.AddHours(-TurkeyUtcOffsetHours), DateTimeKind.Utc);
@@ -56,27 +54,31 @@ namespace Yepas.Api.Domain
                     return Decision(true, effectiveMode, candidate, deadlineUtc);
                 if (effectiveMode == "CLOSED")
                     return Decision(false, effectiveMode, candidate, deadlineUtc);
-                if (utcNow <= deadlineUtc)
-                    return Decision(true, effectiveMode, candidate, deadlineUtc);
-            }
-
-            if (firstScheduled.HasValue)
-            {
-                var deadline = firstScheduled.Value.AddDays(-1)
-                    .AddMinutes(settings.CutoffMinute).AddHours(-TurkeyUtcOffsetHours);
-                return Decision(false, effectiveMode, firstScheduled.Value,
-                    DateTime.SpecifyKind(deadline, DateTimeKind.Utc));
+                var isOrderDay = localNow.Date == candidate.AddDays(-1).Date;
+                return Decision(isOrderDay && utcNow <= deadlineUtc,
+                    effectiveMode, candidate, deadlineUtc);
             }
             throw new InvalidOperationException("Müşterinin SG dağıtım günü bulunamadı.");
         }
 
-        private static string EffectiveMode(OrderWindowSettings settings, DateTime utcNow)
+        public static string EffectiveMode(OrderWindowSettings settings, DateTime utcNow)
         {
+            if (settings == null) throw new InvalidOperationException("Sipariş ayarı bulunamadı.");
             var mode = String.IsNullOrWhiteSpace(settings.OverrideMode)
                 ? "AUTO" : settings.OverrideMode.Trim().ToUpperInvariant();
             if ((mode == "OPEN" || mode == "CLOSED") && settings.OverrideUntilUtc.HasValue &&
                 settings.OverrideUntilUtc.Value <= utcNow) return "AUTO";
             return mode == "OPEN" || mode == "CLOSED" ? mode : "AUTO";
+        }
+
+        public static bool IsGloballyOpen(OrderWindowSettings settings, DateTime utcNow)
+        {
+            var mode = EffectiveMode(settings, utcNow);
+            if (mode == "OPEN") return true;
+            if (mode == "CLOSED") return false;
+            var localNow = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc)
+                .AddHours(TurkeyUtcOffsetHours);
+            return localNow.TimeOfDay <= TimeSpan.FromMinutes(settings.CutoffMinute);
         }
 
         private static bool IsDistributionDay(bool[] days, DayOfWeek day)

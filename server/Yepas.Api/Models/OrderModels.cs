@@ -63,9 +63,12 @@ namespace Yepas.Api.Models
         public int CutoffMinute { get; set; }
         public string CutoffTime { get; set; }
         public string OverrideMode { get; set; }
+        public string EffectiveMode { get; set; }
+        public bool IsOpen { get; set; }
         public DateTime? OverrideUntilUtc { get; set; }
         public string OverrideReason { get; set; }
         public DateTime UpdatedAtUtc { get; set; }
+        public DateTime ServerNowUtc { get; set; }
     }
 
     public sealed class UpdateOrderSettingsRequest

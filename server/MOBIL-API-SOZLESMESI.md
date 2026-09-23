@@ -259,7 +259,7 @@ Mevcut sipariş varsa `order`:
 
 Pencere modları:
 
-- `AUTO`: Kesim saati ve şubenin `SG_1...SG_7` dağıtım günlerine göre otomatik
+- `AUTO`: Sipariş yalnız şubenin `SG_1...SG_7` teslimatından önceki gün kesim saatine kadar açıktır; saat geçince sonraki SG tarihine atlanmaz.
 - `OPEN`: Admin tarafından geçici olarak açık
 - `CLOSED`: Admin tarafından geçici olarak kapalı
 

@@ -162,6 +162,8 @@ sistemde tanımlanmış ürünleri ve varsa mevcut siparişi birlikte döndürü
 Kurallar:
 
 - Teslim tarihi istemci tarafından gönderilmez; SG dağıtım günlerine göre sunucu hesaplar.
+- AUTO modunda sipariş yalnız ilgili SG teslimatından önceki gün, son sipariş saatine kadar verilebilir.
+- Son sipariş saati geçince sistem sonraki SG tarihine atlayarak açık kalmaz.
 - Yalnız `products` dizisindeki `uStokId + aStokId` ikilileri sipariş edilebilir.
 - `maxQuantity > 0` ise miktar bu sınırı aşamaz.
 - Fiyat alanı yoktur ve mobil uygulama fiyat göstermemelidir.

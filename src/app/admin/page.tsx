@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -17,11 +17,13 @@ import { MetricCard } from "@/components/dash/MetricCard";
 import { CustomerInspector } from "@/components/dash/CustomerInspector";
 import { PageHeading, Panel } from "@/components/admin/Panel";
 import { StatusBadge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
-import { useAuth } from "@/context/AuthContext";
+import { invalidateSession, useAuth } from "@/context/AuthContext";
 import { useOperations } from "@/context/OperationsContext";
 import { OPERATION_DATE } from "@/data/mockData";
 import { periodDelta } from "@/data/trends";
+import { localApiUrl } from "@/lib/api";
 import { cn, formatQty, initials } from "@/lib/format";
 
 const statusOrder = { ordered: 0, pending: 1, declined: 2 } as const;
@@ -40,6 +42,35 @@ const activityColor = {
   neutral: "text-ink-3",
 };
 
+type OrderMode = "AUTO" | "OPEN" | "CLOSED";
+
+interface OrderSettings {
+  cutoffMinute: number;
+  cutoffTime: string;
+  overrideMode: OrderMode;
+  effectiveMode: OrderMode;
+  isOpen: boolean;
+  overrideUntilUtc: string | null;
+  overrideReason: string | null;
+  updatedAtUtc: string;
+  serverNowUtc: string;
+}
+
+const modeLabels: Record<OrderMode, string> = {
+  AUTO: "Otomatik",
+  OPEN: "Manuel açık",
+  CLOSED: "Manuel kapalı",
+};
+
+async function responseMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await response.json()) as { message?: string };
+    return body.message || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function OverviewPage() {
   const { session } = useAuth();
   const {
@@ -48,17 +79,95 @@ export default function OverviewPage() {
     customers,
     orders,
     orderTotals,
-    orderSystemOpen,
-    toggleOrderSystem,
-    autoCloseEnabled,
-    setAutoCloseEnabled,
-    cutoffTime,
-    setCutoffTime,
   } = useOperations();
 
   const [selected, setSelected] = useState<string | null>(null);
+  const [settings, setSettings] = useState<OrderSettings | null>(null);
+  const [cutoffTime, setCutoffTime] = useState("18:00");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   const firstName = session?.role === "admin" ? session.name.split(" ")[0] : "Yönetici";
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const response = await fetch(localApiUrl("/api/v1/admin/order-settings"), {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (response.status === 401) {
+          invalidateSession();
+          throw new Error("Yönetici oturumu sona erdi.");
+        }
+        if (!response.ok) throw new Error(await responseMessage(response, "Sipariş ayarlarına erişilemiyor."));
+        const result = (await response.json()) as OrderSettings;
+        if (!active) return;
+        setSettings(result);
+        setCutoffTime(result.cutoffTime);
+        setOverrideReason(result.overrideReason ?? "");
+        setSettingsError(null);
+      } catch (cause) {
+        if (active) setSettingsError(cause instanceof Error ? cause.message : "Sipariş ayarlarına erişilemiyor.");
+      } finally {
+        if (active) setSettingsLoading(false);
+      }
+    };
+    void load();
+    const timer = window.setInterval(load, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const saveSettings = async (mode: OrderMode, reason?: string) => {
+    const trimmedReason = (reason ?? overrideReason).trim();
+    if (mode !== "AUTO" && !trimmedReason) {
+      setSettingsError("Manuel açma veya kapatma için işlem gerekçesi yazın.");
+      return;
+    }
+    setSettingsSaving(true);
+    setSettingsError(null);
+    try {
+      const response = await fetch(localApiUrl("/api/v1/admin/order-settings"), {
+        method: "PUT",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cutoffTime,
+          overrideMode: mode,
+          overrideUntilUtc: null,
+          reason: mode === "AUTO" ? null : trimmedReason,
+        }),
+      });
+      if (response.status === 401) {
+        invalidateSession();
+        throw new Error("Yönetici oturumu sona erdi.");
+      }
+      if (!response.ok) throw new Error(await responseMessage(response, "Sipariş ayarları güncellenemiyor."));
+      const result = (await response.json()) as OrderSettings;
+      setSettings(result);
+      setCutoffTime(result.cutoffTime);
+      setOverrideReason(result.overrideReason ?? "");
+    } catch (cause) {
+      setSettingsError(cause instanceof Error ? cause.message : "Sipariş ayarları güncellenemiyor.");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const saveCutoff = () => {
+    const mode = settings?.overrideMode ?? "AUTO";
+    const reason = mode === "AUTO"
+      ? undefined
+      : overrideReason.trim() || "Son sipariş saati güncellendi.";
+    void saveSettings(mode, reason);
+  };
 
   const rows = useMemo(() => {
     return customers
@@ -109,33 +218,46 @@ export default function OverviewPage() {
       <Panel
         className="mt-5"
         title="Genel Sipariş Yönetimi"
-        description="Sistem durumu, otomatik kapanış ve operasyon günü ayarları."
+        description="Bu ayarlar doğrudan sunucuya kaydedilir ve bütün müşteri siparişlerinde uygulanır."
       >
         <div className="divide-y divide-hairline">
+          {settingsError && (
+            <p className="mx-2 my-3 rounded-[10px] bg-[var(--bad-soft)] px-3 py-2 text-[13px] text-[var(--bad)] sm:mx-4">
+              {settingsError}
+            </p>
+          )}
           <div className="flex items-center justify-between px-2 py-3.5 sm:px-4">
             <div className="min-w-0 flex-1 pr-4">
               <p className="text-[14.5px] font-medium text-ink">Müşteri sipariş sistemi</p>
               <p className="mt-0.5 text-[12.5px] text-ink-2">
-                Açıkken bayiler bugünkü üretim için sipariş girebilir.
+                {settingsLoading
+                  ? "Sunucudaki durum okunuyor…"
+                  : `${settings?.isOpen ? "Açık" : "Kapalı"} · ${modeLabels[settings?.effectiveMode ?? "AUTO"]}`}
               </p>
             </div>
             <Switch
-              checked={orderSystemOpen}
-              onChange={toggleOrderSystem}
+              checked={settings?.isOpen ?? false}
+              onChange={(next) => void saveSettings(next ? "OPEN" : "CLOSED")}
               label="Müşteri sipariş sistemini aç/kapat"
+              disabled={settingsLoading || settingsSaving || !settings}
             />
           </div>
 
           <div className="flex items-center justify-between px-2 py-3.5 sm:px-4">
             <div className="min-w-0 flex-1 pr-4">
-              <p className="text-[14.5px] font-medium text-ink">Kapanış saatinde otomatik kapat</p>
-              <p className="mt-0.5 text-[12.5px] text-ink-2">{`Açıkken sistem her gün ${cutoffTime}'de otomatik kapanır; kapalıyken elle kapatırsınız.`}</p>
+              <p className="text-[14.5px] font-medium text-ink">Çalışma biçimi</p>
+              <p className="mt-0.5 text-[12.5px] text-ink-2">
+                Otomatik modda dağıtımdan önceki gün, belirlenen son saate kadar sipariş alınır.
+              </p>
             </div>
-            <Switch
-              checked={autoCloseEnabled}
-              onChange={setAutoCloseEnabled}
-              label="Saat bazlı otomatik kapatma"
-            />
+            <Button
+              size="sm"
+              type="button"
+              disabled={settingsLoading || settingsSaving || settings?.overrideMode === "AUTO"}
+              onClick={() => void saveSettings("AUTO")}
+            >
+              Otomatik moda dön
+            </Button>
           </div>
 
           <div className="flex items-center justify-between px-2 py-3.5 sm:px-4">
@@ -145,12 +267,42 @@ export default function OverviewPage() {
                 Otomatik kapanışın uygulanacağı saat (varsayılan 18:00).
               </p>
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="time"
+                value={cutoffTime}
+                onChange={(e) => setCutoffTime(e.target.value)}
+                aria-label="Kapanış saati"
+                disabled={settingsLoading || settingsSaving}
+                className="rounded-[10px] border border-hairline bg-surface-2 px-3 py-1.5 text-[14px] tabular-nums text-ink outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
+              />
+              <Button
+                size="sm"
+                type="button"
+                disabled={settingsLoading || settingsSaving || !settings || cutoffTime === settings.cutoffTime}
+                onClick={saveCutoff}
+              >
+                Saati kaydet
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between px-2 py-3.5 sm:px-4">
+            <div className="min-w-0 flex-1 pr-4">
+              <p className="text-[14.5px] font-medium text-ink">Manuel işlem gerekçesi</p>
+              <p className="mt-0.5 text-[12.5px] text-ink-2">
+                Manuel açma ve kapatma işlemlerinde denetim kaydına yazılır.
+              </p>
+            </div>
             <input
-              type="time"
-              value={cutoffTime}
-              onChange={(e) => setCutoffTime(e.target.value)}
-              aria-label="Kapanış saati"
-              className="rounded-[10px] border border-hairline bg-surface-2 px-3 py-1.5 text-[14px] tabular-nums text-ink outline-none focus:ring-2 focus:ring-[var(--ring)]"
+              type="text"
+              value={overrideReason}
+              maxLength={300}
+              onChange={(event) => setOverrideReason(event.target.value)}
+              placeholder="Örn. Yetkili talebi"
+              aria-label="Manuel işlem gerekçesi"
+              disabled={settingsLoading || settingsSaving}
+              className="w-full max-w-[260px] rounded-[10px] border border-hairline bg-surface-2 px-3 py-1.5 text-[14px] text-ink outline-none placeholder:text-ink-3 focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
             />
           </div>
 
