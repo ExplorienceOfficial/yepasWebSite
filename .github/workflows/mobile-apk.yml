@@ -1,0 +1,78 @@
+name: yepasMobile APK
+
+# Mobil uygulamanın APK'sını GitHub derler ve çalıştırma sayfasındaki
+# "Artifacts" bölümünden indirilebilir hale getirir. Yerel makinede Smart App
+# Control imzasız Flutter araçlarını engellediği için derleme burada yapılır.
+
+on:
+  push:
+    paths:
+      - "yepasMobile/**"
+      - ".github/workflows/mobile-apk.yml"
+  workflow_dispatch:
+    inputs:
+      apiBaseUrl:
+        description: "Uygulamanın bağlanacağı API kökü (sonunda /api/v1 olmadan)"
+        required: false
+        default: "http://10.0.2.2:5057"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: yepasMobile
+
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      # AGP 8.3.0 + Gradle 8.12 ile uyumlu JDK.
+      - name: JDK 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # pubspec.lock güncel kararlı sürümle çözüldüğü için stable kanal kullanılır.
+      # Sabit bir sürüm gerekirse: flutter-version: "3.47.4"
+      - name: Flutter kur
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Sürümleri yazdır
+        run: flutter --version
+
+      - name: Bağımlılıkları çöz
+        run: flutter pub get
+
+      - name: APK derle
+        run: >
+          flutter build apk --release
+          --dart-define=YEPAS_API_BASE_URL=${{ inputs.apiBaseUrl || 'http://10.0.2.2:5057' }}
+
+      # Yükleme, analiz/test adımlarından önce yapılır: bir test kalsa bile
+      # APK indirilebilir kalır, çalıştırma yine de kırmızı görünür.
+      - name: APK'yı yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: yepas-mobile-apk
+          path: yepasMobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Statik analiz
+        run: flutter analyze
+
+      - name: Testler
+        run: flutter test
