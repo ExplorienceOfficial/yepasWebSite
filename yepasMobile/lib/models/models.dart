@@ -15,6 +15,13 @@ class ProductCategory {
   const ProductCategory({required this.id, required this.name, required this.line});
 }
 
+/// "5 Lİ", "5li", "5'li" gibi paket ifadeleri — "15li" eşleşmez.
+/// Sunucudaki CatalogProduct.PackageSize kuralının birebir karşılığıdır.
+final RegExp _fivePackPattern = RegExp(
+  r"(?<!\d)5\s*['’]?\s*[lL][iİıI](?![\p{L}\d])",
+  unicode: true,
+);
+
 class Product {
   final String id;
   final String categoryId;
@@ -32,6 +39,9 @@ class Product {
   /// Asset yolu, örn. assets/urunler/9.jpg
   final String imageAsset;
 
+  /// Sunucudan gelen paket adedi; verilmezse ürün adından türetilir.
+  final int? packageSizeOverride;
+
   const Product({
     required this.id,
     required this.categoryId,
@@ -40,7 +50,24 @@ class Product {
     required this.maxOrderLimit,
     required this.avgOrder,
     required this.imageAsset,
+    this.packageSizeOverride,
   });
+
+  /// 5'li paket ürünlerinde adet yalnızca 5'in katları olabilir.
+  int get packageSize {
+    final override = packageSizeOverride;
+    if (override != null && override > 0) return override;
+    return _fivePackPattern.hasMatch(name) ? 5 : 1;
+  }
+
+  /// [value] adedini paket katına yuvarlar ve 0..[max] aralığına sıkıştırır.
+  int roundToPackage(int value, int max) {
+    final size = packageSize;
+    if (value <= 0) return 0;
+    final rounded = ((value + size ~/ 2) ~/ size) * size;
+    final capped = rounded > max ? (max ~/ size) * size : rounded;
+    return capped < 0 ? 0 : capped;
+  }
 }
 
 class Driver {

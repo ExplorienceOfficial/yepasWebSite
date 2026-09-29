@@ -1,252 +1,273 @@
-// Yepas mobil — uygulama durumu.
-// Admin panelindeki OperationsContext'in müşteri tarafını taşır:
-// sipariş kuralı (limit/ortalama), kesim saati, sistem açık/kapalı, sipariş girişi.
-
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/seed_data.dart';
 import '../models/models.dart';
+import '../services/api_client.dart';
 
-/// Uygulama arka plandayken oturumun geçerli kalacağı süre.
-/// Bu süreden kısa arka plan geçişlerinde tekrar giriş istenmez.
 const Duration kSessionTimeout = Duration(minutes: 30);
-
-const String _kAccounts = 'yepas.accounts';
-const String _kActiveBranch = 'yepas.activeBranch';
-const String _kActiveAt = 'yepas.activeAt';
+const String _kRememberedLogin = 'yepas.rememberedLogin';
+const String _kRememberedPassword = 'yepas.rememberedPassword';
+const String _kRememberCredentials = 'yepas.rememberCredentials';
 
 class AppState extends ChangeNotifier {
-  // ---- katalog / statik veri ----
+  final ApiClient api;
+
+  AppState({ApiClient? apiClient}) : api = apiClient ?? ApiClient() {
+    _orders = {for (final order in kDailyOrders) order.customerId: order};
+    _deliveryOrders = {for (final order in kDeliveryOrders) order.customerId: order};
+  }
+
   final List<ProductCategory> categories = kCategories;
   final List<Product> products = kProducts;
-  final List<Customer> customers = kCustomers;
   final List<Driver> drivers = kDrivers;
 
-  // ---- sistem ayarları (admin tarafından belirlenir) ----
   bool orderSystemOpen = true;
   OrderRule orderRule = kDefaultOrderRule;
   int maxQtyLimit = kDefaultMaxQty;
   String cutoffTime = kOrderCutoff;
 
-  // ---- oturum ----
+  /// Sistem durumu sunucudan okunabildi mi? Okunamadıysa giriş ekranı
+  /// "Sistem kapalı" demek yerine bağlantı uyarısı gösterir.
+  bool systemStatusKnown = false;
+
   String? currentCustomerId;
+  String? loginName;
+  String? rememberedLoginName;
 
-  /// Oturumda kayıtlı şubeler (aynı vergi numarasına bağlı tüm bayiler).
-  /// Giriş sonrası bunlar arasında tekrar şifre girmeden geçiş yapılabilir.
+  /// "Hesap bilgilerimi kaydet" seçiliyse parola da cihazda saklanır.
+  String? rememberedPassword;
+  bool rememberCredentials = false;
+  bool mustChangePassword = false;
   List<Customer> sessionBranches = [];
-
   bool get hasMultipleBranches => sessionBranches.length > 1;
-
-  /// Kayıtlı hesaplar (vergi numaraları). Login ekranında tek dokunuşla
-  /// otomatik giriş için listelenir.
-  List<String> rememberedTaxNumbers = [];
+  bool get isAuthenticated => api.isAuthenticated;
 
   SharedPreferences? _prefs;
   DateTime? _activeAt;
-
-  // ---- sipariş verileri ----
   late final Map<String, DailyOrder> _orders;
-  late final Map<String, DailyOrder> _deliveryOrders; // bugün teslim — salt okunur
+  late final Map<String, DailyOrder> _deliveryOrders;
 
-  AppState() {
-    _orders = {for (final o in kDailyOrders) o.customerId: o};
-    _deliveryOrders = {for (final o in kDeliveryOrders) o.customerId: o};
-  }
-
-  /// Uygulama açılışında çağrılır: kayıtlı hesapları ve — süresi geçmediyse —
-  /// son oturumu geri yükler.
   Future<void> loadPersisted() async {
-    final prefs = await SharedPreferences.getInstance();
-    _prefs = prefs;
-    rememberedTaxNumbers = (prefs.getStringList(_kAccounts) ?? [])
-        .where((t) => branchesForTax(t).isNotEmpty)
-        .toList();
-
-    final branchId = prefs.getString(_kActiveBranch);
-    final at = prefs.getInt(_kActiveAt);
-    if (branchId != null && at != null) {
-      final elapsed = DateTime.now().millisecondsSinceEpoch - at;
-      final branch = customerById(branchId);
-      if (branch != null && elapsed < kSessionTimeout.inMilliseconds) {
-        currentCustomerId = branch.id;
-        sessionBranches = branchesForTax(branch.taxNumber);
-        _activeAt = DateTime.fromMillisecondsSinceEpoch(at);
-      } else {
-        // Süre doldu → kilitli başla (kayıtlı hesap kalır, aktif oturum silinir).
-        await prefs.remove(_kActiveBranch);
-        await prefs.remove(_kActiveAt);
-      }
-    }
+    _prefs = await SharedPreferences.getInstance();
+    rememberedLoginName = _prefs?.getString(_kRememberedLogin);
+    rememberCredentials = _prefs?.getBool(_kRememberCredentials) ?? false;
+    rememberedPassword =
+        rememberCredentials ? _prefs?.getString(_kRememberedPassword) : null;
   }
 
-  // ---------------------------------------------------------------- seçiciler
+  /// Sunucudan sipariş sisteminin açık/kapalı durumunu okur.
+  /// Başarısız olursa durum "bilinmiyor" kalır; ekranlar buna göre yazı gösterir.
+  Future<void> refreshSystemStatus() async {
+    try {
+      final status = await api.systemStatus();
+      orderSystemOpen = status.isOpen;
+      if (status.cutoffTime.isNotEmpty) cutoffTime = status.cutoffTime;
+      systemStatusKnown = true;
+    } on Exception {
+      systemStatusKnown = false;
+    }
+    notifyListeners();
+  }
 
-  Customer? get currentCustomer =>
-      currentCustomerId == null ? null : customerById(currentCustomerId!);
+  /// Kesim saatine kalan dakika; saat geçtiyse veya saat okunamadıysa null.
+  /// [now] yalnızca testler için verilir.
+  int? minutesUntilCutoff({DateTime? now}) {
+    final parts = cutoffTime.split(':');
+    if (parts.length != 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return null;
+    final reference = now ?? DateTime.now();
+    final deadline = DateTime(
+        reference.year, reference.month, reference.day, hour, minute);
+    final remaining = deadline.difference(reference).inMinutes;
+    return remaining < 0 ? null : remaining;
+  }
 
-  Customer? customerById(String id) {
-    for (final c in customers) {
-      if (c.id == id) return c;
+  Customer? get currentCustomer {
+    for (final branch in sessionBranches) {
+      if (branch.id == currentCustomerId) return branch;
     }
     return null;
   }
 
-  /// Bir vergi numarasına bağlı tüm şubeler (şube no'ya göre sıralı).
-  List<Customer> branchesForTax(String taxNumber) {
-    final norm = taxNumber.trim();
-    final list = customers.where((c) => c.taxNumber == norm).toList();
-    list.sort((a, b) => a.branchNo.compareTo(b.branchNo));
-    return list;
-  }
-
   Product? productById(String id) {
-    for (final p in products) {
-      if (p.id == id) return p;
+    for (final product in products) {
+      if (product.id == id) return product;
     }
     return null;
   }
 
   Driver? driverById(String id) {
-    for (final d in drivers) {
-      if (d.id == id) return d;
+    for (final driver in drivers) {
+      if (driver.id == id) return driver;
     }
     return null;
   }
 
   ProductCategory categoryById(String id) =>
-      categories.firstWhere((c) => c.id == id);
+      categories.firstWhere((category) => category.id == id);
 
   List<Product> productsInCategory(String categoryId) =>
-      products.where((p) => p.categoryId == categoryId).toList();
+      products.where((product) => product.categoryId == categoryId).toList();
 
   DailyOrder? orderFor(String customerId) => _orders[customerId];
   DailyOrder? deliveryFor(String customerId) => _deliveryOrders[customerId];
 
-  /// Aktif kurala göre bir ürünün üst sınırı.
   int maxQtyFor(String productId) {
-    final p = productById(productId);
-    if (p == null) return 0;
-    return orderRule == OrderRule.average
-        ? p.avgOrder
-        : (p.maxOrderLimit < maxQtyLimit ? p.maxOrderLimit : maxQtyLimit);
+    final product = productById(productId);
+    if (product == null) return 0;
+    final limit = orderRule == OrderRule.average
+        ? product.avgOrder
+        : (product.maxOrderLimit < maxQtyLimit
+            ? product.maxOrderLimit
+            : maxQtyLimit);
+    // Üst sınır da paket katına inmelidir; aksi hâlde girilemeyen bir üst
+    // sınır gösterilir.
+    final size = product.packageSize;
+    return size <= 1 ? limit : (limit ~/ size) * size;
   }
 
-  // ---------------------------------------------------------------- oturum
+  /// Ürünün paket adedi (5'li paketlerde 5).
+  int packageSizeFor(String productId) => productById(productId)?.packageSize ?? 1;
 
-  /// Seçilen şubenin şifresini doğrular ve oturumu açar. Şifre yanlışsa false.
-  /// Aynı vergi numarasına bağlı tüm şubeler oturuma + kayıtlı hesaplara eklenir.
-  bool loginWith(Customer branch, String password) {
-    if (branch.password != password) return false;
-    _openSession(branch);
-    _rememberAccount(branch.taxNumber);
-    return true;
+  Future<String?> login(String userName, String password,
+      {bool remember = false}) async {
+    try {
+      final session = await api.login(userName.trim(), password);
+      loginName = session.loginName;
+      rememberedLoginName = session.loginName;
+      mustChangePassword = session.mustChangePassword;
+      await _prefs?.setString(_kRememberedLogin, session.loginName);
+      await _storeCredentials(remember, password);
+      if (!mustChangePassword) await _loadBranches();
+      _activeAt = DateTime.now();
+      notifyListeners();
+      return null;
+    } on ApiException catch (error) {
+      return error.message;
+    } on Exception {
+      return 'Giriş hizmetine erişilemiyor.';
+    }
   }
 
-  /// Kayıtlı hesaptan tek dokunuşla giriş (şifre sorulmaz).
-  void quickLogin(Customer branch) {
-    _openSession(branch);
-    _rememberAccount(branch.taxNumber);
+  /// Giriş bilgilerini cihazda saklar veya siler. Parola yalnızca kullanıcı
+  /// "Hesap bilgilerimi kaydet" dediğinde ve yalnızca bu cihazda tutulur.
+  Future<void> _storeCredentials(bool remember, String password) async {
+    rememberCredentials = remember;
+    await _prefs?.setBool(_kRememberCredentials, remember);
+    if (remember) {
+      rememberedPassword = password;
+      await _prefs?.setString(_kRememberedPassword, password);
+    } else {
+      rememberedPassword = null;
+      await _prefs?.remove(_kRememberedPassword);
+    }
   }
 
-  void _openSession(Customer branch) {
-    sessionBranches = branchesForTax(branch.taxNumber);
-    currentCustomerId = branch.id;
-    _touchAndPersist();
+  /// Kayıtlı parolayı siler; kullanıcı adı giriş kolaylığı için kalır.
+  Future<void> forgetSavedPassword() async {
+    await _storeCredentials(false, '');
     notifyListeners();
   }
 
-  /// Oturumdaki şubeler arasında geçiş yapar (tekrar şifre gerekmez).
+  Future<String?> changePassword(String currentPassword, String newPassword) async {
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      mustChangePassword = false;
+      // Kayıtlı giriş bilgisi varsa yeni parolayla güncellenir.
+      if (rememberCredentials) await _storeCredentials(true, newPassword);
+      await _loadBranches();
+      _activeAt = DateTime.now();
+      notifyListeners();
+      return null;
+    } on ApiException catch (error) {
+      return error.message;
+    } on Exception {
+      return 'Parola değiştirilemiyor.';
+    }
+  }
+
+  Future<void> _loadBranches() async {
+    final rows = await api.branches();
+    sessionBranches = [
+      for (var index = 0; index < rows.length; index++)
+        _customerFromJson(rows[index], index),
+    ];
+    currentCustomerId = sessionBranches.isEmpty ? null : sessionBranches.first.id;
+  }
+
+  Customer _customerFromJson(Map<String, dynamic> json, int index) {
+    final mbId = json['legacyMbId'] as int;
+    return Customer(
+      id: mbId.toString(),
+      code: (json['customerCode'] as String?) ?? '',
+      name: (json['customerName'] as String?) ?? '',
+      type: 'Müşteri',
+      district: (json['departmentName'] as String?) ?? '',
+      contact: (json['personnelName'] as String?) ?? '',
+      phone: '',
+      driverId: ((json['legacyPersonnelId'] as int?) ?? 0).toString(),
+      stopNo: index + 1,
+      taxNumber: (json['taxNumber'] as String?) ?? '',
+      branchNo: (json['legacyDepartmentId'] as int?) ?? index + 1,
+      password: '',
+    );
+  }
+
   void switchBranch(String customerId) {
-    if (customerId == currentCustomerId) return;
-    if (sessionBranches.any((b) => b.id == customerId)) {
+    if (sessionBranches.any((branch) => branch.id == customerId)) {
       currentCustomerId = customerId;
-      _touchAndPersist();
+      _activeAt = DateTime.now();
       notifyListeners();
     }
   }
 
-  /// Tam çıkış: aktif oturumu kapatır ve bu hesabı kayıtlılardan siler.
-  void logout() {
-    final tax = currentCustomer?.taxNumber;
-    currentCustomerId = null;
-    sessionBranches = [];
-    if (tax != null) rememberedTaxNumbers.remove(tax);
-    _prefs?.setStringList(_kAccounts, rememberedTaxNumbers);
-    _prefs?.remove(_kActiveBranch);
-    _prefs?.remove(_kActiveAt);
+  Future<void> logout() async {
+    await api.logout();
+    _clearSession();
     notifyListeners();
   }
 
-  /// Kayıtlı bir hesabı (vergi numarası) login ekranından kaldırır.
-  void forgetAccount(String taxNumber) {
-    rememberedTaxNumbers.remove(taxNumber);
-    _prefs?.setStringList(_kAccounts, rememberedTaxNumbers);
-    notifyListeners();
-  }
-
-  // ---- oturum süresi (arka plan) ----
-
-  /// Uygulama arka plana geçerken çağrılır — ayrılma zamanını kaydeder.
   void touchSession() {
-    if (currentCustomerId == null) return;
-    _touchAndPersist();
+    if (currentCustomerId != null) _activeAt = DateTime.now();
   }
 
-  /// Arka planda kalınan süre eşiği aştıysa true.
-  bool get isSessionExpired {
-    if (_activeAt == null) return false;
-    return DateTime.now().difference(_activeAt!) > kSessionTimeout;
-  }
+  bool get isSessionExpired =>
+      _activeAt != null && DateTime.now().difference(_activeAt!) > kSessionTimeout;
 
-  /// Oturumu kilitler (login'e döner) ama kayıtlı hesapları korur.
   void lockSession() {
+    api.clearSession();
+    _clearSession();
+    notifyListeners();
+  }
+
+  void _clearSession() {
     currentCustomerId = null;
+    loginName = null;
+    mustChangePassword = false;
     sessionBranches = [];
-    _prefs?.remove(_kActiveBranch);
-    _prefs?.remove(_kActiveAt);
-    notifyListeners();
+    _activeAt = null;
   }
-
-  void _rememberAccount(String taxNumber) {
-    if (!rememberedTaxNumbers.contains(taxNumber)) {
-      rememberedTaxNumbers.add(taxNumber);
-      _prefs?.setStringList(_kAccounts, rememberedTaxNumbers);
-    }
-  }
-
-  void _touchAndPersist() {
-    _activeAt = DateTime.now();
-    _prefs?.setString(_kActiveBranch, currentCustomerId ?? '');
-    _prefs?.setInt(_kActiveAt, _activeAt!.millisecondsSinceEpoch);
-  }
-
-  // ---- demo: admin sistem açık/kapalı ----
-
-  /// Sipariş sistemini açar/kapatır. Kapalıyken müşteri giriş yapamaz.
-  void setSystemOpen(bool open) {
-    orderSystemOpen = open;
-    notifyListeners();
-  }
-
-  // ---------------------------------------------------------------- aksiyonlar
 
   String _clock() {
     final now = DateTime.now();
-    final h = now.hour.toString().padLeft(2, '0');
-    final m = now.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+    final hour = now.hour.toString().padLeft(2, '0');
+    final minute = now.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
-  /// Müşteri siparişini kaydeder. Adetler aktif kurala göre kırpılır.
   void submitOrder(String customerId, Map<String, int> draft) {
     final lines = <OrderLine>[];
     draft.forEach((productId, qty) {
       if (qty <= 0) return;
-      final capped = qty.clamp(0, maxQtyFor(productId));
+      final product = productById(productId);
+      if (product == null) return;
+      // 5'li paketlerde adet her zaman 5'in katı olarak gönderilir.
+      final capped = product.roundToPackage(qty, maxQtyFor(productId));
       if (capped > 0) lines.add(OrderLine(productId, capped));
     });
-
     final existing = _orders[customerId];
     _orders[customerId] = (existing ??
             DailyOrder(customerId: customerId, status: OrderStatus.pending, lines: const []))
@@ -259,7 +280,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// "Yarın ürün istemiyorum" — siparişi reddeder.
   void declineOrder(String customerId, {String? note}) {
     final existing = _orders[customerId];
     _orders[customerId] = (existing ??
@@ -274,9 +294,6 @@ class AppState extends ChangeNotifier {
   }
 }
 
-// ---------------------------------------------------------------- InheritedNotifier
-
-/// Uygulama boyunca AppState'e erişim ve otomatik yeniden çizim sağlar.
 class AppScope extends InheritedNotifier<AppState> {
   const AppScope({super.key, required AppState state, required super.child})
       : super(notifier: state);

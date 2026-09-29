@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../data/seed_data.dart';
@@ -10,8 +12,33 @@ import '../widgets/status_badge.dart';
 import 'delivery_screen.dart';
 import 'order_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) AppScope.of(context).refreshSystemStatus();
+    });
+    // Kalan süre yazısı dakikası dakikasına güncellenir.
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +128,41 @@ class _ClosedBanner extends StatelessWidget {
   }
 }
 
+// ------------------------------------------------- "Alındı" onay kutusu
+
+/// Müşterinin bildirimi alındı bilgisini metin kutusu gibi gösterir
+/// ("Alındı · Sipariş istenmedi").
+class _ReceivedBox extends StatelessWidget {
+  final String text;
+  const _ReceivedBox({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: YpColors.surface2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: YpColors.hairline),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_rounded, size: 18, color: YpColors.ok),
+          const SizedBox(width: 8),
+          const Text('Alındı',
+              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: YpColors.ink)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(fontSize: 14.5, color: YpColors.ink2)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ------------------------------------------------------- yarının sipariş kartı
 
 class _OrderStatusCard extends StatelessWidget {
@@ -166,14 +228,18 @@ class _OrderStatusCard extends StatelessWidget {
                 Text('Son güncelleme ${order!.updatedAt}',
                     style: const TextStyle(fontSize: 12.5, color: YpColors.ink3)),
               ],
+              if (open) ...[
+                const SizedBox(height: 4),
+                Text(_cutoffHint(app),
+                    style: const TextStyle(fontSize: 12.5, color: YpColors.ink3)),
+              ],
             ] else if (status == OrderStatus.declined) ...[
-              const Text('Yarın için ürün istemediniz.',
-                  style: TextStyle(fontSize: 15, color: YpColors.ink, fontWeight: FontWeight.w500)),
+              const _ReceivedBox(text: 'Sipariş istenmedi'),
             ] else ...[
               const Text('Henüz sipariş girmediniz.',
                   style: TextStyle(fontSize: 15, color: YpColors.ink, fontWeight: FontWeight.w500)),
               const SizedBox(height: 4),
-              Text('Sipariş alımı $kOrderCutoff\'a kadar açık.',
+              Text(_cutoffHint(app),
                   style: const TextStyle(fontSize: 12.5, color: YpColors.ink3)),
             ],
             const SizedBox(height: 18),
@@ -199,6 +265,22 @@ class _OrderStatusCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Kesim saatine yaklaşıldığında kalan süreyi, uzaksa saati yazar.
+  static String _cutoffHint(AppState app) {
+    final remaining = app.minutesUntilCutoff();
+    if (remaining == null) return 'Sipariş alımı ${app.cutoffTime} saatinde kapanır.';
+    if (remaining > 180) return 'Sipariş alımı ${app.cutoffTime}\'a kadar açık.';
+    if (remaining < 1) return 'Yarın teslim edilecek sipariş için 1 dakikadan az kaldı.';
+    if (remaining < 60) {
+      return 'Yarın teslim edilecek sipariş için $remaining dk kaldı.';
+    }
+    final hours = remaining ~/ 60;
+    final minutes = remaining % 60;
+    return minutes == 0
+        ? 'Yarın teslim edilecek sipariş için $hours sa kaldı.'
+        : 'Yarın teslim edilecek sipariş için $hours sa $minutes dk kaldı.';
   }
 
   Future<void> _confirmDecline(BuildContext context, AppState app) async {

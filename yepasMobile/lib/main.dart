@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/main_shell.dart';
+import 'screens/change_password_screen.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 
@@ -68,7 +69,11 @@ class _YepasAppState extends State<YepasApp> with WidgetsBindingObserver {
         navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
         theme: buildYepasTheme(),
-        home: loggedIn ? const MainShell() : const LoginScreen(),
+        home: _state.isAuthenticated && _state.mustChangePassword
+            ? const ChangePasswordScreen()
+            : loggedIn
+                ? const MainShell()
+                : const LoginScreen(),
       ),
     );
   }

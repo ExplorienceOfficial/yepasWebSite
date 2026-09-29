@@ -27,6 +27,15 @@ class QtyStepper extends StatelessWidget {
     if (clamped != value) onChanged(clamped);
   }
 
+  /// Sonraki paket katı: 5'li üründe 3 → 5, 5 → 10.
+  void _increase() => _set(value - (value % step) + step);
+
+  /// Önceki paket katı: 5'li üründe 7 → 5, 5 → 0.
+  void _decrease() {
+    final remainder = value % step;
+    _set(remainder == 0 ? value - step : value - remainder);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -38,7 +47,7 @@ class QtyStepper extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _btn(Icons.remove_rounded, value <= 0 ? null : () => _set(value - step)),
+          _btn(Icons.remove_rounded, value <= 0 ? null : _decrease),
           InkWell(
             onTap: onTapValue,
             borderRadius: BorderRadius.circular(8),
@@ -53,7 +62,7 @@ class QtyStepper extends StatelessWidget {
               ),
             ),
           ),
-          _btn(Icons.add_rounded, value >= max ? null : () => _set(value + step)),
+          _btn(Icons.add_rounded, value >= max ? null : _increase),
         ],
       ),
     );

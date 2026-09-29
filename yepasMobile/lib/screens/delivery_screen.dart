@@ -101,7 +101,9 @@ class DeliveryScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Uzun ürün adı kısaltılmaz; gerekirse alt satıra iner.
                 Text(p?.name ?? productId,
+                    softWrap: true,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(p?.code ?? '', style: const TextStyle(fontSize: 12, color: YpColors.ink3)),

@@ -28,8 +28,9 @@ class ProfileScreen extends StatelessWidget {
           _BranchesSection(app: app, activeId: customer.id),
           const SizedBox(height: 20),
           OutlinedButton.icon(
-            onPressed: () {
-              app.logout();
+            onPressed: () async {
+              await app.logout();
+              if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginScreen()),
                 (r) => false,

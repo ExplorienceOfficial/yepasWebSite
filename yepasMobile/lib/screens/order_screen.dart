@@ -49,6 +49,7 @@ class _OrderScreenState extends State<OrderScreen> {
   Future<void> _editExact(Product p) async {
     final app = AppScope.of(context);
     final max = app.maxQtyFor(p.id);
+    final package = p.packageSize;
     final controller = TextEditingController(text: (_draft[p.id] ?? '').toString());
     final result = await showDialog<int>(
       context: context,
@@ -58,8 +59,12 @@ class _OrderScreenState extends State<OrderScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('En fazla ${formatQty(max)} adet',
-                style: const TextStyle(fontSize: 13, color: YpColors.ink2)),
+            Text(
+              package > 1
+                  ? 'En fazla ${formatQty(max)} adet · yalnızca $package\'in katları'
+                  : 'En fazla ${formatQty(max)} adet',
+              style: const TextStyle(fontSize: 13, color: YpColors.ink2),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
@@ -84,7 +89,16 @@ class _OrderScreenState extends State<OrderScreen> {
         ],
       ),
     );
-    if (result != null) _setQty(p.id, result.clamp(0, max));
+    if (result == null) return;
+    // 5'li paket ürünlerinde elle girilen adet en yakın 5'in katına çekilir.
+    final applied = p.roundToPackage(result, max);
+    _setQty(p.id, applied);
+    if (mounted && package > 1 && applied != result) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+            '${p.name} $package\'li paket satılır; adet ${formatQty(applied)} olarak ayarlandı.')),
+      );
+    }
   }
 
   void _save() {
@@ -149,6 +163,7 @@ class _OrderScreenState extends State<OrderScreen> {
                   max: app.maxQtyFor(p.id),
                   onChanged: (v) => _setQty(p.id, v),
                   onTapValue: () => _editExact(p),
+                  step: p.packageSize > 1 ? p.packageSize : 10,
                 ),
             ],
           );
@@ -210,12 +225,16 @@ class _ProductRow extends StatelessWidget {
   final ValueChanged<int> onChanged;
   final VoidCallback onTapValue;
 
+  /// Her dokunuşta değişecek adet; 5'li paketlerde 5.
+  final int step;
+
   const _ProductRow({
     required this.product,
     required this.qty,
     required this.max,
     required this.onChanged,
     required this.onTapValue,
+    required this.step,
   });
 
   @override
@@ -245,13 +264,18 @@ class _ProductRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Uzun ürün adları kısaltılmaz; gerekirse alt satıra iner.
                 Text(product.name,
+                    softWrap: true,
                     style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: selected ? YpColors.ink : YpColors.ink)),
                 const SizedBox(height: 2),
-                Text('${product.code} · en fazla ${formatQty(max)}',
+                Text(
+                    product.packageSize > 1
+                        ? '${product.code} · ${product.packageSize}\'li paket · en fazla ${formatQty(max)}'
+                        : '${product.code} · en fazla ${formatQty(max)}',
                     style: const TextStyle(fontSize: 12, color: YpColors.ink3)),
               ],
             ),
@@ -260,6 +284,7 @@ class _ProductRow extends StatelessWidget {
           QtyStepper(
             value: qty,
             max: max,
+            step: step,
             onChanged: onChanged,
             onTapValue: onTapValue,
           ),
