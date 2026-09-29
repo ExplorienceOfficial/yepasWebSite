@@ -7,7 +7,7 @@ import { CloudUpload, Loader2, Menu, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { invalidateSession, useAuth } from "@/context/AuthContext";
 import { localApiUrl } from "@/lib/api";
-import { cn, initials } from "@/lib/format";
+import { cn, formatQty, initials } from "@/lib/format";
 
 const routeMeta: Record<string, { crumb: string; title: string }> = {
   "/admin": { crumb: "Genel", title: "Kontrol Paneli" },
@@ -15,12 +15,21 @@ const routeMeta: Record<string, { crumb: string; title: string }> = {
   "/admin/sofor-yonetimi": { crumb: "Saha", title: "Şoför Yönetimi" },
 };
 
+interface SyncResult {
+  state: "FINALIZING" | "FINALIZED" | "FAILED";
+  orderCount: number;
+  lineCount: number;
+  totalQuantity: number;
+  lastError: string | null;
+}
+
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const pathname = usePathname();
   const { session } = useAuth();
   const [orderSystemOpen, setOrderSystemOpen] = useState<boolean | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const meta = routeMeta[pathname] ?? { crumb: "Yepaş", title: "Yönetim" };
@@ -57,6 +66,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
   const syncToErp = async () => {
     setSyncing(true);
     setSyncError(null);
+    setSyncResult(null);
     try {
       const response = await fetch(localApiUrl("/api/v1/admin/orders/finalize"), { method: "POST", credentials: "include", cache: "no-store" });
       if (response.status === 401) { invalidateSession(); return; }
@@ -64,9 +74,8 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         const body = await response.json().catch(() => null) as { message?: string } | null;
         throw new Error(body?.message || "Siparişler aktarılamadı.");
       }
-      const result = await response.json() as { state: string };
-      if (result.state !== "FINALIZED")
-        throw new Error("Aktarım henüz tamamlanmadı; durumu birazdan tekrar kontrol edin.");
+      const result = await response.json() as SyncResult;
+      setSyncResult(result);
       window.dispatchEvent(new Event("yepas:order-sync-changed"));
     } catch (cause) { setSyncError(cause instanceof Error ? cause.message : "Siparişler aktarılamadı."); }
     finally { setSyncing(false); }
@@ -129,7 +138,6 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
             {syncing ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4" strokeWidth={2} />}
             {syncing ? "Aktarılıyor" : "Aktar"}
           </button>
-          {syncError && <span role="alert" className="max-w-48 text-xs text-[var(--bad)]">{syncError}</span>}
 
           <ThemeToggle />
 
@@ -140,6 +148,38 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
           </div>
         </div>
       </div>
+
+      {/* Aktarım sonucu — gerçek sunucu yanıtındaki sayılarla */}
+      {(syncError || syncResult) && (
+        <div
+          role="status"
+          className={cn(
+            "flex items-start justify-between gap-3 border-t border-hairline px-4 py-2.5 text-[13px] lg:px-6",
+            syncError || syncResult?.state === "FAILED"
+              ? "bg-[var(--bad-soft)] text-[var(--bad)]"
+              : syncResult?.state === "FINALIZED"
+                ? "bg-[var(--ok-soft)] text-[var(--ok)]"
+                : "bg-[var(--warn-soft)] text-[var(--warn)]",
+          )}
+        >
+          <span>
+            {syncError
+              ? syncError
+              : syncResult?.state === "FINALIZED"
+                ? `Aktarım tamamlandı · ${syncResult.orderCount} sipariş · ${syncResult.lineCount} kalem · ${formatQty(syncResult.totalQuantity)} adet eski sisteme yazıldı.`
+                : syncResult?.state === "FAILED"
+                  ? `Aktarım tamamlanamadı: ${syncResult.lastError ?? "bilinmeyen hata"}`
+                  : "Aktarım sürüyor; birazdan tekrar kontrol edin."}
+          </span>
+          <button
+            type="button"
+            onClick={() => { setSyncError(null); setSyncResult(null); }}
+            className="shrink-0 text-[12px] font-semibold underline-offset-2 hover:underline"
+          >
+            Kapat
+          </button>
+        </div>
+      )}
     </header>
   );
 }
