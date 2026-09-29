@@ -61,8 +61,11 @@ aktarım durumundan doğrulayın.
   şoför ekleme veya rota atama işlemi sunmaz.
 - Şoför hesabı açma, kapatma ve geçici parola yenileme işlemleri çalışır; kapatılan hesabın açık oturumları iptal edilir.
 - Şoför girişiyle `/sofor/` yalnız oturumdaki personelin eski sistemde bağlı şubelerini ve uygulamadaki siparişlerini gösterir.
-- İlk eski sistem aktarımı sipariş alımı açıkken reddedilir. Alım kapatıldıktan sonra yalnız `SUBMITTED` kayıtları eski `RS_FIS_BILGILERI` / `RS_FIS_SATIRLARI` tablolarına `MOBIL` kullanıcısı ve her gün `U-1`'den başlayan fiş numarasıyla aktarılır.
+- Üst bardaki **Aktar** düğmesi sipariş alımı açıkken de çalışır: yalnız `SUBMITTED` kayıtları eski `RS_FIS_BILGILERI` / `RS_FIS_SATIRLARI` tablolarına `MOBIL` kullanıcısı ve her gün `U-1`'den başlayan fiş numarasıyla yazılır. Düğme, sunucudan dönen gerçek sipariş/kalem/adet sayısını bildirim olarak gösterir.
 - Aktarım siparişi kalıcı kilitlemez. Sonraki değişiklik `PENDING` olur; yeniden gönderimde yalnızca kayıtlı `LegacyReceiptId` ile eşleşen `MOBIL` / `U-*` fişi güncellenir ve ikinci fiş oluşmaz.
+- Tek bir sipariş aktarılamazsa diğerleri aktarılmaya devam eder; başarısız kayıt `FAILED` kalır ve sonraki aktarımda yeniden denenir.
+- Eski sistemdeki şube veya aktarım durumu tablosu okunamazsa `/admin/siparisler/` çökmez; erişilebilen veriler listelenir ve eksik kaynak uyarı olarak gösterilir.
+- Girişsiz `/api/v1/system/status` isteği yalnızca sistemin açık/kapalı olduğunu ve kesim saatini döndürür; mobil giriş ekranı kapalıyken "Sistem kapalı" gösterir.
 - Günlük görev 00:01 sonrasında o gün teslim edilecek dünün kayıtlarını bir kez aktarır;
   tekrar çalıştırma ikinci fiş üretmez. Bu kontrol Win7 üzerinde ayrıca yapılmalıdır.
 - Girişsiz `/api/v1/admin/products` isteği `401` döndürür.

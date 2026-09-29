@@ -9,6 +9,8 @@ servers:
   - url: https://192.168.5.230:8443/api/v1
     description: DEV - yalnız VPN/fabrika ağı
 tags:
+  - name: System
+    description: Giriş öncesi okunabilen sistem durumu.
   - name: Auth
     description: Mobil giriş, token, parola ve çıkış işlemleri.
   - name: Customer
@@ -16,6 +18,25 @@ tags:
   - name: Driver
     description: Şoförün eski sistem ilişkilerinden türetilen rotaları.
 paths:
+  /system/status:
+    get:
+      tags: [System]
+      summary: Sipariş sisteminin açık/kapalı durumu
+      description: >
+        Oturum gerektirmez ve kişisel veri döndürmez. Mobil giriş ekranı sistem
+        kapalıyken "Giriş yap" düğmesi yerine "Sistem kapalı" gösterebilmek için
+        bu ucu okur.
+      operationId: getSystemStatus
+      security: []
+      responses:
+        '200':
+          description: Sistem durumu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /auth/login:
     post:
       tags: [Auth]
@@ -296,6 +317,24 @@ components:
           type: string
         message:
           type: string
+    SystemStatus:
+      type: object
+      description: Giriş öncesi okunan sistem durumu; kişisel veri içermez.
+      properties:
+        isOpen:
+          type: boolean
+          description: Sipariş alımı şu an açık mı.
+        cutoffTime:
+          type: string
+          example: "18:00"
+          description: Sipariş alımının kapanma saati (HH:mm, Türkiye saati).
+        cutoffMinute:
+          type: integer
+          description: Gün başından kesim saatine kadarki dakika sayısı.
+        serverNowUtc:
+          type: string
+          format: date-time
+      required: [isOpen, cutoffTime, cutoffMinute]
     LoginRequest:
       type: object
       properties:
@@ -395,7 +434,13 @@ components:
         maxQuantity:
           type: integer
           minimum: 0
-      required: [uStokId, aStokId, code, name, groupId, maxQuantity]
+        packageSize:
+          type: integer
+          minimum: 1
+          description: >
+            Ürünün paket adedi; adında 5'li paket yazan ürünlerde 5, diğerlerinde 1.
+            Sipariş miktarı bu değerin katı olmalıdır.
+      required: [uStokId, aStokId, code, name, groupId, maxQuantity, packageSize]
     OrderLineInput:
       type: object
       properties:

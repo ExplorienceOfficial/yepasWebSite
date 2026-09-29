@@ -37,6 +37,27 @@ Idempotency-Key: <UUID>
 Aynı istek ağ hatası nedeniyle tekrarlanırsa aynı anahtar ve aynı gövde kullanılmalıdır.
 Aynı anahtar farklı gövdeyle kullanılırsa `409 IDEMPOTENCY_CONFLICT` döner.
 
+## 0. Sistem durumu (giriş öncesi)
+
+`GET /system/status` — oturum gerektirmez, kişisel veri döndürmez.
+
+```json
+{
+  "isOpen": false,
+  "cutoffTime": "18:00",
+  "cutoffMinute": 1080,
+  "serverNowUtc": "2026-09-29T12:40:11Z"
+}
+```
+
+Giriş ekranı bu ucu açılışta okur. `isOpen` `false` ise **"Giriş yap" düğmesi
+gösterilmez**, yerine "Sistem kapalı" yazılır. Uç okunamazsa (ağ/sunucu hatası)
+durum "bilinmiyor" sayılır ve giriş ekranı normal şekilde açık kalır — kapalı
+olduğu varsayılmaz.
+
+`cutoffTime`, "yarın teslim edilecek sipariş için kalan süre" yazısının
+hesaplandığı saattir.
+
 ## 1. Giriş
 
 `POST /auth/login`
@@ -152,7 +173,8 @@ sistemde tanımlanmış ürünleri ve varsa mevcut siparişi birlikte döndürü
       "name": "100 GR DÖNER EKMEK",
       "groupId": 0,
       "variantName": null,
-      "maxQuantity": 100
+      "maxQuantity": 100,
+      "packageSize": 1
     }
   ],
   "order": null
@@ -166,6 +188,11 @@ Kurallar:
 - Son sipariş saati geçince sistem sonraki SG tarihine atlayarak açık kalmaz.
 - Yalnız `products` dizisindeki `uStokId + aStokId` ikilileri sipariş edilebilir.
 - `maxQuantity > 0` ise miktar bu sınırı aşamaz.
+- `packageSize` ürün adından türetilir ve 5'li paket ürünlerde `5` döner. Miktar
+  bu değerin katı olmalıdır; aksi hâlde API `400 INVALID_ORDER` döndürür. Mobil
+  arayüz adet sayacını `packageSize` kadar artırıp azaltmalı ve elle girilen
+  değeri en yakın kata yuvarlamalıdır (3 adet girilemez).
+- Ürün adları kısaltılmadan gösterilmelidir; gerekirse alt satıra sarılır.
 - Fiyat alanı yoktur ve mobil uygulama fiyat göstermemelidir.
 - `window.isOpen=false` iken kayıt yapılmamalıdır.
 
