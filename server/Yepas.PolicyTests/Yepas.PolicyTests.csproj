@@ -25,6 +25,9 @@
     <Compile Include="..\Yepas.Api\Domain\OrderWindowPolicy.cs">
       <Link>OrderWindowPolicy.cs</Link>
     </Compile>
+    <Compile Include="..\Yepas.Api\Models\CatalogProduct.cs">
+      <Link>CatalogProduct.cs</Link>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

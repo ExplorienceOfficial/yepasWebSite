@@ -73,6 +73,8 @@ JOIN dbo.UserRoles R ON R.UserId = U.UserId AND R.RoleCode = N'DRIVER'", connect
             loginName = ValidateLogin(loginName);
             ValidatePassword(temporaryPassword);
             EnsureActiveLegacyDriver(personnelId);
+            if (!String.Equals(loginName, ReadPersonnelCode(personnelId), StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Kullanıcı adı eski sistemdeki personel kodu olmalıdır.");
             var salt = new byte[32];
             using (var random = RandomNumberGenerator.Create()) random.GetBytes(salt);
             var hash = AuthRepository.HashPassword(temporaryPassword, salt, PasswordIterations);
@@ -220,6 +222,21 @@ WHERE P.PERSONEL_ID = @personnel AND P.PERSONEL_DURUM = 1
                 connection.Open();
                 if (command.ExecuteScalar() == null)
                     throw new InvalidOperationException("Eski sistemde aktif rota personeli bulunamadı.");
+            }
+        }
+
+        private static string ReadPersonnelCode(int personnelId)
+        {
+            using (var connection = new SqlConnection(DatabaseConnections.Catalog()))
+            using (var command = new SqlCommand(
+                "SELECT PERSONEL_KODU FROM D00013.FIRMA_PERSONELI WHERE PERSONEL_ID=@personnel", connection))
+            {
+                command.Parameters.Add("@personnel", SqlDbType.Int).Value = personnelId;
+                connection.Open();
+                var value = command.ExecuteScalar();
+                if (value == null || value == DBNull.Value)
+                    throw new InvalidOperationException("Eski sistem personel kodu bulunamadı.");
+                return Convert.ToString(value).Trim();
             }
         }
 

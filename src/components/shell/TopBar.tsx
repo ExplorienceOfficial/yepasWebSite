@@ -1,26 +1,26 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, CloudUpload, Loader2, Menu, Search } from "lucide-react";
+import { CloudUpload, Loader2, Menu, Search } from "lucide-react";
 
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
-import { useAuth } from "@/context/AuthContext";
-import { useOperations } from "@/context/OperationsContext";
+import { invalidateSession, useAuth } from "@/context/AuthContext";
+import { localApiUrl } from "@/lib/api";
 import { cn, initials } from "@/lib/format";
 
 const routeMeta: Record<string, { crumb: string; title: string }> = {
   "/admin": { crumb: "Genel", title: "Kontrol Paneli" },
   "/admin/siparisler": { crumb: "Operasyon", title: "Siparişler" },
-  "/admin/urunler": { crumb: "Operasyon", title: "Ürünler" },
   "/admin/sofor-yonetimi": { crumb: "Saha", title: "Şoför Yönetimi" },
-  "/admin/musteri-yanitlari": { crumb: "Müşteri", title: "Müşteri Yanıtları" },
 };
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const pathname = usePathname();
   const { session } = useAuth();
-  const { orderSystemOpen, syncToErp, syncing, hasUnsyncedChanges } = useOperations();
+  const [orderSystemOpen, setOrderSystemOpen] = useState<boolean | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const meta = routeMeta[pathname] ?? { crumb: "Yepaş", title: "Yönetim" };
@@ -35,6 +35,39 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const response = await fetch(localApiUrl("/api/v1/admin/order-settings"), { credentials: "include", cache: "no-store" });
+        if (response.status === 401) { invalidateSession(); return; }
+        if (!response.ok) { if (active) setOrderSystemOpen(null); return; }
+        const data = await response.json() as { isOpen: boolean };
+        if (active) setOrderSystemOpen(data.isOpen);
+      } catch { if (active) setOrderSystemOpen(null); }
+    };
+    void load();
+    const timer = window.setInterval(load, 15_000);
+    window.addEventListener("focus", load);
+    window.addEventListener("yepas:settings-changed", load);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", load); window.removeEventListener("yepas:settings-changed", load); };
+  }, []);
+
+  const syncToErp = async () => {
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      const response = await fetch(localApiUrl("/api/v1/admin/orders/finalize"), { method: "POST", credentials: "include", cache: "no-store" });
+      if (response.status === 401) { invalidateSession(); return; }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { message?: string } | null;
+        throw new Error(body?.message || "Siparişler aktarılamadı.");
+      }
+      window.dispatchEvent(new Event("yepas:order-sync-changed"));
+    } catch (cause) { setSyncError(cause instanceof Error ? cause.message : "Siparişler aktarılamadı."); }
+    finally { setSyncing(false); }
+  };
 
   return (
     <header className="glass sticky top-0 z-30 border-b border-hairline">
@@ -77,34 +110,23 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
             <span
               className={cn(
                 "size-1.5 rounded-full",
-                orderSystemOpen ? "bg-[var(--ok)]" : "bg-[var(--bad)]",
+                orderSystemOpen === null ? "bg-ink-3" : orderSystemOpen ? "bg-[var(--ok)]" : "bg-[var(--bad)]",
               )}
             />
-            {orderSystemOpen ? "Sistem açık" : "Sistem kapalı"}
+            {orderSystemOpen === null ? "Durum alınamadı" : orderSystemOpen ? "Sistem açık" : "Sistem kapalı"}
           </span>
 
           <button
             type="button"
-            onClick={syncToErp}
+            onClick={() => void syncToErp()}
             disabled={syncing}
             title="Verileri sipariş programına aktar"
             className="relative hidden h-9 items-center gap-2 rounded-full bg-accent px-3.5 text-[13px] font-medium text-white transition-all hover:bg-accent-hover active:scale-[0.98] disabled:opacity-50 sm:inline-flex"
           >
             {syncing ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4" strokeWidth={2} />}
             {syncing ? "Aktarılıyor" : "Aktar"}
-            {hasUnsyncedChanges && !syncing && (
-              <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-[var(--bad)] ring-2 ring-[var(--elevated-solid)]" />
-            )}
           </button>
-
-          <button
-            type="button"
-            aria-label="Bildirimler"
-            className="relative flex size-9 items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
-          >
-            <Bell className="size-[18px]" strokeWidth={1.8} />
-            <span className="absolute right-2 top-2 size-1.5 rounded-full bg-[var(--bad)]" />
-          </button>
+          {syncError && <span role="alert" className="max-w-48 text-xs text-[var(--bad)]">{syncError}</span>}
 
           <ThemeToggle />
 

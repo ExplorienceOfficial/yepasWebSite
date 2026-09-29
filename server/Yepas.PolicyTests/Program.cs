@@ -1,5 +1,6 @@
 using System;
 using Yepas.Api.Domain;
+using Yepas.Api.Models;
 
 namespace Yepas.PolicyTests
 {
@@ -55,8 +56,21 @@ namespace Yepas.PolicyTests
             AssertGlobal("manuel açık saatten bağımsız", open,
                 thursdayAfterCutoffUtc, true);
 
+            AssertPackage("5 Lİ PAKET", 5);
+            AssertPackage("5li EKMEK", 5);
+            AssertPackage("15li EKMEK", 1);
+            AssertPackage("TEK EKMEK", 1);
+
             if (failures != 0) Environment.Exit(1);
-            Console.WriteLine("11 sipariş penceresi testi başarılı.");
+            Console.WriteLine("11 sipariş penceresi ve 4 paket testi başarılı.");
+        }
+
+        private static void AssertPackage(string name, int expected)
+        {
+            var actual = new CatalogProduct { Name = name }.PackageSize;
+            if (actual == expected) return;
+            failures++;
+            Console.Error.WriteLine("BAŞARISIZ: paket {0}; beklenen={1}, gerçek={2}", name, expected, actual);
         }
 
         private static LegacyCustomerSchedule Schedule(DayOfWeek day)

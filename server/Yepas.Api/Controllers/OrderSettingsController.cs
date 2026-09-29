@@ -53,9 +53,6 @@ namespace Yepas.Api.Controllers
                 if (mode != "AUTO" && mode != "OPEN" && mode != "CLOSED")
                     return Request.CreateResponse(HttpStatusCode.BadRequest,
                         new { code = "INVALID_MODE", message = "Geçersiz manuel durum." });
-                if (mode != "AUTO" && String.IsNullOrWhiteSpace(input.Reason))
-                    return Request.CreateResponse(HttpStatusCode.BadRequest,
-                        new { code = "REASON_REQUIRED", message = "Manuel işlem gerekçesi zorunludur." });
                 if (input.Reason != null && input.Reason.Length > 300)
                     return Request.CreateResponse(HttpStatusCode.BadRequest);
 

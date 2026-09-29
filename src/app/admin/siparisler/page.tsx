@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2, CheckCircle2, LockKeyhole, PackageOpen, Pencil, Plus, RefreshCw, Search, Send, Truck } from "lucide-react";
+import { CheckCircle2, LockKeyhole, RefreshCw, Search, Send } from "lucide-react";
 
 import { PageHeading, Panel } from "@/components/admin/Panel";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Field, NumberInput, Select, TextInput } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
@@ -79,6 +78,7 @@ interface AssignedProduct {
   name: string;
   variantName: string | null;
   maxQuantity: number;
+  packageSize: number;
 }
 
 interface AdminOrderContext {
@@ -89,16 +89,9 @@ interface AdminOrderContext {
 }
 
 const scopes: { key: BoardScope; label: string; sub: string }[] = [
-  { key: "delivery", label: "Bugün Dağıtılacak", sub: "Teslim tarihi bugün olanlar" },
-  { key: "submitted", label: "Bugün Verilen", sub: "Bugün oluşturulan siparişler" },
+  { key: "delivery", label: "Dün Verilen Siparişler", sub: "Bugün dağıtıma çıkacak" },
+  { key: "submitted", label: "Bugün Verilen Siparişler", sub: "Yarın dağıtıma çıkacak" },
 ];
-
-const statusMeta: Record<BoardStatus, { label: string; tone: "green" | "red" | "amber" | "zinc" }> = {
-  SUBMITTED: { label: "Sipariş verdi", tone: "green" },
-  NO_PRODUCT: { label: "Ürün istemedi", tone: "red" },
-  CANCELLED: { label: "İptal edildi", tone: "zinc" },
-  PENDING: { label: "Yanıt bekleniyor", tone: "amber" },
-};
 
 const sourceLabels: Record<string, string> = {
   CUSTOMER: "Müşteri",
@@ -148,7 +141,6 @@ export default function OrdersPage() {
   const [saving, setSaving] = useState(false);
   const [formStatus, setFormStatus] = useState<Exclude<BoardStatus, "PENDING">>("SUBMITTED");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [note, setNote] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
@@ -243,7 +235,6 @@ export default function OrdersPage() {
       setEditContext(context);
       setQuantities(nextQuantities);
       setFormStatus(context.order?.status ?? "SUBMITTED");
-      setNote(context.order?.note ?? "");
     } catch (cause) {
       setEditError(cause instanceof Error ? cause.message : "Sipariş düzenleme bilgisi alınamadı.");
     } finally {
@@ -264,6 +255,13 @@ export default function OrdersPage() {
       setEditError("Sipariş için en az bir ürün miktarı girin.");
       return;
     }
+    if (lines.some((line) => {
+      const product = editContext.products.find((item) => item.uStokId === line.uStokId && item.aStokId === line.aStokId);
+      return product && line.quantity % (product.packageSize || 1) !== 0;
+    })) {
+      setEditError("5'li paket ürünleri yalnızca 5'in katlarıyla girilebilir.");
+      return;
+    }
     setSaving(true);
     setEditError(null);
     try {
@@ -278,7 +276,7 @@ export default function OrdersPage() {
         body: JSON.stringify({
           revision: editContext.order?.revision ?? 0,
           status: formStatus,
-          note: note.trim() || null,
+          note: null,
           lines,
         }),
       });
@@ -401,15 +399,6 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {(Object.keys(statusMeta) as BoardStatus[]).map((status) => (
-          <div key={status} className="rounded-[14px] bg-surface px-4 py-3 ring-1 ring-hairline">
-            <div className="flex items-center gap-2"><Badge tone={statusMeta[status].tone} dot>{statusMeta[status].label}</Badge></div>
-            <p className="mt-2 text-[26px] font-semibold leading-none tabular-nums text-ink">{counts[status]}</p>
-          </div>
-        ))}
-      </div>
-
       {board && !loading && (
         <p className="mb-3 text-xs text-ink-3">
           Teslim tarihi: <strong className="font-medium text-ink-2">{formatDate(board.expectedDeliveryDate)}</strong>
@@ -417,56 +406,40 @@ export default function OrdersPage() {
         </p>
       )}
 
-      <Panel bodyClassName="p-0">
-        {loading ? (
-          <div className="px-5 py-14 text-center text-sm text-ink-3">Siparişler yükleniyor…</div>
-        ) : error ? (
-          <div className="px-5 py-14 text-center"><p className="font-medium text-ink">Gerçek sipariş verisi alınamadı.</p><p className="mt-1 text-sm text-ink-3">{error}</p></div>
-        ) : filteredRows.length === 0 ? (
-          <div className="px-5 py-14 text-center text-sm text-ink-3"><PackageOpen className="mx-auto mb-2 size-7" />{search ? "Aramaya uygun sipariş veya şube bulunamadı." : "Bu gün için dağıtım kaydı bulunamadı."}</div>
-        ) : (
-          <div className="divide-y divide-hairline">
-            {filteredRows.map((row) => {
-              const meta = statusMeta[row.boardStatus];
-              const totalQuantity = row.order?.lines.reduce((sum, line) => sum + line.quantity, 0) ?? 0;
-              return (
-                <details key={row.legacyMbId} className="group px-5 py-4 open:bg-surface-2/40">
-                  <summary className="grid cursor-pointer list-none gap-4 lg:grid-cols-[1.5fr_1fr_1fr_auto] lg:items-center">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-ink-2"><Building2 className="size-5" /></span>
-                      <div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">{row.customerName}</p><p className="mt-0.5 truncate text-xs text-ink-3">{row.customerCode || "Kod yok"} · {row.departmentName} · MB ID {row.legacyMbId}</p></div>
+      {loading ? <Panel><p className="py-8 text-sm text-ink-3">Siparişler yükleniyor…</p></Panel>
+        : error ? <Panel><p className="py-8 text-sm text-[var(--bad)]">{error}</p></Panel>
+        : <div className="grid gap-4 xl:grid-cols-3">
+          {([
+            { title: "Sipariş Veren", statuses: ["SUBMITTED"] as BoardStatus[] },
+            { title: "Giriş Bekleyen", statuses: ["PENDING"] as BoardStatus[] },
+            { title: "Sipariş Yok", statuses: ["NO_PRODUCT", "CANCELLED"] as BoardStatus[] },
+          ]).map((group) => {
+            const groupRows = filteredRows.filter((row) => group.statuses.includes(row.boardStatus));
+            return <Panel key={group.title} title={`${group.title} (${groupRows.length})`} bodyClassName="p-0">
+              {groupRows.length === 0 ? <p className="px-5 py-10 text-sm text-ink-3">Bu grupta kayıt yok.</p>
+                : <div className="max-h-[65vh] divide-y divide-hairline overflow-y-auto">
+                  {groupRows.map((row) => <details key={row.legacyMbId} className="px-4 py-3">
+                    <summary className="cursor-pointer list-none">
+                      <p className="truncate text-sm font-semibold text-ink">{row.customerName}</p>
+                      <p className="truncate text-xs text-ink-3">{row.customerCode || "Kod yok"} · {row.departmentName} · MB {row.legacyMbId}</p>
+                      <p className="mt-1 text-xs text-ink-2">{row.personnelName || `Personel ${row.legacyPersonnelId}`}{row.order ? ` · ${row.order.lines.length} kalem` : ""}</p>
+                    </summary>
+                    <div className="mt-3 space-y-2 border-t border-hairline pt-3 text-xs text-ink-2">
+                      {row.order?.lines.map((line) => <p key={`${line.uStokId}-${line.aStokId}`}>{line.productName}{line.variantName ? ` · ${line.variantName}` : ""}: <strong>{formatQty(line.quantity)} adet</strong></p>)}
+                      <p>Son değiştiren: {sourceLabels[row.sourceRole ?? ""] ?? "—"}</p>
+                      <p>Son işlem: {row.order ? formatDateTime(row.order.updatedAtUtc) : "—"}</p>
+                      <p>Son aktarım: {row.lastExportedAtUtc ? formatDateTime(row.lastExportedAtUtc) : "Henüz aktarılmadı"}</p>
+                      <p>Entegrasyon: {integrationLabels[row.integrationStatus ?? ""] ?? "—"}</p>
+                      {scope === "submitted" && finalization?.state !== "FINALIZING" &&
+                        <Button size="sm" variant="primary" onClick={() => void openEditor(row)}>{row.order ? "Siparişi düzenle" : "Müşteri adına sipariş gir"}</Button>}
                     </div>
-                    <div><p className="text-xs text-ink-3">Dağıtım personeli</p><p className="mt-1 flex items-center gap-1.5 text-sm text-ink"><Truck className="size-3.5 text-ink-3" />{row.personnelName || `Personel ${row.legacyPersonnelId}`}</p></div>
-                    <div><p className="text-xs text-ink-3">Sipariş</p><p className="mt-1 text-sm text-ink">{row.order ? `${row.order.lines.length} kalem · ${formatQty(totalQuantity)} adet` : "Henüz sipariş yok"}</p>{row.order && <p className="mt-1 text-[11px] text-ink-3">{sourceLabels[row.sourceRole ?? ""] ?? "Bilinmiyor"} · {formatDateTime(row.order.updatedAtUtc)}</p>}</div>
-                    <div className="lg:text-right"><Badge tone={meta.tone} dot>{meta.label}</Badge><p className="mt-1 text-[11px] text-ink-3">{row.lastExportedAtUtc ? `Son aktarım ${formatDateTime(row.lastExportedAtUtc)}` : row.order ? "Henüz aktarılmadı" : "Detay için aç"}</p></div>
-                  </summary>
+                  </details>)}
+                </div>}
+            </Panel>;
+          })}
+        </div>}
 
-                  <div className="mt-4 border-t border-hairline pt-4 lg:ml-[52px]">
-                    {!row.order ? <p className="text-sm text-ink-3">Bu şube dağıtım planında; henüz mobil sipariş veya “ürün istemiyorum” yanıtı bulunmuyor.</p> : (
-                      <div className="space-y-4">
-                        {row.order.lines.length > 0 ? <div className="overflow-hidden rounded-xl ring-1 ring-hairline">
-                          {row.order.lines.map((line) => <div key={`${line.uStokId}-${line.aStokId}`} className="flex items-center justify-between gap-4 border-b border-hairline bg-surface px-4 py-3 last:border-b-0"><div className="min-w-0"><p className="truncate text-sm font-medium text-ink">{line.productName}{line.variantName ? ` · ${line.variantName}` : ""}</p><p className="mt-0.5 text-xs text-ink-3">{line.productCode} · Stok {line.uStokId}{line.aStokId ? `/${line.aStokId}` : ""}</p></div><strong className="shrink-0 text-sm tabular-nums text-ink">{formatQty(line.quantity)} adet</strong></div>)}
-                        </div> : <p className="text-sm text-ink-3">Bu siparişte ürün satırı yok.</p>}
-                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-ink-3">
-                          <span>Revizyon: <strong className="font-medium text-ink-2">{row.order.revision}</strong></span>
-                          <span>Son değiştiren: <strong className="font-medium text-ink-2">{sourceLabels[row.sourceRole ?? ""] ?? row.sourceRole ?? "—"}</strong></span>
-                          <span>Entegrasyon: <strong className="font-medium text-ink-2">{integrationLabels[row.integrationStatus ?? ""] ?? row.integrationStatus ?? "—"}</strong></span>
-                          <span>Son işlem: <strong className="font-medium text-ink-2">{formatDateTime(row.order.updatedAtUtc)}</strong></span>
-                          <span>Son aktarım: <strong className="font-medium text-ink-2">{row.lastExportedAtUtc ? formatDateTime(row.lastExportedAtUtc) : "Henüz aktarılmadı"}</strong></span>
-                        </div>
-                        {row.order.note && <p className="rounded-xl bg-surface px-3 py-2 text-sm text-ink-2 ring-1 ring-hairline"><span className="font-medium text-ink">Not:</span> {row.order.note}</p>}
-                      </div>
-                    )}
-                    {scope === "submitted" && finalization?.state !== "FINALIZING" && <div className="mt-4"><Button size="sm" variant="primary" onClick={() => void openEditor(row)}>{row.order ? <Pencil className="size-3.5" /> : <Plus className="size-3.5" />}{row.order ? "Siparişi düzenle" : "Müşteri adına sipariş gir"}</Button></div>}
-                  </div>
-                </details>
-              );
-            })}
-          </div>
-        )}
-      </Panel>
-
-      {scope === "delivery" && <p className="mt-4 text-center text-xs text-ink-3">Bugün dağıtılacak siparişler kesinleşmiş operasyon listesidir. Yönetici düzenlemesi yalnızca “Bugün Verilen” ekranından yapılır.</p>}
+      {scope === "delivery" && <p className="mt-4 text-center text-xs text-ink-3">Bugün dağıtılacak siparişler kesinleşmiş operasyon listesidir. Yönetici düzenlemesi yalnızca “Bugün Verilen Siparişler” ekranından yapılır.</p>}
 
       <Modal
         open={finalizeOpen}
@@ -517,15 +490,12 @@ export default function OrdersPage() {
                   <div className="mt-2 max-h-[360px] divide-y divide-hairline overflow-y-auto rounded-xl ring-1 ring-hairline">
                     {editContext.products.map((product) => {
                       const key = productKey(product.uStokId, product.aStokId);
-                      return <div key={key} className="grid gap-3 bg-surface px-4 py-3 sm:grid-cols-[1fr_130px] sm:items-center"><div className="min-w-0"><p className="truncate text-sm font-medium text-ink">{product.name}{product.variantName ? ` · ${product.variantName}` : ""}</p><p className="mt-0.5 text-xs text-ink-3">{product.code} · Limit {formatQty(product.maxQuantity)} adet</p></div><NumberInput min={0} max={product.maxQuantity > 0 ? product.maxQuantity : undefined} step={1} value={quantities[key] || ""} placeholder="0" onChange={(event) => setQuantities((current) => ({ ...current, [key]: Math.max(0, Number(event.target.value) || 0) }))} aria-label={`${product.name} miktarı`} /></div>;
+                      return <div key={key} className="grid gap-3 bg-surface px-4 py-3 sm:grid-cols-[1fr_130px] sm:items-center"><div className="min-w-0"><p className="truncate text-sm font-medium text-ink">{product.name}{product.variantName ? ` · ${product.variantName}` : ""}</p><p className="mt-0.5 text-xs text-ink-3">{product.code} · Limit {formatQty(product.maxQuantity)} adet{product.packageSize === 5 ? " · 5'in katları" : ""}</p></div><NumberInput min={0} max={product.maxQuantity > 0 ? product.maxQuantity : undefined} step={product.packageSize || 1} value={quantities[key] || ""} placeholder="0" onChange={(event) => setQuantities((current) => ({ ...current, [key]: Math.max(0, Number(event.target.value) || 0) }))} aria-label={`${product.name} miktarı`} /></div>;
                     })}
                   </div>}
               </div>
             )}
 
-            <Field label="Sipariş notu" hint="En fazla 500 karakter.">
-              <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} rows={3} className="w-full resize-none rounded-[10px] border border-hairline bg-surface-2 px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-3 focus:border-transparent focus:bg-surface focus:outline-none focus:ring-4 focus:ring-[var(--ring)]" placeholder="İsteğe bağlı not" />
-            </Field>
             <p className="text-xs text-ink-3">Yönetici işlemleri son sipariş saatinden bağımsızdır ve denetim kaydına yönetici işlemi olarak yazılır.</p>
             {editError && <p className="rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{editError}</p>}
           </div>

@@ -138,6 +138,8 @@ namespace Yepas.Api.Domain
                     throw new ArgumentException("Ürün müşteriye tanımlı değil veya tekrarlı gönderildi.");
                 if (product.MaxQuantity > 0 && line.Quantity > product.MaxQuantity)
                     throw new ArgumentException("Ürün miktarı müşteri limitini aşıyor.");
+                if (line.Quantity % product.PackageSize != 0)
+                    throw new ArgumentException("5'li paket ürünü yalnızca 5'in katlarıyla sipariş edilebilir.");
                 prepared.Add(new PreparedOrderLine
                 {
                     UStokId = line.UStokId,

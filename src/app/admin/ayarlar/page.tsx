@@ -7,7 +7,7 @@ export default function SettingsRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/admin/musteri-yanitlari");
+    router.replace("/admin");
   }, [router]);
 
   return null;

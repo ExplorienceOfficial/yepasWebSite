@@ -6,37 +6,30 @@ import {
   ClipboardList,
   LayoutGrid,
   LogOut,
-  MessageSquareQuote,
-  Package,
   Truck,
   Users,
   type LucideIcon,
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
-import { useOperations } from "@/context/OperationsContext";
 import { cn, initials } from "@/lib/format";
 
 interface Item {
   href: string;
   label: string;
   icon: LucideIcon;
-  badgeKey?: "pending";
 }
 
 const items: Item[] = [
   { href: "/admin", label: "Kontrol Paneli", icon: LayoutGrid },
-  { href: "/admin/siparisler", label: "Siparişler", icon: ClipboardList, badgeKey: "pending" },
-  { href: "/admin/urunler", label: "Ürünler", icon: Package },
+  { href: "/admin/siparisler", label: "Siparişler", icon: ClipboardList },
   { href: "/admin/musteriler", label: "Müşteriler", icon: Users },
   { href: "/admin/sofor-yonetimi", label: "Şoför Yönetimi", icon: Truck },
-  { href: "/admin/musteri-yanitlari", label: "Müşteri Yanıtları", icon: MessageSquareQuote },
 ];
 
 export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { metrics } = useOperations();
   const { session, logout } = useAuth();
 
   const handleLogout = async () => {
@@ -61,7 +54,6 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
         {items.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
-          const badge = item.badgeKey === "pending" && metrics.pending > 0 ? metrics.pending : null;
           return (
             <Link
               key={item.href}
@@ -74,11 +66,6 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
             >
               <Icon className={cn("size-[19px] shrink-0", active ? "text-ink" : "text-ink-3")} strokeWidth={1.8} />
               <span className="flex-1 truncate">{item.label}</span>
-              {badge != null && (
-                <span className="rounded-full bg-[var(--warn-soft)] px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-[var(--warn)]">
-                  {badge}
-                </span>
-              )}
             </Link>
           );
         })}

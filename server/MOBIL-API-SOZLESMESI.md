@@ -226,12 +226,18 @@ Başarılı cevap — `200 OK`:
       "groupId": 1,
       "aStokId": 52,
       "variantName": "6.4 7 Lİ SANDVİÇ 420 GR",
-      "maxQuantity": 100
+      "maxQuantity": 100,
+      "packageSize": 1
     }
   ],
   "order": null
 }
 ```
+
+`packageSize` ürün veya varyant adında 5'li/5 li ifadesi varsa 5, diğer
+ürünlerde 1 döner. Miktar bu değerin katı olmalıdır; API uygun olmayan
+miktarı `400 INVALID_ORDER` ile reddeder. Bu kural, eski sistemde ayrı
+paket katsayısı kolonu doğrulanana kadar isimden türetilir.
 
 Mevcut sipariş varsa `order`:
 

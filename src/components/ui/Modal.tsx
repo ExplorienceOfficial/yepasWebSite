@@ -38,7 +38,7 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex min-h-screen items-center justify-center overflow-y-auto p-4 sm:p-6 text-left">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 text-left sm:p-6">
       {/* Arka plan buzlu cam blur overlay */}
       <div
         className="yp-fade fixed inset-0 bg-black/10 dark:bg-black/30 backdrop-blur-md transition-all duration-300"
@@ -52,11 +52,11 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "yp-scale-in relative z-10 my-auto w-full overflow-hidden rounded-[22px] bg-surface text-ink shadow-[var(--shadow-lg)] ring-1 ring-hairline",
+          "yp-scale-in relative z-10 flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-[22px] bg-surface text-ink shadow-[var(--shadow-lg)] ring-1 ring-hairline sm:max-h-[calc(100dvh-3rem)]",
           width,
         )}
       >
-        <header className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
+        <header className="flex shrink-0 items-start justify-between gap-4 px-6 pt-5 pb-3">
           <div className="min-w-0">
             <h2 className="text-[17px] font-semibold text-ink">{title}</h2>
             {subtitle && <p className="mt-1 text-[13px] text-ink-2">{subtitle}</p>}
@@ -71,10 +71,10 @@ export function Modal({
           </button>
         </header>
 
-        <div className="px-6 pb-5">{children}</div>
+        <div className="min-h-0 overflow-y-auto px-6 pb-5">{children}</div>
 
         {footer && (
-          <footer className="flex items-center justify-end gap-2.5 border-t border-hairline px-6 py-4">
+          <footer className="flex shrink-0 items-center justify-end gap-2.5 border-t border-hairline px-6 py-4">
             {footer}
           </footer>
         )}

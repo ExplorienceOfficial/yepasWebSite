@@ -20,7 +20,7 @@ namespace Yepas.Api.Data
                 connection.Open();
                 using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
-                    AcquireLock(connection, transaction, DateTime.UtcNow.AddHours(3).Date);
+                    AcquireLock(connection, transaction, order.UpdatedAtUtc.AddHours(3).Date);
                     var receiptId = FindReceipt(connection, transaction, order);
                     if (!receiptId.HasValue)
                     {
@@ -107,7 +107,7 @@ ORDER BY ID", connection, transaction))
         private static int InsertReceipt(SqlConnection connection, SqlTransaction transaction,
             LegacyExportOrder order)
         {
-            var localNow = DateTime.UtcNow.AddHours(3);
+            var localNow = order.UpdatedAtUtc.AddHours(3);
             var next = 1;
             using (var command = new SqlCommand(@"
 SELECT ISNULL(MAX(CASE
@@ -144,7 +144,8 @@ SELECT CAST(SCOPE_IDENTITY() AS INT);", connection, transaction))
 UPDATE D00013.RS_FIS_BILGILERI SET
     DTTARIH=@deliveryDate,PERSONEL_ID=@personnel,MUSTERI_ID=@customer,
     BOLUM_ID=@department,BIREYSEL_ID=0,O_KULLANICI='MOBIL',
-    D_KULLANICI='MOBIL',D_TARIHI=@modified,ST=1,SNG_1=NULL,SNG_2=NULL,SNG_3=NULL
+    O_TARIHI=@orderUpdated,D_KULLANICI='MOBIL',D_TARIHI=@modified,
+    ST=1,SNG_1=NULL,SNG_2=NULL,SNG_3=NULL
 WHERE ID=@id
   AND O_KULLANICI='MOBIL' AND FIS_NO LIKE 'U-%'
   AND DTTARIH=@deliveryDate
@@ -154,6 +155,8 @@ WHERE ID=@id
                 command.Parameters.Add("@id", SqlDbType.Int).Value = receiptId;
                 command.Parameters.Add("@modified", SqlDbType.SmallDateTime).Value =
                     DateTime.UtcNow.AddHours(3);
+                command.Parameters.Add("@orderUpdated", SqlDbType.SmallDateTime).Value =
+                    order.UpdatedAtUtc.AddHours(3);
                 if (command.ExecuteNonQuery() != 1)
                     throw new InvalidOperationException("Eski sistem fişi güncellenemedi.");
             }

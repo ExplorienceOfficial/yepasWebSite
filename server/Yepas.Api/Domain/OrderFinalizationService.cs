@@ -18,7 +18,21 @@ namespace Yepas.Api.Domain
             var current = finalizations.Read(deliveryDate);
             if (current == null && OrderWindowPolicy.IsGloballyOpen(settings, databaseUtcNow))
                 throw new OrderStillOpenException();
+            return Export(userId, deliveryDate);
+        }
 
+        public OrderFinalizationView FinalizeDaily()
+        {
+            DateTime databaseUtcNow;
+            orders.ReadSettings(out databaseUtcNow);
+            var localNow = databaseUtcNow.AddHours(3);
+            if (localNow.TimeOfDay < TimeSpan.FromMinutes(1))
+                throw new InvalidOperationException("Günlük aktarım 00:01 öncesinde çalıştırılamaz.");
+            return Export(null, localNow.Date);
+        }
+
+        private OrderFinalizationView Export(int? userId, DateTime deliveryDate)
+        {
             bool shouldExport;
             var finalization = finalizations.Begin(userId, deliveryDate, out shouldExport);
             if (!shouldExport) return finalization;

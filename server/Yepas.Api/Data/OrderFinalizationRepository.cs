@@ -16,6 +16,7 @@ namespace Yepas.Api.Data
         public int LegacyPersonnelId { get; set; }
         public int? LegacyReceiptId { get; set; }
         public DateTime DeliveryDate { get; set; }
+        public DateTime UpdatedAtUtc { get; set; }
         public string Status { get; set; }
         public IList<OrderLineView> Lines { get; set; }
     }
@@ -36,7 +37,7 @@ FROM dbo.OrderFinalizations WHERE DeliveryDate = @deliveryDate", connection))
             }
         }
 
-        public OrderFinalizationView Begin(int userId, DateTime deliveryDate, out bool shouldExport)
+        public OrderFinalizationView Begin(int? userId, DateTime deliveryDate, out bool shouldExport)
         {
             shouldExport = false;
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
@@ -104,7 +105,8 @@ VALUES (@deliveryDate, N'FINALIZING', @orders, @lines, @quantity, @userId)", con
                         insert.Parameters.Add("@orders", SqlDbType.Int).Value = orderCount;
                         insert.Parameters.Add("@lines", SqlDbType.Int).Value = lineCount;
                         insert.Parameters.Add("@quantity", SqlDbType.Int).Value = totalQuantity;
-                        insert.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                        insert.Parameters.Add("@userId", SqlDbType.Int).Value =
+                            userId.HasValue ? (object)userId.Value : DBNull.Value;
                         insert.ExecuteNonQuery();
                     }
                     transaction.Commit();
@@ -121,7 +123,7 @@ VALUES (@deliveryDate, N'FINALIZING', @orders, @lines, @quantity, @userId)", con
             using (var command = new SqlCommand(@"
 SELECT O.OrderId, O.Revision, O.LegacyMbId, O.LegacyCustomerId,
        O.LegacyDepartmentId, O.LegacyPersonnelId, O.LegacyReceiptId,
-       O.DeliveryDate, O.Status, L.UStokId, L.AStokId, L.Quantity,
+       O.DeliveryDate, O.Status, O.UpdatedAtUtc, L.UStokId, L.AStokId, L.Quantity,
        L.ProductCode, L.ProductName, L.VariantName
 FROM dbo.Orders O
 LEFT JOIN dbo.OrderLines L ON L.OrderId=O.OrderId
@@ -143,14 +145,15 @@ ORDER BY O.OrderId,L.OrderLineId", connection))
                                 LegacyPersonnelId=reader.GetInt32(5),
                                 LegacyReceiptId=reader.IsDBNull(6) ? (int?)null : reader.GetInt32(6),
                                 DeliveryDate=reader.GetDateTime(7), Status=reader.GetString(8),
+                                UpdatedAtUtc=reader.GetDateTime(9),
                                 Lines=new List<OrderLineView>()
                             };
                             orders.Add(orderId, order);
                         }
-                        if (!reader.IsDBNull(9)) order.Lines.Add(new OrderLineView {
-                            UStokId=reader.GetInt32(9), AStokId=reader.GetInt32(10), Quantity=reader.GetInt32(11),
-                            ProductCode=reader.GetString(12), ProductName=reader.GetString(13),
-                            VariantName=reader.IsDBNull(14) ? null : reader.GetString(14)
+                        if (!reader.IsDBNull(10)) order.Lines.Add(new OrderLineView {
+                            UStokId=reader.GetInt32(10), AStokId=reader.GetInt32(11), Quantity=reader.GetInt32(12),
+                            ProductCode=reader.GetString(13), ProductName=reader.GetString(14),
+                            VariantName=reader.IsDBNull(15) ? null : reader.GetString(15)
                         });
                     }
             }
