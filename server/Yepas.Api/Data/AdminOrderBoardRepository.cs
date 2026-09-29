@@ -116,7 +116,7 @@ namespace Yepas.Api.Data
         {
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
             using (var command = new SqlCommand(@"
-SELECT ISNULL(SUM(CASE WHEN IntegrationStatus=N'PENDING' THEN 1 ELSE 0 END),0),
+SELECT ISNULL(SUM(CASE WHEN IntegrationStatus IN (N'PENDING',N'FAILED') THEN 1 ELSE 0 END),0),
        MAX(LastExportedAtUtc), GETUTCDATE()
 FROM dbo.Orders", connection))
             {

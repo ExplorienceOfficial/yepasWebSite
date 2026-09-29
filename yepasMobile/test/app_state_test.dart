@@ -9,14 +9,20 @@ class FakeApiClient extends ApiClient {
   bool passwordChangeRequired = false;
   bool systemOpen = true;
   bool statusFails = false;
+  int revision = 0;
+  String status = 'SUBMITTED';
+  List<Map<String, dynamic>> savedLines = [];
+  int? savedMbId;
 
   @override
   bool get isAuthenticated => authenticated;
 
   @override
   Future<SystemStatus> systemStatus() async {
-    if (statusFails) throw const ApiException(503, 'Sistem durumuna erişilemiyor.');
-    return SystemStatus(isOpen: systemOpen, cutoffTime: '17:30', cutoffMinute: 1050);
+    if (statusFails)
+      throw const ApiException(503, 'Sistem durumuna erişilemiyor.');
+    return SystemStatus(
+        isOpen: systemOpen, cutoffTime: '17:30', cutoffMinute: 1050);
   }
 
   @override
@@ -56,7 +62,52 @@ class FakeApiClient extends ApiClient {
       ];
 
   @override
-  Future<void> changePassword(String currentPassword, String newPassword) async {
+  Future<Map<String, dynamic>> orderContext(int legacyMbId) async => {
+        'deliveryDate': '2026-09-30T00:00:00',
+        'window': {'isOpen': true},
+        'products': [
+          {
+            'uStokId': 75,
+            'aStokId': 0,
+            'groupId': 1,
+            'name': '5 Lİ EKMEK',
+            'code': 'E75',
+            'maxQuantity': 100,
+            'packageSize': 5
+          },
+        ],
+        'order': revision == 0
+            ? null
+            : {
+                'revision': revision,
+                'status': status,
+                'updatedAtUtc': '2026-09-29T17:00:00Z',
+                'lines': savedLines,
+              },
+      };
+
+  @override
+  Future<Map<String, dynamic>> saveOrder(
+      int legacyMbId, Map<String, dynamic> body) async {
+    if (body['revision'] != revision) {
+      throw const ApiException(
+          409, 'Sipariş güncellendi; son halini yenileyin.');
+    }
+    savedMbId = legacyMbId;
+    revision++;
+    status = body['status'] as String;
+    savedLines = (body['lines'] as List).cast<Map<String, dynamic>>();
+    return {
+      'revision': revision,
+      'status': status,
+      'updatedAtUtc': '2026-09-29T17:00:00Z',
+      'lines': savedLines,
+    };
+  }
+
+  @override
+  Future<void> changePassword(
+      String currentPassword, String newPassword) async {
     passwordChangeRequired = false;
   }
 
@@ -85,7 +136,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final app = AppState(apiClient: FakeApiClient());
     await app.loadPersisted();
-    expect(await app.login('musteri', 'wrong'), 'Kullanıcı adı veya parola hatalı.');
+    expect(await app.login('musteri', 'wrong'),
+        'Kullanıcı adı veya parola hatalı.');
     expect(app.currentCustomerId, isNull);
   });
 
@@ -97,7 +149,8 @@ void main() {
     expect(await app.login('musteri', 'correct-password'), isNull);
     expect(app.mustChangePassword, isTrue);
     expect(app.sessionBranches, isEmpty);
-    expect(await app.changePassword('correct-password', 'new-password-123'), isNull);
+    expect(await app.changePassword('correct-password', 'new-password-123'),
+        isNull);
     expect(app.mustChangePassword, isFalse);
     expect(app.sessionBranches.length, 2);
   });
@@ -114,18 +167,23 @@ void main() {
     expect(app.sessionBranches, isEmpty);
   });
 
-  test('hesap bilgilerini kaydet seçilince parola da saklanır', () async {
+  test('hatırla seçilince kullanıcı adı saklanır, parola saklanmaz', () async {
     SharedPreferences.setMockInitialValues({});
     final app = AppState(apiClient: FakeApiClient());
     await app.loadPersisted();
-    expect(await app.login('musteri', 'correct-password', remember: true), isNull);
+    expect(
+        await app.login('musteri', 'correct-password', remember: true), isNull);
 
     // Yeni oturum kayıtlı bilgileri geri okur.
     final next = AppState(apiClient: FakeApiClient());
     await next.loadPersisted();
     expect(next.rememberCredentials, isTrue);
     expect(next.rememberedLoginName, 'musteri');
-    expect(next.rememberedPassword, 'correct-password');
+    expect(next.rememberedPassword, isNull);
+    expect(
+        SharedPreferences.getInstance()
+            .then((p) => p.getString('yepas.rememberedPassword')),
+        completion(isNull));
   });
 
   test('kaydetme kapalıyken parola saklanmaz', () async {
@@ -137,7 +195,7 @@ void main() {
     final next = AppState(apiClient: FakeApiClient());
     await next.loadPersisted();
     expect(next.rememberCredentials, isFalse);
-    expect(next.rememberedLoginName, 'musteri');
+    expect(next.rememberedLoginName, isNull);
     expect(next.rememberedPassword, isNull);
   });
 
@@ -154,14 +212,14 @@ void main() {
     expect(next.rememberedPassword, isNull);
   });
 
-  test('parola değişince kayıtlı parola da güncellenir', () async {
+  test('parola değişince parola diske yazılmaz', () async {
     SharedPreferences.setMockInitialValues({});
     final api = FakeApiClient()..passwordChangeRequired = true;
     final app = AppState(apiClient: api);
     await app.loadPersisted();
     await app.login('musteri', 'correct-password', remember: true);
     await app.changePassword('correct-password', '123456789012');
-    expect(app.rememberedPassword, '123456789012');
+    expect(app.rememberedPassword, isNull);
   });
 
   test('sistem durumu sunucudan okunur', () async {
@@ -207,9 +265,24 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final app = AppState(apiClient: FakeApiClient());
     await app.loadPersisted();
-    // Tohum katalogda 5'li ürün yok; tekil ürünlerde sınır değişmez.
-    expect(app.maxQtyFor('p01'), 600);
-    expect(app.packageSizeFor('p01'), 1);
+    await app.login('musteri', 'correct-password');
+    expect(app.maxQtyFor('75:0'), 100);
+    expect(app.packageSizeFor('75:0'), 5);
+  });
+
+  test('sipariş ve ürün istemiyorum gerçek API yöntemini kullanır', () async {
+    SharedPreferences.setMockInitialValues({});
+    final api = FakeApiClient();
+    final app = AppState(apiClient: api);
+    await app.loadPersisted();
+    await app.login('musteri', 'correct-password');
+    expect(await app.submitOrder('101', {'75:0': 10}), isNull);
+    expect(api.savedMbId, 101);
+    expect(api.savedLines.single['quantity'], 10);
+    expect(app.orderFor('101')?.units, 10);
+    expect(await app.declineOrder('101'), isNull);
+    expect(api.revision, 2);
+    expect(api.savedLines, isEmpty);
   });
 
   test('kesim saatine kalan süre hesaplanır', () async {

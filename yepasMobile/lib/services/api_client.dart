@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 const String kApiBaseUrl = String.fromEnvironment(
   'YEPAS_API_BASE_URL',
@@ -20,7 +21,8 @@ class LoginSession {
   final String loginName;
   final bool mustChangePassword;
 
-  const LoginSession({required this.loginName, required this.mustChangePassword});
+  const LoginSession(
+      {required this.loginName, required this.mustChangePassword});
 }
 
 /// Giriş öncesi okunan sistem durumu.
@@ -82,11 +84,41 @@ class ApiClient {
 
   Future<List<Map<String, dynamic>>> branches() async {
     final response = await _request('GET', '/api/v1/customer/branches');
-    if (response is! List) throw const ApiException(500, 'Şube yanıtı geçersiz.');
+    if (response is! List)
+      throw const ApiException(500, 'Şube yanıtı geçersiz.');
     return response.cast<Map<String, dynamic>>();
   }
 
-  Future<void> changePassword(String currentPassword, String newPassword) async {
+  Future<Map<String, dynamic>> orderContext(int legacyMbId) async {
+    final response =
+        await _request('GET', '/api/v1/customer/branches/$legacyMbId/order');
+    if (response is! Map<String, dynamic>) {
+      throw const ApiException(500, 'Sipariş yanıtı geçersiz.');
+    }
+    return response;
+  }
+
+  Future<Map<String, dynamic>> saveOrder(
+      int legacyMbId, Map<String, dynamic> body) async {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex =
+        bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    final key = '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+    final response = await _request(
+        'PUT', '/api/v1/customer/branches/$legacyMbId/order',
+        body: body, idempotencyKey: key);
+    if (response is! Map<String, dynamic>) {
+      throw const ApiException(500, 'Sipariş kayıt yanıtı geçersiz.');
+    }
+    return response;
+  }
+
+  Future<void> changePassword(
+      String currentPassword, String newPassword) async {
     await _request(
       'POST',
       '/api/v1/auth/change-password',
@@ -112,10 +144,13 @@ class ApiClient {
     Map<String, dynamic>? body,
     bool authenticated = true,
     bool allowEmpty = false,
+    String? idempotencyKey,
   }) async {
     final request = await _http.openUrl(method, Uri.parse('$kApiBaseUrl$path'));
     request.headers.set('Accept', 'application/json');
     request.headers.set('X-Yepas-Client', 'mobile-v1');
+    if (idempotencyKey != null)
+      request.headers.set('Idempotency-Key', idempotencyKey);
     if (authenticated) {
       final token = _accessToken;
       if (token == null) throw const ApiException(401, 'Oturum bulunamadı.');

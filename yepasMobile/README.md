@@ -19,10 +19,8 @@ veri modeli ve sipariş kurallarıyla uyumludur.
   bağlanan `MB_ID` şubeleri yüklenir ve şubeler arasında parola girmeden geçilir.
 - **Oturum güvenliği.** Erişim anahtarı diske yazılmaz. Uygulama kapatılırsa veya
   30 dakikadan uzun süre arka planda kalırsa yeniden giriş gerekir.
-- **Hesap bilgilerimi kaydet.** İşaretlenirse kullanıcı adı **ve parola** bu cihazda
-  saklanır ve giriş ekranı ikisini de doldurur. İşaret kaldırılınca kayıtlı parola
-  hemen silinir. Parola `shared_preferences` içinde düz metin tutulduğu için bu
-  seçenek yalnızca kişiye ait cihazlarda kullanılmalıdır.
+- **Kullanıcı adımı hatırla.** Yalnızca kullanıcı adı saklanır. Parola hiçbir
+  zaman diske yazılmaz; eski sürümün düz metin parola kaydı açılışta silinir.
 - **Yarının siparişi**: durum (verildi / bekliyor / istenmedi), toplam adet, çeşit sayısı.
 - **Kalan süre**: kesim saatine 3 saatten az kaldığında "Yarın teslim edilecek
   sipariş için X dk kaldı" yazısı görünür ve dakikası dakikasına güncellenir.
@@ -30,19 +28,19 @@ veri modeli ve sipariş kurallarıyla uyumludur.
   Ürün adları kısaltılmaz; uzun adlar alt satıra sarılır.
 - **5'li paket ürünler**: adet sayacı 5'er 5'er ilerler, elle girilen değer en yakın
   5'in katına yuvarlanır (3 adet girilemez) ve üst sınır da 5'in katına inilir.
-- **Sipariş kuralı**: admin ayarına göre üst sınır (`Sabit limit` veya `Geçmiş ortalama`).
+- **Sipariş limiti**: müşteriye tanımlanan ürünün sunucudan gelen üst sınırı.
 - **Yarın ürün istemiyorum**: siparişi kapatma. Kapatıldığında ana ekranda
   "Alındı · Sipariş istenmedi" kutusu görünür.
 - **Sipariş sistemi kapalı** durumunda giriş ekranı `GET /api/v1/system/status`
   yanıtına göre "Giriş yap" düğmesini kaldırıp **"Sistem kapalı"** yazar. Durum
   sunucudan okunamazsa ekran normal açılır (kapalı varsayılmaz).
-- **Bugünkü teslimat**: kesinleşmiş sipariş (salt-okunur).
+- **Bugünkü teslimat** ekranı, gerçek veri ucu henüz bağlanmadığı için ana
+  ekrandan kaldırılmıştır; örnek teslimat gösterilmez.
 
 ## Mimari
 
 State için Flutter'ın kendi `ChangeNotifier` + `InheritedNotifier`'ı kullanılır.
-`shared_preferences` son kullanıcı adını, "hesap bilgilerimi kaydet" seçimini ve
-—yalnız bu seçim açıkken— parolayı tutar. Erişim anahtarı (bearer token) hiçbir
+`shared_preferences` yalnız hatırlanan kullanıcı adını ve seçimini tutar; parolayı tutmaz. Erişim anahtarı (bearer token) hiçbir
 zaman diske yazılmaz.
 
 ```
@@ -58,8 +56,8 @@ assets/
   logo.png, urunler/*.jpg (web projesinden kopyalandı)
 ```
 
-> Giriş, parola değişimi ve şube listesi gerçek API'ye bağlıdır. Ürün kataloğu ve
-> sipariş ekranı, müşterinin ürün-atama tablosu gelene kadar tohum veride kalır.
+> Giriş, parola değişimi, şube listesi, müşteriye tanımlı ürünler ve sipariş
+> oluşturma/güncelleme/ürün istemiyorum işlemleri gerçek API'ye bağlıdır.
 
 ## Çalıştırma
 

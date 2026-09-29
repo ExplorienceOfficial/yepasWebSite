@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../data/seed_data.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -18,19 +17,27 @@ class OrderScreen extends StatefulWidget {
 class _OrderScreenState extends State<OrderScreen> {
   final Map<String, int> _draft = {};
   bool _loaded = false;
+  bool _saving = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_loaded) return;
     final app = AppScope.of(context);
-    final order = app.orderFor(app.currentCustomerId!);
-    if (order != null) {
-      for (final line in order.lines) {
-        _draft[line.productId] = line.qty;
-      }
-    }
     _loaded = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await app.refreshOrderContext();
+      if (!mounted) return;
+      final order = app.orderFor(app.currentCustomerId!);
+      setState(() {
+        _draft.clear();
+        if (order != null) {
+          for (final line in order.lines) {
+            _draft[line.productId] = line.qty;
+          }
+        }
+      });
+    });
   }
 
   int get _totalUnits => _draft.values.fold(0, (s, v) => s + v);
@@ -50,7 +57,8 @@ class _OrderScreenState extends State<OrderScreen> {
     final app = AppScope.of(context);
     final max = app.maxQtyFor(p.id);
     final package = p.packageSize;
-    final controller = TextEditingController(text: (_draft[p.id] ?? '').toString());
+    final controller =
+        TextEditingController(text: (_draft[p.id] ?? '').toString());
     final result = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -61,8 +69,10 @@ class _OrderScreenState extends State<OrderScreen> {
           children: [
             Text(
               package > 1
-                  ? 'En fazla ${formatQty(max)} adet · yalnızca $package\'in katları'
-                  : 'En fazla ${formatQty(max)} adet',
+                  ? '${p.maxOrderLimit > 0 ? 'En fazla ${formatQty(max)} adet · ' : ''}yalnızca $package\'in katları'
+                  : p.maxOrderLimit > 0
+                      ? 'En fazla ${formatQty(max)} adet'
+                      : 'Adet girin',
               style: const TextStyle(fontSize: 13, color: YpColors.ink2),
             ),
             const SizedBox(height: 12),
@@ -73,17 +83,20 @@ class _OrderScreenState extends State<OrderScreen> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 suffixText: 'adet',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onSubmitted: (v) => Navigator.pop(ctx, int.tryParse(v) ?? 0),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
           FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(64, 42)),
-            onPressed: () => Navigator.pop(ctx, int.tryParse(controller.text) ?? 0),
+            onPressed: () =>
+                Navigator.pop(ctx, int.tryParse(controller.text) ?? 0),
             child: const Text('Uygula'),
           ),
         ],
@@ -95,13 +108,15 @@ class _OrderScreenState extends State<OrderScreen> {
     _setQty(p.id, applied);
     if (mounted && package > 1 && applied != result) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(
-            '${p.name} $package\'li paket satılır; adet ${formatQty(applied)} olarak ayarlandı.')),
+        SnackBar(
+            content: Text(
+                '${p.name} $package\'li paket satılır; adet ${formatQty(applied)} olarak ayarlandı.')),
       );
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_saving) return;
     final app = AppScope.of(context);
     if (_totalUnits == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -109,17 +124,33 @@ class _OrderScreenState extends State<OrderScreen> {
       );
       return;
     }
-    app.submitOrder(app.currentCustomerId!, Map.of(_draft));
+    setState(() => _saving = true);
+    final error = await app.submitOrder(app.currentCustomerId!, Map.of(_draft));
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (error != null) {
+      // Çakışma veya belirsiz ağ yanıtında eski taslağı sessizce yeniden göndermeyiz.
+      final latest = app.orderFor(app.currentCustomerId!);
+      setState(() {
+        _draft.clear();
+        for (final line in latest?.lines ?? const <OrderLine>[]) {
+          _draft[line.productId] = line.qty;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error Güncel sipariş yüklendi.')));
+      return;
+    }
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Sipariş kaydedildi · ${formatQty(_totalUnits)} adet')),
+      SnackBar(
+          content: Text('Sipariş kaydedildi · ${formatQty(_totalUnits)} adet')),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
-    final ruleLabel = app.orderRule == OrderRule.average ? 'Geçmiş ortalama' : 'Sabit limit';
 
     return Scaffold(
       appBar: AppBar(
@@ -130,50 +161,77 @@ class _OrderScreenState extends State<OrderScreen> {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
             child: Row(
               children: [
-                const Icon(Icons.local_shipping_outlined, size: 15, color: YpColors.ink3),
+                const Icon(Icons.local_shipping_outlined,
+                    size: 15, color: YpColors.ink3),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text('Teslimat: $kOrderDate',
-                      style: const TextStyle(fontSize: 12.5, color: YpColors.ink2, fontWeight: FontWeight.w500)),
+                  child: Text(
+                      'Teslimat: ${app.deliveryDate?.split('T').first ?? '—'}',
+                      style: const TextStyle(
+                          fontSize: 12.5,
+                          color: YpColors.ink2,
+                          fontWeight: FontWeight.w500)),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: YpColors.surface3, borderRadius: BorderRadius.circular(999)),
-                  child: Text('Üst sınır: $ruleLabel',
-                      style: const TextStyle(fontSize: 11.5, color: YpColors.ink2, fontWeight: FontWeight.w600)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                      color: YpColors.surface3,
+                      borderRadius: BorderRadius.circular(999)),
+                  child: const Text('Ürün limitleri sunucudan',
+                      style: const TextStyle(
+                          fontSize: 11.5,
+                          color: YpColors.ink2,
+                          fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
           ),
         ),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-        itemCount: app.categories.length,
-        itemBuilder: (context, index) {
-          final cat = app.categories[index];
-          final items = app.productsInCategory(cat.id);
-          return _CategorySection(
-            category: cat,
-            children: [
-              for (final p in items)
-                _ProductRow(
-                  product: p,
-                  qty: _draft[p.id] ?? 0,
-                  max: app.maxQtyFor(p.id),
-                  onChanged: (v) => _setQty(p.id, v),
-                  onTapValue: () => _editExact(p),
-                  step: p.packageSize > 1 ? p.packageSize : 10,
-                ),
-            ],
-          );
-        },
-      ),
-      bottomNavigationBar: _SaveBar(
-        totalUnits: _totalUnits,
-        lineCount: _lineCount,
-        onSave: _save,
-      ),
+      body: app.orderContextLoading
+          ? const Center(child: CircularProgressIndicator())
+          : app.orderContextError != null
+              ? Center(child: Text(app.orderContextError!))
+              : !app.orderWindowOpen
+                  ? const Center(
+                      child: Text('Bu şube için sipariş penceresi kapalı.'))
+                  : app.products.isEmpty
+                      ? const Center(
+                          child: Text('Bu şubeye tanımlı ürün bulunmuyor.'))
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                          itemCount: app.categories.length,
+                          itemBuilder: (context, index) {
+                            final cat = app.categories[index];
+                            final items = app.productsInCategory(cat.id);
+                            return _CategorySection(
+                              category: cat,
+                              children: [
+                                for (final p in items)
+                                  _ProductRow(
+                                    product: p,
+                                    qty: _draft[p.id] ?? 0,
+                                    max: app.maxQtyFor(p.id),
+                                    onChanged: (v) => _setQty(p.id, v),
+                                    onTapValue: () => _editExact(p),
+                                    step:
+                                        p.packageSize > 1 ? p.packageSize : 10,
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+      bottomNavigationBar: !app.orderContextLoading &&
+              app.orderContextError == null &&
+              app.orderWindowOpen &&
+              app.products.isNotEmpty
+          ? _SaveBar(
+              totalUnits: _totalUnits,
+              lineCount: _lineCount,
+              onSave: _saving ? null : () => _save(),
+            )
+          : null,
     );
   }
 }
@@ -196,8 +254,12 @@ class _CategorySection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(category.name,
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
-              Text(category.line, style: const TextStyle(fontSize: 12, color: YpColors.ink3)),
+                  style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.3)),
+              Text(category.line,
+                  style: const TextStyle(fontSize: 12, color: YpColors.ink3)),
             ],
           ),
         ),
@@ -255,7 +317,8 @@ class _ProductRow extends StatelessWidget {
                 width: 52,
                 height: 52,
                 color: YpColors.surface3,
-                child: const Icon(Icons.bakery_dining_rounded, color: YpColors.ink3),
+                child: const Icon(Icons.bakery_dining_rounded,
+                    color: YpColors.ink3),
               ),
             ),
           ),
@@ -273,9 +336,7 @@ class _ProductRow extends StatelessWidget {
                         color: selected ? YpColors.ink : YpColors.ink)),
                 const SizedBox(height: 2),
                 Text(
-                    product.packageSize > 1
-                        ? '${product.code} · ${product.packageSize}\'li paket · en fazla ${formatQty(max)}'
-                        : '${product.code} · en fazla ${formatQty(max)}',
+                    '${product.code}${product.packageSize > 1 ? ' · ${product.packageSize}\'li paket' : ''}${product.maxOrderLimit > 0 ? ' · en fazla ${formatQty(max)}' : ''}',
                     style: const TextStyle(fontSize: 12, color: YpColors.ink3)),
               ],
             ),
@@ -299,9 +360,12 @@ class _ProductRow extends StatelessWidget {
 class _SaveBar extends StatelessWidget {
   final int totalUnits;
   final int lineCount;
-  final VoidCallback onSave;
+  final VoidCallback? onSave;
 
-  const _SaveBar({required this.totalUnits, required this.lineCount, required this.onSave});
+  const _SaveBar(
+      {required this.totalUnits,
+      required this.lineCount,
+      required this.onSave});
 
   @override
   Widget build(BuildContext context) {
@@ -321,9 +385,13 @@ class _SaveBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('${formatQty(totalUnits)} adet',
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                      style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5)),
                   Text('$lineCount çeşit ürün',
-                      style: const TextStyle(fontSize: 12.5, color: YpColors.ink2)),
+                      style: const TextStyle(
+                          fontSize: 12.5, color: YpColors.ink2)),
                 ],
               ),
               const SizedBox(width: 16),

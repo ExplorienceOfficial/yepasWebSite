@@ -40,10 +40,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _userController.text = remembered;
     }
     _remember = app.rememberCredentials;
-    final savedPassword = app.rememberedPassword;
-    if (_remember && savedPassword != null && _passwordController.text.isEmpty) {
-      _passwordController.text = savedPassword;
-    }
     _prefilled = true;
   }
 
@@ -110,7 +106,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(22),
                         border: Border.all(color: YpColors.hairline),
                       ),
-                      child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+                      child:
+                          Image.asset('assets/logo.png', fit: BoxFit.contain),
                     ),
                   ),
                   const SizedBox(height: 22),
@@ -129,7 +126,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 28),
                   const Text('Kullanıcı adı',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   TextField(
                     key: const Key('username'),
@@ -144,15 +142,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text('Parola',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   TextField(
                     key: const Key('password'),
                     controller: _passwordController,
                     obscureText: _obscure,
                     enabled: !systemClosed,
-                    // Parolalar rakamlardan oluştuğu için sayısal tuş takımı açılır.
-                    keyboardType: TextInputType.numberWithOptions(signed: false, decimal: false),
+                    keyboardType: TextInputType.visiblePassword,
                     smartDashesType: SmartDashesType.disabled,
                     smartQuotesType: SmartQuotesType.disabled,
                     textInputAction: TextInputAction.go,
@@ -164,7 +162,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       suffixIcon: IconButton(
                         onPressed: () => setState(() => _obscure = !_obscure),
                         icon: Icon(
-                          _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          _obscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
                           color: YpColors.ink3,
                         ),
                       ),
@@ -181,15 +181,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             setState(() => _remember = remember);
                             if (!remember) {
                               await AppScope.of(context).forgetSavedPassword();
-                              if (mounted) _passwordController.clear();
                             }
                           },
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('Hesap bilgilerimi kaydet',
+                    title: const Text('Kullanıcı adımı hatırla',
                         style: TextStyle(fontSize: 14)),
-                    subtitle: const Text('Kullanıcı adı ve parola bu cihazda saklanır.',
+                    subtitle: const Text('Parola bu cihazda saklanmaz.',
                         style: TextStyle(fontSize: 12, color: YpColors.ink3)),
                   ),
                   if (_error != null) ...[
@@ -200,7 +199,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   if (systemClosed)
                     Container(
                       key: const Key('system-closed'),
-                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 16, horizontal: 18),
                       decoration: BoxDecoration(
                         color: YpColors.badSoft,
                         borderRadius: BorderRadius.circular(14),
@@ -208,7 +208,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.lock_outline_rounded, color: YpColors.bad, size: 20),
+                          Icon(Icons.lock_outline_rounded,
+                              color: YpColors.bad, size: 20),
                           SizedBox(width: 10),
                           Text('Sistem kapalı',
                               style: TextStyle(
@@ -235,7 +236,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ? 'Sipariş alımı açıldığında giriş yapabilirsiniz.'
                         : 'Şubeleriniz girişten sonra sunucudan güvenli olarak yüklenir.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12.5, color: YpColors.ink3),
+                    style:
+                        const TextStyle(fontSize: 12.5, color: YpColors.ink3),
                   ),
                 ],
               ),

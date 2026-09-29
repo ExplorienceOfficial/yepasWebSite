@@ -303,7 +303,7 @@ export default function OrdersPage() {
 
   const finalization = board?.finalization ?? null;
   const pendingSyncCount = useMemo(() => (board?.rows ?? []).filter((row) =>
-    row.integrationStatus === "PENDING").length, [board]);
+    row.integrationStatus === "PENDING" || row.integrationStatus === "FAILED").length, [board]);
   const hasPendingSync = pendingSyncCount > 0;
   const isSynchronized = finalization?.state === "FINALIZED" && !hasPendingSync;
 
