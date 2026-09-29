@@ -64,6 +64,9 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         const body = await response.json().catch(() => null) as { message?: string } | null;
         throw new Error(body?.message || "Siparişler aktarılamadı.");
       }
+      const result = await response.json() as { state: string };
+      if (result.state !== "FINALIZED")
+        throw new Error("Aktarım henüz tamamlanmadı; durumu birazdan tekrar kontrol edin.");
       window.dispatchEvent(new Event("yepas:order-sync-changed"));
     } catch (cause) { setSyncError(cause instanceof Error ? cause.message : "Siparişler aktarılamadı."); }
     finally { setSyncing(false); }
