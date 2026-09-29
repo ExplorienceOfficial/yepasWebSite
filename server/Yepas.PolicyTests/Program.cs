@@ -64,9 +64,11 @@ namespace Yepas.PolicyTests
 
             TestOrderSubmission();
             TestExportDates();
+            TestDriverLoginNames();
 
             if (failures != 0) Environment.Exit(1);
-            Console.WriteLine("11 sipariş penceresi, 4 paket, 11 sipariş doğrulama ve 4 aktarım tarihi testi başarılı.");
+            Console.WriteLine("11 sipariş penceresi, 4 paket, 11 sipariş doğrulama, " +
+                "4 aktarım tarihi ve 5 şoför kullanıcı adı testi başarılı.");
         }
 
         private static void TestOrderSubmission()
@@ -110,6 +112,22 @@ namespace Yepas.PolicyTests
                 OrderExportPolicy.DailyDeliveryDate(new DateTime(2026, 9, 28, 21, 0, 0, DateTimeKind.Utc));
                 Check("00:01 öncesi reddedilir", false);
             } catch (InvalidOperationException) { Check("00:01 öncesi reddedilir", true); }
+        }
+
+        private static void TestDriverLoginNames()
+        {
+            // Personel kodu varsa kullanıcı adı odur; yok veya tek karakterse
+            // şoför kimliğinden üretilir, böylece hesap açılabilir.
+            Check("personel kodu kullanılır",
+                DriverAccountPolicy.LoginNameFor(31, "SFR-01") == "SFR-01");
+            Check("boşluklar kırpılır",
+                DriverAccountPolicy.LoginNameFor(31, "  SFR-02  ") == "SFR-02");
+            Check("boş kod şoför kimliğinden üretilir",
+                DriverAccountPolicy.LoginNameFor(31, "   ") == "SFR-31");
+            Check("null kod şoför kimliğinden üretilir",
+                DriverAccountPolicy.LoginNameFor(42, null) == "SFR-42");
+            Check("tek karakterli kod reddedilir",
+                DriverAccountPolicy.LoginNameFor(7, "A") == "SFR-7");
         }
 
         private static IList<OrderLineInput> Lines(int product, int variant, int quantity)

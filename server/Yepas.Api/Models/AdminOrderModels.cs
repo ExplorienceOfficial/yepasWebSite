@@ -28,6 +28,12 @@ namespace Yepas.Api.Models
         public DateTime GeneratedAtUtc { get; set; }
         public IList<AdminOrderRowView> Rows { get; set; }
         public OrderFinalizationView Finalization { get; set; }
+
+        /// <summary>
+        /// Erişilemeyen kaynaklar. Bir tablo bozulduğunda ekran çökmez; eksik
+        /// bölüm bu uyarılarla bildirilir ve kalan veriler gösterilir.
+        /// </summary>
+        public IList<string> Warnings { get; set; }
     }
 
     public sealed class OrderFinalizationView

@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Security.Cryptography;
+using Yepas.Api.Domain;
 using Yepas.Api.Models;
 
 namespace Yepas.Api.Data
@@ -35,13 +36,23 @@ ORDER BY P.PERSONEL_KODU, P.PERSONEL_ID", connection))
                 connection.Open();
                 using (var reader = command.ExecuteReader())
                     while (reader.Read())
-                        drivers.Add(new AdminDriverView {
-                            LegacyPersonnelId = reader.GetInt32(0),
-                            PersonnelCode = Convert.ToString(reader.GetValue(1)).Trim(),
-                            PersonnelName = Convert.ToString(reader.GetValue(2)).Trim(),
-                            IsLegacyActive = Convert.ToInt32(reader.GetValue(3)) == 1,
-                            BranchCount = reader.GetInt32(4)
-                        });
+                    {
+                        // Tek bir bozuk personel satırı listeyi düşürmemelidir.
+                        try
+                        {
+                            var personnelId = reader.GetInt32(0);
+                            drivers.Add(new AdminDriverView {
+                                LegacyPersonnelId = personnelId,
+                                PersonnelCode = Convert.ToString(reader.GetValue(1)).Trim(),
+                                PersonnelName = Convert.ToString(reader.GetValue(2)).Trim(),
+                                IsLegacyActive = Convert.ToInt32(reader.GetValue(3)) == 1,
+                                BranchCount = reader.GetInt32(4),
+                                SuggestedLoginName = LoginNameFor(personnelId,
+                                    Convert.ToString(reader.GetValue(1)))
+                            });
+                        }
+                        catch (Exception) { }
+                    }
             }
 
             var byPersonnel = drivers.ToDictionary(item => item.LegacyPersonnelId);
@@ -73,8 +84,11 @@ JOIN dbo.UserRoles R ON R.UserId = U.UserId AND R.RoleCode = N'DRIVER'", connect
             loginName = ValidateLogin(loginName);
             ValidatePassword(temporaryPassword);
             EnsureActiveLegacyDriver(personnelId);
-            if (!String.Equals(loginName, ReadPersonnelCode(personnelId), StringComparison.OrdinalIgnoreCase))
-                throw new ArgumentException("Kullanıcı adı eski sistemdeki personel kodu olmalıdır.");
+            var expected = LoginNameFor(personnelId, ReadPersonnelCode(personnelId));
+            if (!String.Equals(loginName, expected, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException(
+                    "Kullanıcı adı değiştirilemez; beklenen değer: " + expected);
+            loginName = expected;
             var salt = new byte[32];
             using (var random = RandomNumberGenerator.Create()) random.GetBytes(salt);
             var hash = AuthRepository.HashPassword(temporaryPassword, salt, PasswordIterations);
@@ -234,10 +248,14 @@ WHERE P.PERSONEL_ID = @personnel AND P.PERSONEL_DURUM = 1
                 command.Parameters.Add("@personnel", SqlDbType.Int).Value = personnelId;
                 connection.Open();
                 var value = command.ExecuteScalar();
-                if (value == null || value == DBNull.Value)
-                    throw new InvalidOperationException("Eski sistem personel kodu bulunamadı.");
-                return Convert.ToString(value).Trim();
+                return value == null || value == DBNull.Value
+                    ? null : Convert.ToString(value).Trim();
             }
+        }
+
+        private static string LoginNameFor(int personnelId, string personnelCode)
+        {
+            return DriverAccountPolicy.LoginNameFor(personnelId, personnelCode);
         }
 
         private static void Audit(SqlConnection connection, SqlTransaction transaction,

@@ -31,6 +31,9 @@
     <Compile Include="..\Yepas.Api\Domain\OrderExportPolicy.cs">
       <Link>OrderExportPolicy.cs</Link>
     </Compile>
+    <Compile Include="..\Yepas.Api\Domain\DriverAccountPolicy.cs">
+      <Link>DriverAccountPolicy.cs</Link>
+    </Compile>
     <Compile Include="..\Yepas.Api\Models\OrderModels.cs">
       <Link>OrderModels.cs</Link>
     </Compile>

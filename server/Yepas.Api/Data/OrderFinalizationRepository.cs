@@ -127,7 +127,8 @@ SELECT O.OrderId, O.Revision, O.LegacyMbId, O.LegacyCustomerId,
        L.ProductCode, L.ProductName, L.VariantName
 FROM dbo.Orders O
 LEFT JOIN dbo.OrderLines L ON L.OrderId=O.OrderId
-WHERE O.DeliveryDate=@deliveryDate AND O.IntegrationStatus=N'PENDING'
+WHERE O.DeliveryDate=@deliveryDate
+  AND O.IntegrationStatus IN (N'PENDING', N'FAILED')
 ORDER BY O.OrderId,L.OrderLineId", connection))
             {
                 command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate.Date;
@@ -166,7 +167,8 @@ ORDER BY O.OrderId,L.OrderLineId", connection))
             using (var command = new SqlCommand(@"
 UPDATE dbo.Orders SET IntegrationStatus=N'EXPORTED', LegacyReceiptId=@receiptId,
     LastExportedAtUtc=GETUTCDATE(), LastExportedRevision=@revision
-WHERE OrderId=@orderId AND Revision=@revision AND IntegrationStatus=N'PENDING'", connection))
+WHERE OrderId=@orderId AND Revision=@revision
+  AND IntegrationStatus IN (N'PENDING', N'FAILED')", connection))
             {
                 command.Parameters.Add("@receiptId", SqlDbType.Int).Value = receiptId;
                 command.Parameters.Add("@orderId", SqlDbType.Int).Value = order.OrderId;
@@ -174,6 +176,25 @@ WHERE OrderId=@orderId AND Revision=@revision AND IntegrationStatus=N'PENDING'",
                 connection.Open();
                 if (command.ExecuteNonQuery() != 1)
                     throw new InvalidOperationException("Sipariş aktarım sırasında değişti.");
+            }
+        }
+
+        /// <summary>
+        /// Aktarılamayan siparişi işaretler. Kayıt FAILED kalır ve sonraki
+        /// aktarım denemesinde yeniden ele alınır; fiş numarası korunur.
+        /// </summary>
+        public void MarkFailed(LegacyExportOrder order, string message)
+        {
+            using (var connection = new SqlConnection(DatabaseConnections.Application()))
+            using (var command = new SqlCommand(@"
+UPDATE dbo.Orders SET IntegrationStatus=N'FAILED'
+WHERE OrderId=@orderId AND Revision=@revision
+  AND IntegrationStatus IN (N'PENDING', N'FAILED')", connection))
+            {
+                command.Parameters.Add("@orderId", SqlDbType.Int).Value = order.OrderId;
+                command.Parameters.Add("@revision", SqlDbType.Int).Value = order.Revision;
+                connection.Open();
+                command.ExecuteNonQuery();
             }
         }
 
@@ -186,7 +207,7 @@ SET State=N'FINALIZED', FinalizedAtUtc=GETUTCDATE(), LastError=NULL
 WHERE FinalizationId=@id AND State=N'FINALIZING'
   AND NOT EXISTS (SELECT 1 FROM dbo.Orders
                   WHERE DeliveryDate=@deliveryDate
-                    AND IntegrationStatus=N'PENDING')", connection))
+                    AND IntegrationStatus IN (N'PENDING', N'FAILED'))", connection))
             {
                 command.Parameters.Add("@id", SqlDbType.Int).Value = id;
                 command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate.Date;
@@ -203,7 +224,8 @@ WHERE FinalizationId=@id AND State=N'FINALIZING'
             using (var command = new SqlCommand(@"
 SELECT TOP 1 OrderId
 FROM dbo.Orders WITH (UPDLOCK,HOLDLOCK)
-WHERE DeliveryDate=@deliveryDate AND IntegrationStatus=N'PENDING'", connection, transaction))
+WHERE DeliveryDate=@deliveryDate
+  AND IntegrationStatus IN (N'PENDING', N'FAILED')", connection, transaction))
             {
                 command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate.Date;
                 return command.ExecuteScalar() != null;

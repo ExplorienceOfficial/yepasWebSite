@@ -152,11 +152,6 @@ namespace Yepas.Api.Controllers
                 return Request.CreateResponse(HttpStatusCode.OK,
                     new OrderFinalizationService().Finalize(identity.UserId));
             }
-            catch (OrderStillOpenException exception)
-            {
-                return Request.CreateResponse(HttpStatusCode.Conflict,
-                    new { code = "ORDER_WINDOW_OPEN", message = exception.Message });
-            }
             catch (InvalidOperationException exception)
             {
                 return Request.CreateResponse(HttpStatusCode.Conflict,

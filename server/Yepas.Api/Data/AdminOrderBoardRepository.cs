@@ -33,8 +33,30 @@ namespace Yepas.Api.Data
 
             var localDate = DateTime.UtcNow.AddHours(3).Date;
             var expectedDelivery = scope == "delivery" ? localDate : localDate.AddDays(1);
-            var branches = ReadBranches();
-            var orders = ReadOrders(scope, localDate, expectedDelivery);
+            var warnings = new List<string>();
+
+            // Kaynaklar tek tek okunur: biri bozulursa ekran çökmez, eksik bölüm
+            // uyarı olarak bildirilir ve erişilebilen veriler gösterilir.
+            IList<LegacyBranch> branches;
+            var skippedBranches = 0;
+            try { branches = ReadBranches(out skippedBranches); }
+            catch (Exception)
+            {
+                branches = new List<LegacyBranch>();
+                warnings.Add("Eski sistemdeki şube bilgilerine erişilemedi; yalnızca sipariş kaydı olan şubeler listelendi.");
+            }
+            if (skippedBranches > 0)
+                warnings.Add(skippedBranches + " şube kaydı eski sistemde okunamadı ve listeye alınmadı.");
+
+            IDictionary<int, OrderRecord> orders;
+            try { orders = ReadOrders(scope, localDate, expectedDelivery); }
+            catch (Exception)
+            {
+                if (branches.Count == 0) throw;
+                orders = new Dictionary<int, OrderRecord>();
+                warnings.Add("Sipariş tablosuna erişilemedi; şubeler sipariş durumu olmadan listelendi.");
+            }
+
             var rows = new List<AdminOrderRowView>();
             var included = new HashSet<int>();
             var dayIndex = DayIndex(expectedDelivery.DayOfWeek);
@@ -72,13 +94,21 @@ namespace Yepas.Api.Data
                     StringComparison.CurrentCultureIgnoreCase);
                 return result != 0 ? result : left.LegacyMbId.CompareTo(right.LegacyMbId);
             });
+            OrderFinalizationView finalization = null;
+            try { finalization = new OrderFinalizationRepository().Read(expectedDelivery); }
+            catch (Exception)
+            {
+                warnings.Add("Aktarım durumu okunamadı; sipariş listesi etkilenmedi.");
+            }
+
             return new AdminOrderBoardView {
                 Scope = scope,
                 LocalDate = localDate,
                 ExpectedDeliveryDate = expectedDelivery,
                 GeneratedAtUtc = DateTime.UtcNow,
                 Rows = rows,
-                Finalization = new OrderFinalizationRepository().Read(expectedDelivery)
+                Finalization = finalization,
+                Warnings = warnings
             };
         }
 
@@ -103,8 +133,9 @@ FROM dbo.Orders", connection))
             }
         }
 
-        private static IList<LegacyBranch> ReadBranches()
+        private static IList<LegacyBranch> ReadBranches(out int skipped)
         {
+            skipped = 0;
             var branches = new List<LegacyBranch>();
             using (var connection = new SqlConnection(DatabaseConnections.Catalog()))
             using (var command = new SqlCommand(@"
@@ -123,24 +154,29 @@ WHERE MB.SS = 12", connection))
                 using (var reader = command.ExecuteReader())
                     while (reader.Read())
                     {
-                        var days = new bool[7];
-                        for (var index = 0; index < 7; index++)
-                            days[index] = String.Equals(Convert.ToString(reader.GetValue(8 + index)).Trim(), "+",
-                                StringComparison.Ordinal);
-                        branches.Add(new LegacyBranch {
-                            Row = new AdminOrderRowView {
-                                LegacyMbId = reader.GetInt32(0),
-                                LegacyCustomerId = reader.GetInt32(1),
-                                LegacyDepartmentId = reader.GetInt32(2),
-                                LegacyPersonnelId = reader.GetInt32(3),
-                                CustomerCode = Convert.ToString(reader.GetValue(4)).Trim(),
-                                CustomerName = Convert.ToString(reader.GetValue(5)).Trim(),
-                                DepartmentName = Convert.ToString(reader.GetValue(6)).Trim(),
-                                PersonnelName = Convert.ToString(reader.GetValue(7)).Trim(),
-                                BoardStatus = "PENDING"
-                            },
-                            Days = days
-                        });
+                        // Tek bir bozuk eski sistem satırı tüm listeyi düşürmemelidir.
+                        try
+                        {
+                            var days = new bool[7];
+                            for (var index = 0; index < 7; index++)
+                                days[index] = String.Equals(Convert.ToString(reader.GetValue(8 + index)).Trim(), "+",
+                                    StringComparison.Ordinal);
+                            branches.Add(new LegacyBranch {
+                                Row = new AdminOrderRowView {
+                                    LegacyMbId = reader.GetInt32(0),
+                                    LegacyCustomerId = reader.GetInt32(1),
+                                    LegacyDepartmentId = reader.GetInt32(2),
+                                    LegacyPersonnelId = reader.GetInt32(3),
+                                    CustomerCode = Convert.ToString(reader.GetValue(4)).Trim(),
+                                    CustomerName = Convert.ToString(reader.GetValue(5)).Trim(),
+                                    DepartmentName = Convert.ToString(reader.GetValue(6)).Trim(),
+                                    PersonnelName = Convert.ToString(reader.GetValue(7)).Trim(),
+                                    BoardStatus = "PENDING"
+                                },
+                                Days = days
+                            });
+                        }
+                        catch (Exception) { skipped++; }
                     }
             }
             return branches;
