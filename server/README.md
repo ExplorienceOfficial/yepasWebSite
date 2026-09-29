@@ -31,7 +31,7 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 - `GET /api/v1/customer/branches` giriş yapan müşterinin yalnızca `CustomerAccess`
   üzerinden bağlı olduğu gerçek müşteri/şube kayıtlarını getirir.
 - `PUT /api/v1/customer/branches/{legacyMbId}/order` sipariş oluşturur, günceller, iptal eder veya `NO_PRODUCT` kaydı oluşturur. `Idempotency-Key` başlığı zorunludur; güncellemede en son `revision` gönderilir.
-- `GET/PUT /api/v1/admin/order-settings` genel kesim saatini ve `AUTO`, `OPEN`, `CLOSED` manuel durumunu yönetir. Manuel değişikliklerde gerekçe zorunludur ve denetim kaydı tutulur.
+- `GET/PUT /api/v1/admin/order-settings` genel kesim saatini ve `AUTO`, `OPEN`, `CLOSED` manuel durumunu yönetir. Manuel değişikliklerde gerekçe zorunlu değildir; denetim kaydı tutulur.
 - `GET /api/v1/admin/customers` eski programdaki müşteri/şube, SG ve şoför bilgisini hesap durumuyla birlikte getirir; şube bazındaki mobil ürün tanım sayısını gerçek ürün eşleştirme tablosundan gösterir.
 - `POST /api/v1/admin/customers/accounts` aynı müşteriye ait bir veya daha fazla `MB_ID` şubesi için tek mobil hesap açar. Geçici parola yedi gün geçerlidir ve ilk girişte değiştirilir.
 - `PUT /api/v1/admin/customers/accounts/{userId}/branches`, `status` ve `reset-password` uçları şube bağlantısı, giriş izni ve geçici parola yönetimini denetim kaydıyla yapar.
@@ -46,11 +46,12 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 - Giriş artık demo hesapları kullanmaz. Admin müşteri ekranında hesap açma, aynı müşterinin şubelerini bağlama, hesabı açıp kapatma ve geçici parola yenileme işlemleri gerçek API'ye bağlıdır.
 - Sipariş çekirdeği, müşteri ve şoför hesap yönetimi, şoför rota ekranı, admin sipariş ekranı ve eski programa yeniden gönderilebilir mobil fiş senkronizasyonu hazırdır. İki günlük saklama görevi ayrıca planlanacaktır.
 
-## Dağıtım günü politika testi
+## İş kuralı testleri
 
 ```powershell
 & 'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\MSBuild.exe' '.\server\Yepas.PolicyTests\Yepas.PolicyTests.csproj' /t:Rebuild /p:Configuration=Release
 & '.\server\Yepas.PolicyTests\bin\Release\Yepas.PolicyTests.exe'
 ```
 
-Test; kesim öncesi, kesim sonrası, manuel açık, manuel kapalı ve süresi dolmuş manuel durum senaryolarını doğrular.
+Testler sipariş penceresi, ürün/paket doğrulaması ve aktarım gününün hesaplanmasını doğrular.
+Veritabanı üzerinden uçtan uca aktarım için açık kalan senaryolar [TEST-KAPSAMI.md](TEST-KAPSAMI.md) dosyasındadır.

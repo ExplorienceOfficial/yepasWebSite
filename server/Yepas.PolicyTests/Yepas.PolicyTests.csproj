@@ -25,6 +25,15 @@
     <Compile Include="..\Yepas.Api\Domain\OrderWindowPolicy.cs">
       <Link>OrderWindowPolicy.cs</Link>
     </Compile>
+    <Compile Include="..\Yepas.Api\Domain\OrderSubmissionPolicy.cs">
+      <Link>OrderSubmissionPolicy.cs</Link>
+    </Compile>
+    <Compile Include="..\Yepas.Api\Domain\OrderExportPolicy.cs">
+      <Link>OrderExportPolicy.cs</Link>
+    </Compile>
+    <Compile Include="..\Yepas.Api\Models\OrderModels.cs">
+      <Link>OrderModels.cs</Link>
+    </Compile>
     <Compile Include="..\Yepas.Api\Models\CatalogProduct.cs">
       <Link>CatalogProduct.cs</Link>
     </Compile>

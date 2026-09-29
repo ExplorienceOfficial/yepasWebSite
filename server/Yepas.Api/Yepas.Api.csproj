@@ -72,6 +72,8 @@
     <Compile Include="Data\DriverManagementRepository.cs" />
     <Compile Include="Data\DriverRouteRepository.cs" />
     <Compile Include="Domain\CustomerOrderService.cs" />
+    <Compile Include="Domain\OrderSubmissionPolicy.cs" />
+    <Compile Include="Domain\OrderExportPolicy.cs" />
     <Compile Include="Domain\OrderWindowPolicy.cs" />
     <Compile Include="Domain\OrderFinalizationService.cs" />
     <Compile Include="Models\CatalogProduct.cs" />

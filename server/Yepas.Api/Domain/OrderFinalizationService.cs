@@ -14,7 +14,7 @@ namespace Yepas.Api.Domain
         {
             DateTime databaseUtcNow;
             var settings = orders.ReadSettings(out databaseUtcNow);
-            var deliveryDate = databaseUtcNow.AddHours(3).Date.AddDays(1);
+            var deliveryDate = OrderExportPolicy.ManualDeliveryDate(databaseUtcNow);
             var current = finalizations.Read(deliveryDate);
             if (current == null && OrderWindowPolicy.IsGloballyOpen(settings, databaseUtcNow))
                 throw new OrderStillOpenException();
@@ -25,10 +25,7 @@ namespace Yepas.Api.Domain
         {
             DateTime databaseUtcNow;
             orders.ReadSettings(out databaseUtcNow);
-            var localNow = databaseUtcNow.AddHours(3);
-            if (localNow.TimeOfDay < TimeSpan.FromMinutes(1))
-                throw new InvalidOperationException("Günlük aktarım 00:01 öncesinde çalıştırılamaz.");
-            return Export(null, localNow.Date);
+            return Export(null, OrderExportPolicy.DailyDeliveryDate(databaseUtcNow));
         }
 
         private OrderFinalizationView Export(int? userId, DateTime deliveryDate)
