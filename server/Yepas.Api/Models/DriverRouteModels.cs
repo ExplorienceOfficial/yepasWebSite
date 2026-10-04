@@ -23,6 +23,8 @@ namespace Yepas.Api.Models
         public DateTime LocalDate { get; set; }
         public DateTime DeliveryDate { get; set; }
         public DateTime GeneratedAtUtc { get; set; }
+        public bool OrdersAvailable { get; set; }
+        public IList<string> Warnings { get; set; }
         public IList<DriverRouteStopView> Stops { get; set; }
     }
 }

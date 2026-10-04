@@ -216,7 +216,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Sipariş penceresi kapalı, revision çakışması, finalizasyon veya idempotency çakışması
+          description: Sipariş penceresi kapalı (ORDER_WINDOW_CLOSED), teslim günü kapanmış (ORDER_DAY_CLOSED), revision veya idempotency çakışması. Kapanmış gün için oluşturma, güncelleme ve iptal reddedilir.
           content:
             application/json:
               schema:
@@ -324,6 +324,13 @@ components:
         isOpen:
           type: boolean
           description: Sipariş alımı şu an açık mı.
+        mode:
+          type: string
+          enum: [AUTO, OPEN, CLOSED]
+        displayCutoffTime:
+          type: string
+          description: Gösterim saati; etkin manuel modda 00:00. Kabul kararında kullanılmaz.
+          example: "00:00"
         cutoffTime:
           type: string
           example: "18:00"
@@ -334,6 +341,11 @@ components:
         serverNowUtc:
           type: string
           format: date-time
+        nextStatusChangeAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+          description: SQL saati ve kayıtlı ayara göre sonraki durum değişim sınırı; süresiz manuel modda null. İstemci o anda sunucudan durumu tekrar doğrulamalıdır.
       required: [isOpen, cutoffTime, cutoffMinute]
     LoginRequest:
       type: object
@@ -382,8 +394,13 @@ components:
         newPassword:
           type: string
           format: password
-          minLength: 12
-          maxLength: 128
+          description: Etkin DRIVER oturumunda tam 4 ASCII rakam; ADMIN ve CUSTOMER için 12-128 karakter. Rol sunucudaki oturumdan belirlenir, istemci seçemez.
+          oneOf:
+            - minLength: 4
+              maxLength: 4
+              pattern: '^[0-9]{4}$'
+            - minLength: 12
+              maxLength: 128
       required: [currentPassword, newPassword]
     CustomerBranch:
       type: object
@@ -410,6 +427,9 @@ components:
           type: integer
           minimum: 0
           maximum: 1439
+        displayCutoffTime:
+          type: string
+          description: Son sipariş saati gösterimi; manuel modda 00:00. isOpen kabul kararının kaynağıdır.
         deadlineUtc:
           type: string
           format: date-time
@@ -438,8 +458,16 @@ components:
           type: integer
           minimum: 1
           description: >
-            Ürünün paket adedi; adında 5'li paket yazan ürünlerde 5, diğerlerinde 1.
-            Sipariş miktarı bu değerin katı olmalıdır.
+            Ürün/varyant adındaki sayı ve lı/li/lu/lü ekinden türetilen paket adedi.
+            Örneğin 4 LÜ için 4, 10 lu için 10; ifade yoksa 1.
+            Sipariş miktarı bu değerin katı olmalıdır. packageSizeIsAmbiguous=true
+            ise bu alanın değeri 1 olsa bile ürün sipariş edilemez.
+        packageSizeIsAmbiguous:
+          type: boolean
+          description: >
+            Ürün ve varyant farklı paket adetleri içeriyorsa veya paket sayısı
+            geçersizse true. Yalnız o ürünün miktar girişi kapatılır;
+            eski sistemdeki tanım düzeltilmelidir. API siparişte bu ürünü reddeder.
       required: [uStokId, aStokId, code, name, groupId, maxQuantity, packageSize]
     OrderLineInput:
       type: object

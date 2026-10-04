@@ -45,17 +45,17 @@ namespace Yepas.Api.Data
                     using (var update = new SqlCommand(@"
 UPDATE dbo.OrderSettings
 SET CutoffMinute = @cutoff, OverrideMode = @mode,
-    OverrideUntilUtc = @until, OverrideReason = @reason,
-    UpdatedByUserId = @userId, UpdatedAtUtc = GETUTCDATE()
+    OverrideUntil = @until, OverrideReason = @reason,
+    UpdatedByUserId = @userId, UpdatedAt = GETDATE()
 WHERE SettingsId = 1;
 INSERT INTO dbo.OrderWindowAudit
-    (CutoffMinute, OverrideMode, OverrideUntilUtc, Reason, ActorUserId)
+    (CutoffMinute, OverrideMode, OverrideUntil, Reason, ActorUserId)
 VALUES (@cutoff, @mode, @until, @reason, @userId);", connection, transaction))
                     {
                         update.Parameters.Add("@cutoff", SqlDbType.SmallInt).Value = cutoffMinute;
                         update.Parameters.Add("@mode", SqlDbType.NVarChar, 10).Value = overrideMode;
                         update.Parameters.Add("@until", SqlDbType.DateTime).Value =
-                            overrideUntilUtc.HasValue ? (object)overrideUntilUtc.Value : DBNull.Value;
+                            overrideUntilUtc.HasValue ? (object)IstanbulTimestamp.FromUtc(overrideUntilUtc.Value) : DBNull.Value;
                         update.Parameters.Add("@reason", SqlDbType.NVarChar, 300).Value =
                             String.IsNullOrWhiteSpace(reason) ? (object)DBNull.Value : reason.Trim();
                         update.Parameters.Add("@userId", SqlDbType.Int).Value = actorUserId;
@@ -95,11 +95,11 @@ VALUES (@cutoff, @mode, @until, @reason, @userId);", connection, transaction))
                 connection.Open();
                 using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
-                    var replayOrderId = ReadIdempotency(connection, transaction, userId,
-                        idempotencyKey, requestHash);
-                    if (replayOrderId.HasValue)
+                    bool replayFound;
+                    var replay = ReadIdempotency(connection, transaction, userId,
+                        idempotencyKey, requestHash, out replayFound);
+                    if (replayFound)
                     {
-                        var replay = ReadOrderById(connection, transaction, replayOrderId.Value);
                         transaction.Commit();
                         return replay;
                     }
@@ -119,9 +119,60 @@ VALUES (@cutoff, @mode, @until, @reason, @userId);", connection, transaction))
                         deliveryDate = requestedDeliveryDate.Value.Date;
                     }
 
+                    AtomicOrderDaySynchronizer.LockDay(connection, transaction, deliveryDate);
+                    // Re-read the SQL clock after acquiring the same lock as export.
+                    // A write waiting across midnight must not mutate yesterday's batch.
+                    using (var clock = new SqlCommand("SELECT GETUTCDATE()", connection, transaction))
+                        OrderDaySyncPolicy.EnsureWritable(deliveryDate,
+                            (DateTime)clock.ExecuteScalar(),
+                            AtomicOrderDaySynchronizer.ReadClosedAt(connection, transaction, deliveryDate));
+
                     int existingRevision;
+                    int? existingReceiptId;
                     var existingOrderId = FindOrderForUpdate(connection, transaction,
-                        schedule.LegacyMbId, deliveryDate, out existingRevision);
+                        schedule.LegacyMbId, deliveryDate, out existingRevision, out existingReceiptId);
+                    if (status != "SUBMITTED")
+                    {
+                        if (existingOrderId.HasValue)
+                        {
+                            if (!input.Revision.HasValue || input.Revision.Value != existingRevision)
+                                throw new OrderRevisionConflictException();
+                        }
+                        else if (input.Revision.HasValue && input.Revision.Value != 0)
+                            throw new OrderRevisionConflictException();
+
+                        var deletedOrderId = existingOrderId.GetValueOrDefault(0);
+                        WriteAudit(connection, transaction, deletedOrderId,
+                            existingOrderId.HasValue ? existingRevision + 1 : 1,
+                            status, userId, actorRole, schedule.LegacyMbId, deliveryDate,
+                            "REMOVED");
+                        if (existingOrderId.HasValue)
+                        {
+                            using (var mark = new SqlCommand(@"
+UPDATE dbo.MobileReceiptRegistry SET NeedsSync=1
+WHERE LegacyMbId=@mbId AND DeliveryDate=@deliveryDate", connection, transaction))
+                            {
+                                mark.Parameters.Add("@mbId", SqlDbType.Int).Value = schedule.LegacyMbId;
+                                mark.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate;
+                                if (mark.ExecuteNonQuery() == 0 && existingReceiptId.HasValue)
+                                    throw new InvalidOperationException("Silinecek fişin sahiplik kaydı bulunamadı.");
+                            }
+                            using (var delete = new SqlCommand(@"
+DELETE FROM dbo.Orders WHERE OrderId=@orderId AND Revision=@revision",
+                                connection, transaction))
+                            {
+                                delete.Parameters.Add("@orderId", SqlDbType.Int).Value = deletedOrderId;
+                                delete.Parameters.Add("@revision", SqlDbType.Int).Value = existingRevision;
+                                if (delete.ExecuteNonQuery() != 1)
+                                    throw new OrderRevisionConflictException();
+                            }
+                        }
+                        WriteIdempotency(connection, transaction, userId, idempotencyKey,
+                            requestHash, deletedOrderId, status, schedule.LegacyMbId, deliveryDate);
+                        var removed = RemovedOrder(schedule.LegacyMbId, deliveryDate, status);
+                        transaction.Commit();
+                        return removed;
+                    }
                     if (existingOrderId.HasValue)
                     {
                         if (!input.Revision.HasValue || input.Revision.Value != existingRevision)
@@ -134,7 +185,7 @@ UPDATE dbo.Orders SET
     Revision = Revision + 1, Note = @note, SourceRole = @actorRole,
     IntegrationStatus = CASE WHEN LegacyReceiptId IS NOT NULL
                              THEN N'PENDING' ELSE @integration END,
-    UpdatedByUserId = @userId, UpdatedAtUtc = GETUTCDATE()
+    UpdatedByUserId = @userId, UpdatedAt = GETDATE()
 WHERE OrderId = @orderId", connection, transaction))
                         {
                             AddOrderParameters(update, userId, schedule, status, input.Note, actorRole);
@@ -172,31 +223,11 @@ SELECT CAST(SCOPE_IDENTITY() AS INT);", connection, transaction))
 
                     foreach (var line in lines) InsertLine(connection, transaction, orderId, line);
                     var revision = existingOrderId.HasValue ? existingRevision + 1 : 1;
-                    using (var audit = new SqlCommand(@"
-INSERT INTO dbo.OrderAudit
-    (OrderId, Revision, ActionCode, Status, ActorUserId, ActorRole, Reason)
-VALUES (@orderId, @revision, @action, @status, @userId, @actorRole, NULL)", connection, transaction))
-                    {
-                        audit.Parameters.Add("@orderId", SqlDbType.Int).Value = orderId;
-                        audit.Parameters.Add("@revision", SqlDbType.Int).Value = revision;
-                        audit.Parameters.Add("@action", SqlDbType.NVarChar, 20).Value =
-                            existingOrderId.HasValue ? "UPDATED" : "CREATED";
-                        audit.Parameters.Add("@status", SqlDbType.NVarChar, 20).Value = status;
-                        audit.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
-                        audit.Parameters.Add("@actorRole", SqlDbType.NVarChar, 20).Value = actorRole;
-                        audit.ExecuteNonQuery();
-                    }
-                    using (var idempotency = new SqlCommand(@"
-INSERT INTO dbo.OrderIdempotency
-    (UserId, IdempotencyKey, RequestHash, OrderId)
-VALUES (@userId, @key, @hash, @orderId)", connection, transaction))
-                    {
-                        idempotency.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
-                        idempotency.Parameters.Add("@key", SqlDbType.NVarChar, 100).Value = idempotencyKey;
-                        idempotency.Parameters.Add("@hash", SqlDbType.VarBinary, 32).Value = requestHash;
-                        idempotency.Parameters.Add("@orderId", SqlDbType.Int).Value = orderId;
-                        idempotency.ExecuteNonQuery();
-                    }
+                    WriteAudit(connection, transaction, orderId, revision, status, userId,
+                        actorRole, schedule.LegacyMbId, deliveryDate,
+                        existingOrderId.HasValue ? "UPDATED" : "CREATED");
+                    WriteIdempotency(connection, transaction, userId, idempotencyKey,
+                        requestHash, orderId, null, schedule.LegacyMbId, deliveryDate);
                     var result = ReadOrderById(connection, transaction, orderId);
                     transaction.Commit();
                     return result;
@@ -209,8 +240,8 @@ VALUES (@userId, @key, @hash, @orderId)", connection, transaction))
         {
             var hint = lockRow ? " WITH (UPDLOCK, HOLDLOCK)" : String.Empty;
             using (var command = new SqlCommand(@"
-SELECT CutoffMinute, OverrideMode, OverrideUntilUtc, OverrideReason,
-       UpdatedAtUtc, GETUTCDATE()
+SELECT CutoffMinute, OverrideMode, OverrideUntil, OverrideReason,
+       UpdatedAt, GETUTCDATE()
 FROM dbo.OrderSettings" + hint + " WHERE SettingsId = 1", connection, transaction))
             using (var reader = command.ExecuteReader())
             {
@@ -219,20 +250,26 @@ FROM dbo.OrderSettings" + hint + " WHERE SettingsId = 1", connection, transactio
                 {
                     CutoffMinute = reader.GetInt16(0),
                     OverrideMode = reader.GetString(1),
-                    OverrideUntilUtc = reader.IsDBNull(2) ? (DateTime?)null : reader.GetDateTime(2),
+                    OverrideUntilUtc = reader.IsDBNull(2) ? (DateTime?)null :
+                        IstanbulTimestamp.ToUtc(reader.GetDateTime(2)),
                     OverrideReason = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    UpdatedAtUtc = reader.GetDateTime(4)
+                    UpdatedAtUtc = IstanbulTimestamp.ToUtc(reader.GetDateTime(4))
                 };
                 databaseUtcNow = reader.GetDateTime(5);
                 return value;
             }
         }
 
-        private static int? ReadIdempotency(SqlConnection connection, SqlTransaction transaction,
-            int userId, string key, byte[] hash)
+        private static OrderView ReadIdempotency(SqlConnection connection, SqlTransaction transaction,
+            int userId, string key, byte[] hash, out bool found)
         {
+            found = false;
+            int orderId;
+            string resultStatus;
+            int resultMbId;
+            DateTime resultDate;
             using (var command = new SqlCommand(@"
-SELECT RequestHash, OrderId
+SELECT RequestHash, OrderId, ResultStatus, ResultLegacyMbId, ResultDeliveryDate
 FROM dbo.OrderIdempotency WITH (UPDLOCK, HOLDLOCK)
 WHERE UserId = @userId AND IdempotencyKey = @key", connection, transaction))
             {
@@ -243,17 +280,27 @@ WHERE UserId = @userId AND IdempotencyKey = @key", connection, transaction))
                     if (!reader.Read()) return null;
                     var stored = (byte[])reader[0];
                     if (!Equal(stored, hash)) throw new IdempotencyConflictException();
-                    return reader.GetInt32(1);
+                    found = true;
+                    orderId = reader.GetInt32(1);
+                    resultStatus = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    resultMbId = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
+                    resultDate = reader.IsDBNull(4) ? DateTime.MinValue : reader.GetDateTime(4);
                 }
             }
+            if (resultStatus != null)
+                return RemovedOrder(resultMbId, resultDate, resultStatus);
+            var order = ReadOrderById(connection, transaction, orderId);
+            if (order == null) throw new IdempotencyConflictException();
+            return order;
         }
 
         private static int? FindOrderForUpdate(SqlConnection connection, SqlTransaction transaction,
-            int legacyMbId, DateTime deliveryDate, out int revision)
+            int legacyMbId, DateTime deliveryDate, out int revision, out int? receiptId)
         {
             revision = 0;
+            receiptId = null;
             using (var command = new SqlCommand(@"
-SELECT OrderId, Revision FROM dbo.Orders WITH (UPDLOCK, HOLDLOCK)
+SELECT OrderId, Revision, LegacyReceiptId FROM dbo.Orders WITH (UPDLOCK, HOLDLOCK)
 WHERE LegacyMbId = @mbId AND DeliveryDate = @deliveryDate", connection, transaction))
             {
                 command.Parameters.Add("@mbId", SqlDbType.Int).Value = legacyMbId;
@@ -262,8 +309,61 @@ WHERE LegacyMbId = @mbId AND DeliveryDate = @deliveryDate", connection, transact
                 {
                     if (!reader.Read()) return null;
                     revision = reader.GetInt32(1);
+                    receiptId = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2);
                     return reader.GetInt32(0);
                 }
+            }
+        }
+
+        private static OrderView RemovedOrder(int mbId, DateTime date, string status)
+        {
+            return new OrderView {
+                OrderId = 0, LegacyMbId = mbId, DeliveryDate = date.Date,
+                Status = status, Revision = 0, UpdatedAtUtc = DateTime.UtcNow,
+                Lines = new List<OrderLineView>()
+            };
+        }
+
+        private static void WriteAudit(SqlConnection connection, SqlTransaction transaction,
+            int orderId, int revision, string status, int userId, string actorRole,
+            int mbId, DateTime deliveryDate, string action)
+        {
+            using (var command = new SqlCommand(@"
+INSERT INTO dbo.OrderAudit
+    (OrderId,Revision,ActionCode,Status,ActorUserId,ActorRole,Reason,LegacyMbId,DeliveryDate)
+VALUES (@orderId,@revision,@action,@status,@userId,@actorRole,NULL,@mbId,@date)",
+                connection, transaction))
+            {
+                command.Parameters.Add("@orderId", SqlDbType.Int).Value = orderId;
+                command.Parameters.Add("@revision", SqlDbType.Int).Value = revision;
+                command.Parameters.Add("@action", SqlDbType.NVarChar, 20).Value = action;
+                command.Parameters.Add("@status", SqlDbType.NVarChar, 20).Value = status;
+                command.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                command.Parameters.Add("@actorRole", SqlDbType.NVarChar, 20).Value = actorRole;
+                command.Parameters.Add("@mbId", SqlDbType.Int).Value = mbId;
+                command.Parameters.Add("@date", SqlDbType.DateTime).Value = deliveryDate.Date;
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static void WriteIdempotency(SqlConnection connection, SqlTransaction transaction,
+            int userId, string key, byte[] hash, int orderId, string resultStatus,
+            int mbId, DateTime deliveryDate)
+        {
+            using (var command = new SqlCommand(@"
+INSERT INTO dbo.OrderIdempotency
+    (UserId,IdempotencyKey,RequestHash,OrderId,ResultStatus,ResultLegacyMbId,ResultDeliveryDate)
+VALUES (@userId,@key,@hash,@orderId,@status,@mbId,@date)", connection, transaction))
+            {
+                command.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                command.Parameters.Add("@key", SqlDbType.NVarChar, 100).Value = key;
+                command.Parameters.Add("@hash", SqlDbType.VarBinary, 32).Value = hash;
+                command.Parameters.Add("@orderId", SqlDbType.Int).Value = orderId;
+                command.Parameters.Add("@status", SqlDbType.NVarChar, 20).Value =
+                    resultStatus == null ? (object)DBNull.Value : resultStatus;
+                command.Parameters.Add("@mbId", SqlDbType.Int).Value = mbId;
+                command.Parameters.Add("@date", SqlDbType.DateTime).Value = deliveryDate.Date;
+                command.ExecuteNonQuery();
             }
         }
 
@@ -321,7 +421,7 @@ WHERE LegacyMbId = @mbId AND DeliveryDate = @deliveryDate", connection, transact
         {
             OrderView order;
             using (var command = new SqlCommand(@"
-SELECT OrderId, LegacyMbId, DeliveryDate, Status, Revision, Note, UpdatedAtUtc
+SELECT OrderId, LegacyMbId, DeliveryDate, Status, Revision, Note, UpdatedAt
 FROM dbo.Orders WHERE OrderId = @orderId", connection, transaction))
             {
                 command.Parameters.Add("@orderId", SqlDbType.Int).Value = orderId;
@@ -336,7 +436,7 @@ FROM dbo.Orders WHERE OrderId = @orderId", connection, transaction))
                         Status = reader.GetString(3),
                         Revision = reader.GetInt32(4),
                         Note = reader.IsDBNull(5) ? null : reader.GetString(5),
-                        UpdatedAtUtc = reader.GetDateTime(6),
+                        UpdatedAtUtc = IstanbulTimestamp.ToUtc(reader.GetDateTime(6)),
                         Lines = new List<OrderLineView>()
                     };
                 }
@@ -378,13 +478,16 @@ ORDER BY ProductName, VariantName, UStokId, AStokId", connection, transaction))
             {
                 CutoffMinute = settings.CutoffMinute,
                 CutoffTime = hours.ToString("00") + ":" + minutes.ToString("00"),
+                DisplayCutoffTime = OrderWindowPolicy.DisplayCutoffTime(
+                    OrderWindowPolicy.EffectiveMode(settings, databaseUtcNow), settings.CutoffMinute),
                 OverrideMode = settings.OverrideMode,
                 EffectiveMode = OrderWindowPolicy.EffectiveMode(settings, databaseUtcNow),
                 IsOpen = OrderWindowPolicy.IsGloballyOpen(settings, databaseUtcNow),
                 OverrideUntilUtc = settings.OverrideUntilUtc,
                 OverrideReason = settings.OverrideReason,
                 UpdatedAtUtc = settings.UpdatedAtUtc,
-                ServerNowUtc = DateTime.SpecifyKind(databaseUtcNow, DateTimeKind.Utc)
+                ServerNowUtc = DateTime.SpecifyKind(databaseUtcNow, DateTimeKind.Utc),
+                NextStatusChangeAtUtc = OrderWindowPolicy.NextGlobalChangeUtc(settings, databaseUtcNow)
             };
         }
     }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowRight, TriangleAlert } from "lucide-react";
 
 import { invalidateSession } from "@/context/AuthContext";
@@ -22,9 +23,14 @@ function formatDateTime(value: string): string {
 }
 
 export function OrderSyncNotice() {
+  const pathname = usePathname();
+  const onOrdersPage = pathname.startsWith("/admin/siparisler");
   const [status, setStatus] = useState<OrderSyncStatus | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
+    // Siparişler ekranı aynı günün daha ayrıntılı durumunu kendi verisinden gösterir.
+    if (onOrdersPage) return;
     let active = true;
     const load = async () => {
       try {
@@ -36,11 +42,17 @@ export function OrderSyncNotice() {
           invalidateSession();
           return;
         }
-        if (!response.ok) return;
+        if (!response.ok) throw new Error("Aktarım durumu alınamadı.");
         const body = (await response.json()) as OrderSyncStatus;
-        if (active) setStatus(body);
+        if (active) {
+          setStatus(body);
+          setUnavailable(false);
+        }
       } catch {
-        // Genel uyarı, ana ekranı erişim hatasında kullanılamaz hale getirmemelidir.
+        if (active) {
+          setStatus(null);
+          setUnavailable(true);
+        }
       }
     };
 
@@ -54,26 +66,26 @@ export function OrderSyncNotice() {
       window.removeEventListener("focus", load);
       window.removeEventListener("yepas:order-sync-changed", load);
     };
-  }, []);
+  }, [onOrdersPage]);
 
-  if (!status || status.pendingCount === 0) return null;
+  if (onOrdersPage || (!unavailable && (!status || status.pendingCount === 0))) return null;
 
   return (
     <div className="mx-auto mt-4 max-w-[1200px] px-4 lg:px-8">
-      <div className="flex flex-col gap-3 rounded-[14px] bg-[var(--warn-soft)] px-4 py-3 text-[var(--warn)] ring-1 ring-[var(--warn)]/20 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <TriangleAlert className="mt-0.5 size-5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold">Eski sisteme aktarılmamış {status.pendingCount} sipariş değişikliği var.</p>
-            <p className="mt-0.5 text-xs opacity-80">
-              {status.lastExportedAtUtc
-                ? `Son başarılı aktarım: ${formatDateTime(status.lastExportedAtUtc)}`
-                : "Henüz başarılı bir aktarım yapılmadı."}
-            </p>
-          </div>
+      <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3.5 py-2.5 text-sm ${unavailable
+        ? "border-hairline bg-surface text-ink-2"
+        : "border-[var(--warn)]/20 bg-[var(--warn-soft)] text-ink"}`}>
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <TriangleAlert className={`size-4 shrink-0 ${unavailable ? "text-ink-3" : "text-[var(--warn)]"}`} />
+          <p className="min-w-0 font-medium">{unavailable
+            ? "Aktarım durumu şu anda doğrulanamıyor."
+            : `Bugün ve yarın teslim için ${status?.pendingCount} değişiklik aktarılmayı bekliyor.`}</p>
         </div>
-        <Link href="/admin/siparisler" className="inline-flex items-center gap-1.5 self-start rounded-lg bg-surface px-3 py-1.5 text-xs font-semibold text-ink ring-1 ring-hairline sm:self-auto">
-          Siparişlere git <ArrowRight className="size-3.5" />
+        {!unavailable && status?.lastExportedAtUtc && (
+          <span className="text-xs text-ink-3">Son aktarım {formatDateTime(status.lastExportedAtUtc)}</span>
+        )}
+        <Link href="/admin/siparisler" className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-accent hover:underline">
+          Siparişler <ArrowRight className="size-3.5" />
         </Link>
       </div>
     </div>

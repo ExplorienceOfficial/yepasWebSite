@@ -15,18 +15,28 @@ Bu paket yalnızca Windows 7/IIS 7.5/SQL Server 2005 uyumluluk denemesi içindir
 1. Windows 7 SP1, IIS 7.5 ASP.NET özellikleri ve .NET Framework 4.8'i doğrulayın.
 2. Hedef klasörü ve yeni `EkmekSiparis` veritabanını yedekleyin.
 3. Paketin SHA-256 listesini doğrulayın.
-4. `database\migrations` betiklerini `EkmekSiparis` üzerinde sırasıyla çalıştırın: `000`, `001`, `002`, `003`, `004`, `005`, `006`, `007`, `008`.
-5. `database\permissions` altındaki `003`, `004` ve `005` betiklerini `PrestoPlus` üzerinde çalıştırın. `005`, yalnız mobil sipariş fişlerini oluşturmak ve yeniden senkronize etmek için gereken iki fiş tablosuna dar yazma yetkisi verir.
-6. `site` içeriğini yeni sürüm klasörüne kopyalayın.
-7. Ayrı, yönetici olmayan IIS uygulama havuzu ve site oluşturun. Uygulama havuzu `.NET v4.0`, Integrated pipeline ve 64-bit kullanmalıdır.
-8. En az yetkili DEV SQL hesaplarını hazırlayın; `sa` kullanmayın.
-9. Sunucuda yönetici PowerShell'i açıp `tools\Configure-Smoke.ps1 -SitePath <site klasörü>` çalıştırın. Bağlantı dizeleri ekranda görünmeden girilir ve `web.config` içinde şifrelenir.
-10. İlk smoke adminini `tools\Yepas.AdminTool.exe --site-path <site klasörü> --login-name <ad>` ile oluşturun. Araç şifrelenmiş `YepasApp` bağlantısını site yapılandırmasından okur; admin parolası ekranda görünmeden istenir ve veritabanında yalnızca parola özeti tutulur.
-11. Geçerli sertifikayla HTTPS binding ekleyin. Windows 7 Schannel ile güncel tarayıcılar arasında ortak şifre takımı sağlamak için ECDSA P-256 sertifika veya modern TLS sonlandıran bir reverse proxy kullanın. Release girişi HTTP üzerinden bilerek reddedilir.
-12. PFX dosyasını IIS'e aktardıktan ve HTTPS'i doğruladıktan sonra sunucudaki aktarım kopyasını kaldırın; PFX özel anahtar içerir.
-13. Siteyi başlatın ve aşağıdaki kontrolleri yapın.
+4. İki bağlantının aynı SQL Server instance'ına gittiğini salt-okunur sorgularla doğrulayın. Aynı değilse atomik gün eşitlemesi bu sürümde reddedilir; kurulumu durdurun.
+5. `database\migrations` betiklerini `EkmekSiparis` üzerinde sırasıyla çalıştırın: `000`–`011`. Şema değişikliklerinden önce yedek alın ve site/görevi durdurun. Şeması zaten 10 olan kurulumda yalnız `011_delivery_day_closure.sql` uygulanır.
+6. `database\permissions` altındaki `003`–`005` izinlerini `PrestoPlus` üzerinde doğrulayın. Ayrıca `006_catalog_atomic_sync.sql` notundaki **EkmekSiparis bağlantısı login'i** için dar çapraz-veritabanı yetkilerini yetkili kişi tanımlamalıdır. Kullanıcı adı bilinmeden izin verilmez.
+7. `site` içeriğini yeni sürüm klasörüne kopyalayın.
+8. Ayrı, yönetici olmayan IIS uygulama havuzu ve site oluşturun. Uygulama havuzu `.NET v4.0`, Integrated pipeline ve 64-bit kullanmalıdır.
+9. En az yetkili DEV SQL hesaplarını hazırlayın; `sa` kullanmayın.
+10. Sunucuda yönetici PowerShell'i açıp `tools\Configure-Smoke.ps1 -SitePath <site klasörü>` çalıştırın. Bağlantı dizeleri ekranda görünmeden girilir ve `web.config` içinde şifrelenir.
+11. İlk smoke adminini `tools\Yepas.AdminTool.exe --site-path <site klasörü> --login-name <ad>` ile oluşturun. Araç şifrelenmiş `YepasApp` bağlantısını site yapılandırmasından okur; admin parolası ekranda görünmeden istenir ve veritabanında yalnızca parola özeti tutulur.
+12. Geçerli sertifikayla HTTPS binding ekleyin. Windows 7 Schannel ile güncel tarayıcılar arasında ortak şifre takımı sağlamak için ECDSA P-256 sertifika veya modern TLS sonlandıran bir reverse proxy kullanın. Release girişi HTTP üzerinden bilerek reddedilir.
+13. PFX dosyasını IIS'e aktardıktan ve HTTPS'i doğruladıktan sonra sunucudaki aktarım kopyasını kaldırın; PFX özel anahtar içerir.
+14. Siteyi başlatın ve aşağıdaki kontrolleri yapın.
 
 ## 00:01 otomatik aktarım
+
+011 migration ile `dbo.OrderFinalizations.ClosedAt` eklenir. Otomatik aktarım
+başarılıysa ilgili teslim gününün kapanışı aynı transaction'da kaydedilir.
+Tekrar çalışan görev kapalı günün fişlerini yeniden yazmaz. Manuel aktarım
+günü kapatmaz. Admin ve müşteri yazma uçları aynı gün kilidini alarak
+`ORDER_DAY_CLOSED` (409) döndürür; SQL saatine göre bugün/geçmiş tarih de
+reddedilir. İstek gece yarısını kilitte bekleyerek aşamaz. Başarısız aktarımda
+kapanış ve aktarım birlikte geri alınır; görev tekrar denenmelidir.
+Bu kapanış yeni teslim gününü veya global açık/kapalı anahtarını değiştirmez.
 
 Yeni sürüme geçtikten sonra `tools\Run-AutoExport.ps1` dosyasını
 `C:\YepasApp\tools\Run-AutoExport.ps1` konumuna kopyalayın. Yönetici CMD'de
@@ -36,11 +46,17 @@ görevi bir kez oluşturun:
 schtasks /create /tn "Yepas Daily Export" /sc daily /st 00:01 /ru SYSTEM /rl HIGHEST /tr "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\YepasApp\tools\Run-AutoExport.ps1"
 ```
 
+Yeni bir Windows makinesine taşınırken aynı kurulum, paketteki
+`tools\Install-AutoExportTask.ps1` ile de yapılabilir. Yönetici PowerShell'de
+`-RootPath C:\YepasApp` ile çalıştırın. Kurulu bir görevin ayarlarını değiştirmez.
+IIS uygulama havuzuna gömülü bir zamanlayıcı kullanılmaz: havuz boşta durabilir
+veya geri dönüştürülebilir; bu durumda tam 00:01 çalışması garanti edilemez.
+
 Windows saat dilimi Türkiye olmalı. Görev etkin IIS site yolunu bulur, o sürümün
 şifrelenmiş Web.config bağlantılarını okur ve yalnız **bugün teslim edilecek**
-bekleyen siparişleri aktarır. Aynı teslim günü ikinci çalıştırma yeni fiş
-oluşturmaz; başarılı gün, veritabanındaki tekil OrderFinalizations kaydıyla
-izlenir. Görev 00:01'den önce çalıştırılırsa işlem reddedilir. Kurulumdan sonra
+günün mobil fişlerini ara tabloyla atomik olarak eşitler. Aynı teslim günü ikinci
+çalıştırma yeni fiş oluşturmaz; başarılı gün, veritabanındaki tekil
+OrderFinalizations kaydıyla izlenir. Görev 00:01'den önce çalıştırılırsa işlem reddedilir. Kurulumdan sonra
 görevin gerçekten çalıştığını Görev Zamanlayıcı geçmişinden ve sipariş
 aktarım durumundan doğrulayın.
 
@@ -55,7 +71,8 @@ aktarım durumundan doğrulayın.
   şubeye `RS_MOBIL_SIPARIS_URUN_TANIMLARI` tablosunda tanımlanan ürünleri ve
   `U_STOK_LIMIT` değerlerini döndürür.
 - Limit üzerindeki veya şubeye tanımlanmamış ürün içeren sipariş reddedilir.
-- Adında 5'li paket yazan ürünün miktarı 5'in katı değilse API reddeder.
+- Ürün/varyant adındaki `N lı/li/lu/lü` ifadesine göre miktar N'in katı değilse API reddeder; gramajlar paket sayılmaz.
+- Ürün ve varyantta farklı paket adetleri varsa yalnız o ürüne sipariş engellenir; diğer ürünler kullanılabilir.
 - `/admin/sofor-yonetimi/` `BF_PERS_MUST` üzerinden müşteri/şubesi ve
   `RS_MUSTERI_BILGILERI` üzerinden SG takvimi bulunan personeli gösterir;
   şoför ekleme veya rota atama işlemi sunmaz.
@@ -63,7 +80,7 @@ aktarım durumundan doğrulayın.
 - Şoför girişiyle `/sofor/` yalnız oturumdaki personelin eski sistemde bağlı şubelerini ve uygulamadaki siparişlerini gösterir.
 - Üst bardaki **Aktar** düğmesi sipariş alımı açıkken de çalışır: yalnız `SUBMITTED` kayıtları eski `RS_FIS_BILGILERI` / `RS_FIS_SATIRLARI` tablolarına `MOBIL` kullanıcısı ve her gün `U-1`'den başlayan fiş numarasıyla yazılır. Düğme, sunucudan dönen gerçek sipariş/kalem/adet sayısını bildirim olarak gösterir.
 - Aktarım siparişi kalıcı kilitlemez. Sonraki değişiklik `PENDING` olur; yeniden gönderimde yalnızca kayıtlı `LegacyReceiptId` ile eşleşen `MOBIL` / `U-*` fişi güncellenir ve ikinci fiş oluşmaz.
-- Tek bir sipariş aktarılamazsa diğerleri aktarılmaya devam eder; başarısız kayıt `FAILED` kalır ve sonraki aktarımda yeniden denenir.
+- Hedef günün herhangi bir fişi aktarılamazsa **tüm günün değişiklikleri geri alınır**. Aynı gün güvenle yeniden denenebilir. Ara tablo okunamazsa eski fişler silinmez.
 - Eski sistemdeki şube veya aktarım durumu tablosu okunamazsa `/admin/siparisler/` çökmez; erişilebilen veriler listelenir ve eksik kaynak uyarı olarak gösterilir.
 - Girişsiz `/api/v1/system/status` isteği yalnızca sistemin açık/kapalı olduğunu ve kesim saatini döndürür; mobil giriş ekranı kapalıyken "Sistem kapalı" gösterir.
 - Günlük görev 00:01 sonrasında o gün teslim edilecek dünün kayıtlarını bir kez aktarır;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/format";
@@ -35,9 +36,9 @@ export function Modal({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
-  return (
+  return createPortal((
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 text-left sm:p-6">
       {/* Arka plan buzlu cam blur overlay */}
       <div
@@ -80,5 +81,5 @@ export function Modal({
         )}
       </div>
     </div>
-  );
+  ), document.body);
 }

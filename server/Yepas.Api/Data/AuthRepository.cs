@@ -2,6 +2,7 @@ using System;
 using System.Data;
 using System.Data.SqlClient;
 using System.Security.Cryptography;
+using Yepas.Api.Domain;
 
 namespace Yepas.Api.Data
 {
@@ -85,10 +86,9 @@ WHERE P.PERSONEL_ID = @id AND P.PERSONEL_DURUM = 1
 SELECT U.UserId, U.LoginName, U.PasswordHash, U.PasswordSalt,
        U.PasswordIterations, U.PasswordAlgorithm, U.IsActive,
        U.MustChangePassword, U.TemporaryPasswordExpiresUtc,
-       U.LockoutUntilUtc, D.LegacyPersonnelId
+       U.LockoutUntilUtc
 FROM dbo.Users U
 JOIN dbo.UserRoles R ON R.UserId = U.UserId AND R.RoleCode = @role
-LEFT JOIN dbo.DriverAccounts D ON D.UserId = U.UserId
 WHERE U.LoginNameNormalized = @name", connection))
                 {
                     command.Parameters.Add("@name", SqlDbType.NVarChar, 100).Value = normalized;
@@ -105,10 +105,9 @@ WHERE U.LoginNameNormalized = @name", connection))
                         var mustChange = reader.GetBoolean(7);
                         var tempExpires = reader.IsDBNull(8) ? (DateTime?)null : reader.GetDateTime(8);
                         var lockedUntil = reader.IsDBNull(9) ? (DateTime?)null : reader.GetDateTime(9);
-                        var personnelId = reader.IsDBNull(10) ? (int?)null : reader.GetInt32(10);
                         var identity = new AuthIdentity {
                             UserId = userId, LoginName = reader.GetString(1), Role = role,
-                            LegacyPersonnelId = personnelId, MustChangePassword = mustChange
+                            MustChangePassword = mustChange
                         };
                         reader.Close();
 
@@ -118,7 +117,8 @@ WHERE U.LoginNameNormalized = @name", connection))
                             (tempExpires.HasValue && tempExpires.Value <= DateTime.UtcNow)) return null;
 
                         var actualHash = HashPassword(password, salt, iterations);
-                        if (!Equal(storedHash, actualHash))
+                        if (!Equal(storedHash, actualHash) ||
+                            (role == "DRIVER" && !DriverAccountPolicy.IsValidPassword(password)))
                         {
                             using (var fail = new SqlCommand(@"
 UPDATE dbo.Users SET FailedLoginCount = FailedLoginCount + 1,
@@ -132,8 +132,12 @@ WHERE UserId = @id", connection))
                             return null;
                         }
 
-                        if (role == "DRIVER" && (!personnelId.HasValue || !PersonnelExists(personnelId.Value)))
-                            return null;
+                        if (role == "DRIVER")
+                        {
+                            identity.LegacyPersonnelId = ReadDriverPersonnelId(connection, userId);
+                            if (!identity.LegacyPersonnelId.HasValue ||
+                                !PersonnelExists(identity.LegacyPersonnelId.Value)) return null;
+                        }
                         if (role == "CUSTOMER" && !UserHasCustomerAccess(connection, userId))
                             return null;
 
@@ -180,11 +184,10 @@ VALUES (@id, @role, @hash, DATEADD(hour, 8, GETUTCDATE()))", connection))
             var hash = Sha256(secret);
             using (var connection = new SqlConnection(AppConnectionString()))
             using (var command = new SqlCommand(@"
-SELECT TOP 1 U.UserId, U.LoginName, U.MustChangePassword, R.RoleCode, D.LegacyPersonnelId
+SELECT TOP 1 U.UserId, U.LoginName, U.MustChangePassword, R.RoleCode
 FROM dbo.AuthSessions S
 JOIN dbo.Users U ON U.UserId = S.UserId
 JOIN dbo.UserRoles R ON R.UserId = U.UserId AND R.RoleCode = S.RoleCode
-LEFT JOIN dbo.DriverAccounts D ON D.UserId = U.UserId
 WHERE S.TokenHash = @hash AND S.RevokedAtUtc IS NULL
   AND S.ExpiresAtUtc > GETUTCDATE() AND U.IsActive = 1
   AND (@role IS NULL OR S.RoleCode = @role)
@@ -199,15 +202,18 @@ ORDER BY R.RoleCode", connection))
                     if (!reader.Read()) return null;
                     var identity = new AuthIdentity {
                         UserId = reader.GetInt32(0), LoginName = reader.GetString(1),
-                        MustChangePassword = reader.GetBoolean(2), Role = reader.GetString(3),
-                        LegacyPersonnelId = reader.IsDBNull(4) ? (int?)null : reader.GetInt32(4)
+                        MustChangePassword = reader.GetBoolean(2), Role = reader.GetString(3)
                     };
                     reader.Close();
-                    if (identity.Role == "DRIVER" &&
-                        (!identity.LegacyPersonnelId.HasValue || !PersonnelExists(identity.LegacyPersonnelId.Value)))
+                    if (identity.Role == "DRIVER")
                     {
-                        Revoke(token);
-                        return null;
+                        identity.LegacyPersonnelId = ReadDriverPersonnelId(connection, identity.UserId);
+                        if (!identity.LegacyPersonnelId.HasValue ||
+                            !PersonnelExists(identity.LegacyPersonnelId.Value))
+                        {
+                            Revoke(token);
+                            return null;
+                        }
                     }
                     return identity;
                 }
@@ -286,15 +292,28 @@ WHERE UserId = @id AND RevokedAtUtc IS NULL", connection, transaction))
             }
         }
 
+        // Optional driver data must never be part of ADMIN/CUSTOMER login or session queries.
+        // A missing/invalid driver record denies only the DRIVER role.
+        private static int? ReadDriverPersonnelId(SqlConnection connection, int userId)
+        {
+            using (var command = new SqlCommand(@"
+SELECT LegacyPersonnelId FROM dbo.DriverAccounts WHERE UserId = @id", connection))
+            {
+                command.Parameters.Add("@id", SqlDbType.Int).Value = userId;
+                using (var reader = command.ExecuteReader())
+                {
+                    if (!reader.Read() || reader.IsDBNull(0)) return null;
+                    var personnelId = reader.GetInt32(0);
+                    // Duplicate account rows are invalid; never pick one arbitrarily.
+                    return personnelId > 0 && !reader.Read() ? (int?)personnelId : null;
+                }
+            }
+        }
+
         public bool ChangePassword(int userId, string currentToken, string currentPassword,
             string newPassword, out string error)
         {
             error = null;
-            if (String.IsNullOrEmpty(newPassword) || newPassword.Length < 12 || newPassword.Length > 128)
-            {
-                error = "Yeni parola 12-128 karakter olmalıdır.";
-                return false;
-            }
             if (String.Equals(currentPassword, newPassword, StringComparison.Ordinal))
             {
                 error = "Yeni parola mevcut paroladan farklı olmalıdır.";
@@ -307,6 +326,31 @@ WHERE UserId = @id AND RevokedAtUtc IS NULL", connection, transaction))
                 connection.Open();
                 using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
+                    // The active session and stored roles, never a client role field,
+                    // determine whether the driver's PIN policy applies.
+                    bool driverOnly;
+                    using (var role = new SqlCommand(@"
+SELECT CASE WHEN S.RoleCode=N'DRIVER' AND NOT EXISTS
+    (SELECT 1 FROM dbo.UserRoles R WHERE R.UserId=S.UserId AND R.RoleCode<>N'DRIVER')
+    THEN 1 ELSE 0 END
+FROM dbo.AuthSessions S
+WHERE S.UserId=@userId AND S.TokenHash=@tokenHash
+  AND S.RevokedAtUtc IS NULL AND S.ExpiresAtUtc>GETUTCDATE()
+  AND EXISTS(SELECT 1 FROM dbo.UserRoles R WHERE R.UserId=S.UserId AND R.RoleCode=S.RoleCode)", connection, transaction))
+                    {
+                        role.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
+                        role.Parameters.Add("@tokenHash", SqlDbType.VarBinary, 32).Value = Sha256(tokenBytes);
+                        var value = role.ExecuteScalar();
+                        if (value == null) { error = "Oturum geçersiz."; return false; }
+                        driverOnly = Convert.ToInt32(value) == 1;
+                    }
+                    if (driverOnly ? !DriverAccountPolicy.IsValidPassword(newPassword) :
+                        String.IsNullOrEmpty(newPassword) || newPassword.Length < 12 || newPassword.Length > 128)
+                    {
+                        error = driverOnly ? "Şoför parolası tam 4 rakamdan oluşmalıdır." :
+                            "Yeni parola 12-128 karakter olmalıdır.";
+                        return false;
+                    }
                     byte[] storedHash;
                     byte[] storedSalt;
                     int iterations;

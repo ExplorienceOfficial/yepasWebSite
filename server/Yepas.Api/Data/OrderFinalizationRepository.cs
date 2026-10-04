@@ -19,6 +19,8 @@ namespace Yepas.Api.Data
         public DateTime UpdatedAtUtc { get; set; }
         public string Status { get; set; }
         public IList<OrderLineView> Lines { get; set; }
+        public string IntegrationStatus { get; set; }
+        public int? LastExportedRevision { get; set; }
     }
 
     public sealed class OrderFinalizationRepository
@@ -28,7 +30,7 @@ namespace Yepas.Api.Data
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
             using (var command = new SqlCommand(@"
 SELECT FinalizationId, DeliveryDate, State, OrderCount, LineCount,
-       TotalQuantity, AttemptCount, StartedAtUtc, FinalizedAtUtc, LastError
+       TotalQuantity, AttemptCount, StartedAt, FinalizedAt, LastError
 FROM dbo.OrderFinalizations WHERE DeliveryDate = @deliveryDate", connection))
             {
                 command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate.Date;
@@ -48,7 +50,7 @@ FROM dbo.OrderFinalizations WHERE DeliveryDate = @deliveryDate", connection))
                     OrderFinalizationView existing;
                     using (var command = new SqlCommand(@"
 SELECT FinalizationId, DeliveryDate, State, OrderCount, LineCount,
-       TotalQuantity, AttemptCount, StartedAtUtc, FinalizedAtUtc, LastError
+       TotalQuantity, AttemptCount, StartedAt, FinalizedAt, LastError
 FROM dbo.OrderFinalizations WITH (UPDLOCK, HOLDLOCK)
 WHERE DeliveryDate = @deliveryDate", connection, transaction))
                     {
@@ -72,10 +74,10 @@ WHERE DeliveryDate = @deliveryDate", connection, transaction))
 UPDATE dbo.OrderFinalizations
 SET State=N'FINALIZING', AttemptCount=AttemptCount+1,
     OrderCount=@orders, LineCount=@lines, TotalQuantity=@quantity,
-    LastAttemptAtUtc=GETUTCDATE(), FinalizedAtUtc=NULL, LastError=NULL
+    LastAttemptAt=GETDATE(), FinalizedAt=NULL, LastError=NULL
 WHERE FinalizationId=@id
   AND (State=N'FAILED' OR State=N'FINALIZED' OR
-       (State=N'FINALIZING' AND LastAttemptAtUtc<=DATEADD(minute,-5,GETUTCDATE())))", connection, transaction))
+       (State=N'FINALIZING' AND LastAttemptAt<=DATEADD(minute,-5,GETDATE())))", connection, transaction))
                         {
                             retry.Parameters.Add("@id", SqlDbType.Int).Value = existing.FinalizationId;
                             retry.Parameters.Add("@orders", SqlDbType.Int).Value = retryOrderCount;
@@ -123,7 +125,7 @@ VALUES (@deliveryDate, N'FINALIZING', @orders, @lines, @quantity, @userId)", con
             using (var command = new SqlCommand(@"
 SELECT O.OrderId, O.Revision, O.LegacyMbId, O.LegacyCustomerId,
        O.LegacyDepartmentId, O.LegacyPersonnelId, O.LegacyReceiptId,
-       O.DeliveryDate, O.Status, O.UpdatedAtUtc, L.UStokId, L.AStokId, L.Quantity,
+       O.DeliveryDate, O.Status, O.UpdatedAt, L.UStokId, L.AStokId, L.Quantity,
        L.ProductCode, L.ProductName, L.VariantName
 FROM dbo.Orders O
 LEFT JOIN dbo.OrderLines L ON L.OrderId=O.OrderId
@@ -146,7 +148,7 @@ ORDER BY O.OrderId,L.OrderLineId", connection))
                                 LegacyPersonnelId=reader.GetInt32(5),
                                 LegacyReceiptId=reader.IsDBNull(6) ? (int?)null : reader.GetInt32(6),
                                 DeliveryDate=reader.GetDateTime(7), Status=reader.GetString(8),
-                                UpdatedAtUtc=reader.GetDateTime(9),
+                                UpdatedAtUtc=IstanbulTimestamp.ToUtc(reader.GetDateTime(9)),
                                 Lines=new List<OrderLineView>()
                             };
                             orders.Add(orderId, order);
@@ -166,7 +168,7 @@ ORDER BY O.OrderId,L.OrderLineId", connection))
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
             using (var command = new SqlCommand(@"
 UPDATE dbo.Orders SET IntegrationStatus=N'EXPORTED', LegacyReceiptId=@receiptId,
-    LastExportedAtUtc=GETUTCDATE(), LastExportedRevision=@revision
+    LastExportedAt=GETDATE(), LastExportedRevision=@revision
 WHERE OrderId=@orderId AND Revision=@revision
   AND IntegrationStatus IN (N'PENDING', N'FAILED')", connection))
             {
@@ -203,7 +205,7 @@ WHERE OrderId=@orderId AND Revision=@revision
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
             using (var command = new SqlCommand(@"
 UPDATE dbo.OrderFinalizations
-SET State=N'FINALIZED', FinalizedAtUtc=GETUTCDATE(), LastError=NULL
+SET State=N'FINALIZED', FinalizedAt=GETDATE(), LastError=NULL
 WHERE FinalizationId=@id AND State=N'FINALIZING'
   AND NOT EXISTS (SELECT 1 FROM dbo.Orders
                   WHERE DeliveryDate=@deliveryDate
@@ -254,8 +256,8 @@ WHERE FinalizationId=@id AND State=N'FINALIZING'", connection))
             return new OrderFinalizationView {
                 FinalizationId=reader.GetInt32(0), DeliveryDate=reader.GetDateTime(1), State=reader.GetString(2),
                 OrderCount=reader.GetInt32(3), LineCount=reader.GetInt32(4), TotalQuantity=reader.GetInt32(5),
-                AttemptCount=reader.GetInt32(6), StartedAtUtc=reader.GetDateTime(7),
-                FinalizedAtUtc=reader.IsDBNull(8) ? (DateTime?)null : reader.GetDateTime(8),
+                AttemptCount=reader.GetInt32(6), StartedAtUtc=IstanbulTimestamp.ToUtc(reader.GetDateTime(7)),
+                FinalizedAtUtc=reader.IsDBNull(8) ? (DateTime?)null : IstanbulTimestamp.ToUtc(reader.GetDateTime(8)),
                 LastError=reader.IsDBNull(9) ? null : reader.GetString(9)
             };
         }

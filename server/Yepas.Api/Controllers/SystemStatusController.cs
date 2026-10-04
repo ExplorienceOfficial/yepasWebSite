@@ -24,8 +24,11 @@ namespace Yepas.Api.Controllers
                 return Request.CreateResponse(HttpStatusCode.OK, new {
                     isOpen = settings.IsOpen,
                     cutoffTime = settings.CutoffTime,
+                    displayCutoffTime = settings.DisplayCutoffTime,
+                    mode = settings.EffectiveMode,
                     cutoffMinute = settings.CutoffMinute,
-                    serverNowUtc = settings.ServerNowUtc
+                    serverNowUtc = settings.ServerNowUtc,
+                    nextStatusChangeAtUtc = settings.NextStatusChangeAtUtc
                 });
             }
             catch (Exception)

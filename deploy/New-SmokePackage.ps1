@@ -1,5 +1,7 @@
 param(
-    [string]$Version = '0.1.0-smoke'
+    [string]$Version = '0.1.0-rc.1',
+    [ValidateSet('turbopack', 'webpack')]
+    [string]$BuildEngine = 'turbopack'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,8 +28,11 @@ if ($LASTEXITCODE -ne 0 -or [String]::IsNullOrWhiteSpace($commitOutput)) {
     throw 'Git commit kimliği okunamadı.'
 }
 $commit = $commitOutput.Trim()
+$workingTreeChanges = & git -c ("safe.directory=" + $safeGitDirectory) -C $repositoryRoot status --porcelain --untracked-files=normal
+if ($LASTEXITCODE -ne 0) { throw 'Çalışma ağacı durumu okunamadı.' }
+$workingTreeState = if ($workingTreeChanges) { 'Dirty' } else { 'Clean' }
 
-$releaseName = 'yepas-{0}-{1}' -f $safeVersion, $commit
+$releaseName = 'yepas-{0}' -f $safeVersion
 $stageRoot = [System.IO.Path]::GetFullPath((Join-Path $artifactsRoot $releaseName))
 $zipPath = [System.IO.Path]::GetFullPath((Join-Path $artifactsRoot ($releaseName + '.zip')))
 if (-not $stageRoot.StartsWith($artifactsRoot + [System.IO.Path]::DirectorySeparatorChar,
@@ -41,7 +46,11 @@ New-Item -ItemType Directory -Path $stageRoot | Out-Null
 
 Push-Location $repositoryRoot
 try {
-    & npm.cmd run build
+    if ($BuildEngine -eq 'webpack') {
+        & npm.cmd run build -- --webpack
+    } else {
+        & npm.cmd run build
+    }
     if ($LASTEXITCODE -ne 0) { throw 'Frontend statik derlemesi başarısız.' }
 
     $msbuild = 'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\MSBuild.exe'
@@ -78,6 +87,7 @@ try {
     Copy-Item -Path (Join-Path $repositoryRoot 'database\permissions\*') -Destination $databasePermissionsRoot -Recurse -Force
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'deploy\Configure-Smoke.ps1') -Destination $toolsRoot
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'deploy\Run-AutoExport.ps1') -Destination $toolsRoot
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'deploy\Install-AutoExportTask.ps1') -Destination $toolsRoot
     Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'server\Yepas.AutoExport\bin\Release') -File |
         Where-Object { $_.Extension -eq '.dll' -or $_.Name -eq 'Yepas.AutoExport.exe' } |
         ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $toolsRoot }
@@ -88,6 +98,7 @@ try {
     @(
         'Version=' + $safeVersion
         'Commit=' + $commit
+        'WorkingTree=' + $workingTreeState
         'BuiltAtUtc=' + [DateTime]::UtcNow.ToString('o')
         'Target=Windows 7 SP1 x64; IIS 7.5; .NET Framework 4.8; SQL Server 2005'
         'ContainsSecrets=False'
@@ -104,7 +115,7 @@ try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::CreateFromDirectory(
         $stageRoot, $zipPath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
-    Write-Host ('Smoke paketi hazır: ' + $zipPath)
+    Write-Host ('Release package ready: ' + $zipPath)
 }
 finally {
     Pop-Location

@@ -19,9 +19,15 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="..\\Yepas.Api\\Domain\\DriverRoutePolicy.cs"><Link>DriverRoutePolicy.cs</Link></Compile>
+    <Compile Include="..\\Yepas.Api\\Domain\\AccountNamePolicy.cs"><Link>AccountNamePolicy.cs</Link></Compile>
     <Compile Include="..\Yepas.Api\Domain\OrderWindowPolicy.cs">
       <Link>OrderWindowPolicy.cs</Link>
     </Compile>
@@ -31,6 +37,9 @@
     <Compile Include="..\Yepas.Api\Domain\OrderExportPolicy.cs">
       <Link>OrderExportPolicy.cs</Link>
     </Compile>
+    <Compile Include="..\Yepas.Api\Domain\OrderDaySyncPolicy.cs">
+      <Link>OrderDaySyncPolicy.cs</Link>
+    </Compile>
     <Compile Include="..\Yepas.Api\Domain\DriverAccountPolicy.cs">
       <Link>DriverAccountPolicy.cs</Link>
     </Compile>
@@ -39,6 +48,9 @@
     </Compile>
     <Compile Include="..\Yepas.Api\Models\CatalogProduct.cs">
       <Link>CatalogProduct.cs</Link>
+    </Compile>
+    <Compile Include="..\Yepas.Api\Data\IstanbulTimestamp.cs">
+      <Link>IstanbulTimestamp.cs</Link>
     </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

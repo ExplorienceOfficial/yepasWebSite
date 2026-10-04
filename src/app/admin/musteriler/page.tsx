@@ -192,7 +192,7 @@ export default function CustomersPage() {
       <PageHeading
         title="Müşteriler ve Şubeler"
         description="Şubeler, hesap bağlantıları ve eski programdaki ürün tanımları"
-        action={<div className="flex gap-2"><Button variant="secondary" onClick={refresh}>Yenile</Button><Button variant="primary" onClick={() => openCreate()}><Plus className="size-4" />Müşteri hesabı aç</Button></div>}
+        action={<Button variant="secondary" onClick={refresh}>Yenile</Button>}
       />
 
       {notice && <div className="mb-4 flex items-center justify-between rounded-xl bg-accent/10 px-4 py-3 text-sm text-accent ring-1 ring-accent/20"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} className="text-xs font-semibold">Kapat</button></div>}
@@ -243,7 +243,7 @@ export default function CustomersPage() {
         <div className="space-y-4">
           <Field label="Müşteri"><Select value={selectedCustomerId ?? ""} onChange={(event) => chooseCustomer(Number(event.target.value))}><option value="" disabled>Müşteri seçin</option>{customerGroups.filter((group) => group.branches.some((branch) => !branch.account)).map((group) => <option key={group.customerId} value={group.customerId}>{group.name} · {group.code}</option>)}</Select></Field>
           <div><p className="text-[13px] font-medium text-ink-2">Bağlanacak şubeler</p><div className="mt-2 max-h-52 space-y-2 overflow-y-auto rounded-xl bg-surface-2 p-3 ring-1 ring-hairline">{customerGroups.find((group) => group.customerId === selectedCustomerId)?.branches.map((branch) => <label key={branch.legacyMbId} className={`flex items-start gap-3 rounded-lg p-2 ${branch.account ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-surface"}`}><input type="checkbox" className="mt-0.5 size-4" disabled={Boolean(branch.account)} checked={selectedMbIds.includes(branch.legacyMbId)} onChange={() => toggleMb(branch.legacyMbId, selectedMbIds, setSelectedMbIds)} /><span className="text-sm text-ink"><strong>{branch.departmentName}</strong><span className="mt-0.5 block text-xs text-ink-3">MB ID {branch.legacyMbId} · {branch.distributionDays || "SG günü yok"}{branch.account ? ` · ${branch.account.loginName} hesabına bağlı` : ""}</span></span></label>) ?? <p className="text-sm text-ink-3">Önce müşteri seçin.</p>}</div></div>
-          <Field label="Kullanıcı adı"><TextInput value={loginName} onChange={(event) => setLoginName(event.target.value)} autoComplete="off" maxLength={100} /></Field>
+          <Field label="Kullanıcı adı"><TextInput value={loginName} onChange={(event) => setLoginName(event.target.value.replace(/\s/g, ""))} autoComplete="off" maxLength={100} /></Field>
           <Field label="Geçici parola" hint="12-128 karakter. Yedi gün geçerlidir; müşteri ilk girişte değiştirmek zorundadır."><TextInput type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} autoComplete="new-password" maxLength={128} /></Field>
           {actionError && <p className="rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{actionError}</p>}
         </div>

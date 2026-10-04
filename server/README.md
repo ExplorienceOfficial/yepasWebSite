@@ -26,11 +26,12 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 - Ürün API'si `GET /api/v1/admin/products` yolundadır ve yalnızca geçerli `ADMIN` oturumu kabul eder.
 - `GET /api/v1/admin/drivers` `BF_PERS_MUST` tablosunda müşteri/şubesi ve `RS_MUSTERI_BILGILERI` tablosunda operasyon kaydı bulunan rota personellerini uygulama hesaplarıyla listeler. Hesap açma, kapatma/açma ve geçici parola yenileme uçları yalnız admin oturumuyla çalışır; kapatma açık oturumları iptal eder.
 - `GET /api/v1/driver/routes?scope=delivery|submitted` giriş yapan şoförün `BF_PERS_MUST` ile bağlı olduğu müşteri/şubeleri getirir; `MB_ID` ve seçilen teslim günündeki `SG_1`–`SG_7` filtresi `RS_MUSTERI_BILGILERI` üzerinden uygulanır. `delivery` bugünü, `submitted` yarını esas alır.
+- Rota yanıtındaki `ordersAvailable=false`, sipariş kaynağı okunamadığı için durakların sipariş durumunun **bilinmediği** anlamına gelir; `order=null` bu durumda “sipariş yok” diye yorumlanmaz. `warnings` alanı arızayı açıklar.
 - `GET /api/v1/customer/branches/{legacyMbId}/order` müşteriye tanımlı ürünleri, yalnızca `SG_1`–`SG_7` alanlarından hesaplanan sıradaki teslim gününü, sipariş penceresini ve varsa mevcut siparişi getirir.
 - Müşteriye/şubeye tanımlı ürünler `D00013.RS_MOBIL_SIPARIS_URUN_TANIMLARI` tablosundan `MB_ID` ile okunur; `U_STOK_LIMIT` pozitifse sipariş üst sınırı olarak uygulanır.
 - `GET /api/v1/customer/branches` giriş yapan müşterinin yalnızca `CustomerAccess`
   üzerinden bağlı olduğu gerçek müşteri/şube kayıtlarını getirir.
-- `PUT /api/v1/customer/branches/{legacyMbId}/order` sipariş oluşturur, günceller, iptal eder veya `NO_PRODUCT` kaydı oluşturur. `Idempotency-Key` başlığı zorunludur; güncellemede en son `revision` gönderilir.
+- `PUT /api/v1/customer/branches/{legacyMbId}/order` ürünlü sipariş oluşturur/günceller; `NO_PRODUCT` veya `CANCELLED` aktif `Orders` kaydını kaldırır. Denetim ve istek anahtarı geçmişi korunur; kaldırma yanıtı `orderId=0`, `revision=0` içerir, sonraki GET'de aktif sipariş `null` döner. `Idempotency-Key` başlığı zorunludur; mevcut sipariş güncellemesinde en son `revision` gönderilir.
 - `GET/PUT /api/v1/admin/order-settings` genel kesim saatini ve `AUTO`, `OPEN`, `CLOSED` manuel durumunu yönetir. Manuel değişikliklerde gerekçe zorunlu değildir; denetim kaydı tutulur.
 - `GET /api/v1/admin/customers` eski programdaki müşteri/şube, SG ve şoför bilgisini hesap durumuyla birlikte getirir; şube bazındaki mobil ürün tanım sayısını gerçek ürün eşleştirme tablosundan gösterir.
 - `POST /api/v1/admin/customers/accounts` aynı müşteriye ait bir veya daha fazla `MB_ID` şubesi için tek mobil hesap açar. Geçici parola yedi gün geçerlidir ve ilk girişte değiştirilir.
@@ -44,7 +45,7 @@ Tarayıcıda `http://localhost:3000` açılır. `127.0.0.1` yerine `localhost` k
 - Ürün ekranındaki düzenleme/silme ve sahte talep/limit işlemleri gizlenmiştir. Eski ürün tablolarına yazma yapılmaz.
 - `Debug` yerel bağlantı kullanır. `Release` için `YEPAS_APP_CONNECTION` ve `YEPAS_CATALOG_CONNECTION` ayrıca yapılandırılmalıdır; gerçek şifreler dosyaya yazılmaz.
 - Giriş artık demo hesapları kullanmaz. Admin müşteri ekranında hesap açma, aynı müşterinin şubelerini bağlama, hesabı açıp kapatma ve geçici parola yenileme işlemleri gerçek API'ye bağlıdır.
-- Sipariş çekirdeği, müşteri ve şoför hesap yönetimi, şoför rota ekranı, admin sipariş ekranı ve eski programa yeniden gönderilebilir mobil fiş senkronizasyonu hazırdır. İki günlük saklama görevi ayrıca planlanacaktır.
+- Gün bazlı eşitleme yalnız `MobileReceiptRegistry` ile uygulamaya ait olduğu bilinen fişleri karşılaştırır. Aynı instance doğrulanmadan ve 010 migration/çapraz-veritabanı izinleri uygulanmadan aktarım başlamaz. 00:01 sonrasında tamamlanmış eski `Orders` kayıtları denetim geçmişi korunarak temizlenir; başarısız veya bekleyen günler silinmez.
 
 ## İş kuralı testleri
 

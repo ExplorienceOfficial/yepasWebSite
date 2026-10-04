@@ -5,6 +5,7 @@ using System.Web;
 using System.Web.Http;
 using Yepas.Api.Data;
 using Yepas.Api.Models;
+using Yepas.Api.Domain;
 
 namespace Yepas.Api.Controllers
 {
@@ -67,6 +68,22 @@ namespace Yepas.Api.Controllers
         }
 
         [HttpPost]
+        [Route("admin/login")]
+        public HttpResponseMessage AdminLogin(LoginRequest input)
+        {
+            if (input != null) input.Role = "ADMIN";
+            return Login(input);
+        }
+
+        [HttpPost]
+        [Route("driver/login")]
+        public HttpResponseMessage DriverLogin(LoginRequest input)
+        {
+            if (input != null) input.Role = "DRIVER";
+            return Login(input);
+        }
+
+        [HttpPost]
         [Route("login")]
         public HttpResponseMessage Login(LoginRequest input)
         {
@@ -75,6 +92,10 @@ namespace Yepas.Api.Controllers
             if (input == null || String.IsNullOrWhiteSpace(input.LoginName) ||
                 String.IsNullOrEmpty(input.Password) || String.IsNullOrWhiteSpace(input.Role))
                 return Request.CreateResponse(HttpStatusCode.BadRequest);
+
+            if (AccountNamePolicy.HasWhitespace(input.LoginName))
+                return Request.CreateResponse(HttpStatusCode.BadRequest,
+                    new { code = "INVALID_LOGIN_NAME", message = "Kullanıcı adı boşluk içeremez." });
 
             if (!RuntimeSettings.DevelopmentMode && !HttpContext.Current.Request.IsSecureConnection)
                 return Request.CreateResponse(HttpStatusCode.Forbidden);

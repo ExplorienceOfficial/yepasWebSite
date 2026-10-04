@@ -119,6 +119,11 @@ namespace Yepas.Api.Controllers
             {
                 return Request.CreateResponse(HttpStatusCode.NotFound);
             }
+            catch (OrderDayClosedException exception)
+            {
+                return Request.CreateResponse(HttpStatusCode.Conflict,
+                    new { code = "ORDER_DAY_CLOSED", message = exception.Message });
+            }
             catch (OrderRevisionConflictException)
             {
                 return Request.CreateResponse(HttpStatusCode.Conflict,

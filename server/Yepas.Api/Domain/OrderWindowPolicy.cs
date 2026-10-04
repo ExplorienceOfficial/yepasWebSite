@@ -61,6 +61,12 @@ namespace Yepas.Api.Domain
             throw new InvalidOperationException("Müşterinin SG dağıtım günü bulunamadı.");
         }
 
+        public static string DisplayCutoffTime(string effectiveMode, int cutoffMinute)
+        {
+            if (effectiveMode == "OPEN" || effectiveMode == "CLOSED") return "00:00";
+            return (cutoffMinute / 60).ToString("00") + ":" + (cutoffMinute % 60).ToString("00");
+        }
+
         public static string EffectiveMode(OrderWindowSettings settings, DateTime utcNow)
         {
             if (settings == null) throw new InvalidOperationException("Sipariş ayarı bulunamadı.");
@@ -79,6 +85,19 @@ namespace Yepas.Api.Domain
             var localNow = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc)
                 .AddHours(TurkeyUtcOffsetHours);
             return localNow.TimeOfDay <= TimeSpan.FromMinutes(settings.CutoffMinute);
+        }
+
+        public static DateTime? NextGlobalChangeUtc(OrderWindowSettings settings, DateTime utcNow)
+        {
+            var now = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+            if (EffectiveMode(settings, now) != "AUTO")
+                return settings.OverrideUntilUtc;
+            var localNow = now.AddHours(TurkeyUtcOffsetHours);
+            var cutoff = DateTime.SpecifyKind(localNow.Date.AddMinutes(settings.CutoffMinute)
+                .AddHours(-TurkeyUtcOffsetHours), DateTimeKind.Utc);
+            // Existing policy includes the exact cutoff instant. Refresh after it.
+            return now <= cutoff ? cutoff.AddMilliseconds(1) :
+                DateTime.SpecifyKind(localNow.Date.AddDays(1).AddHours(-TurkeyUtcOffsetHours), DateTimeKind.Utc);
         }
 
         private static bool IsDistributionDay(bool[] days, DayOfWeek day)

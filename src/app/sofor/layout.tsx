@@ -14,7 +14,7 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
   }, []);
 
   return (
-    <RequireRole role="driver" loginPath="/">
+    <RequireRole role="driver" loginPath="/login/sofor/">
       <div
         className="min-h-screen bg-canvas transition-colors ease-out"
         style={{ transitionDuration: "1200ms", transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)" }}

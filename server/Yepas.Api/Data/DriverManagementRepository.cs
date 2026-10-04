@@ -276,6 +276,8 @@ VALUES (@personnel, @userId, @action, @actor)", connection, transaction))
 
         private static string ValidateLogin(string value)
         {
+            if (AccountNamePolicy.HasWhitespace(value))
+                throw new ArgumentException("Kullanıcı adı boşluk içeremez.");
             value = value == null ? null : value.Trim();
             if (String.IsNullOrWhiteSpace(value) || value.Length < 2 || value.Length > 100)
                 throw new ArgumentException("Kullanıcı adı 2-100 karakter olmalıdır.");
@@ -284,8 +286,8 @@ VALUES (@personnel, @userId, @action, @actor)", connection, transaction))
 
         private static void ValidatePassword(string value)
         {
-            if (String.IsNullOrEmpty(value) || value.Length < 12 || value.Length > 128)
-                throw new ArgumentException("Geçici parola 12-128 karakter olmalıdır.");
+            if (!DriverAccountPolicy.IsValidPassword(value))
+                throw new ArgumentException("Şoför parolası tam 4 rakamdan oluşmalıdır.");
         }
     }
 }

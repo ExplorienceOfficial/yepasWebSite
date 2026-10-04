@@ -34,6 +34,7 @@ namespace Yepas.Api.Domain
                     IsOpen = decision.IsOpen,
                     Mode = decision.EffectiveMode,
                     CutoffMinute = settings.CutoffMinute,
+                    DisplayCutoffTime = OrderWindowPolicy.DisplayCutoffTime(decision.EffectiveMode, settings.CutoffMinute),
                     DeadlineUtc = decision.DeadlineUtc,
                     OverrideUntilUtc = settings.OverrideUntilUtc
                 },
@@ -106,7 +107,9 @@ namespace Yepas.Api.Domain
             schedule = schedules.Read(legacyMbId);
             if (schedule == null) throw new KeyNotFoundException("Müşteri operasyon kaydı bulunamadı.");
 
-            var products = customerProducts.Read(schedule.LegacyMbId);
+            var products = OrderSubmissionPolicy.RequiresProductCatalog(status)
+                ? customerProducts.Read(schedule.LegacyMbId)
+                : new List<CatalogProduct>();
             preparedLines = OrderSubmissionPolicy.Prepare(status, input.Lines, products);
         }
 

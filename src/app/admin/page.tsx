@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Calendar, Clock4, Store } from "lucide-react";
 
@@ -12,11 +12,12 @@ import { invalidateSession, useAuth } from "@/context/AuthContext";
 import { localApiUrl } from "@/lib/api";
 
 type Mode = "AUTO" | "OPEN" | "CLOSED";
-type Settings = { cutoffTime: string; overrideMode: Mode; effectiveMode: Mode; isOpen: boolean };
+type Settings = { cutoffTime: string; overrideMode: Mode; effectiveMode: Mode; isOpen: boolean; serverNowUtc: string; nextStatusChangeAtUtc: string | null };
 type Row = {
   legacyMbId: number; customerName: string; departmentName: string;
   boardStatus: "SUBMITTED" | "NO_PRODUCT" | "CANCELLED" | "PENDING";
   sourceRole: string | null;
+  lastActionAtUtc: string | null;
   order: { updatedAtUtc: string; lines: { quantity: number }[] } | null;
 };
 type Board = { localDate: string; expectedDeliveryDate: string; rows: Row[] };
@@ -43,37 +44,60 @@ export default function OverviewPage() {
   const [cutoffTime, setCutoffTime] = useState("18:00");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const generation = useRef(0);
+  const settingsGeneration = useRef(0);
 
   useEffect(() => {
     let active = true;
     const load = async () => {
+      if (savingRef.current) return;
+      const requestGeneration = ++generation.current;
+      const requestSettingsGeneration = settingsGeneration.current;
       const results = await Promise.allSettled([
         read<Settings>("/api/v1/admin/order-settings"),
         read<Board>("/api/v1/admin/orders?scope=submitted"),
       ]);
-      if (!active) return;
-      if (results[0].status === "fulfilled") {
-        setSettings(results[0].value);
-        setCutoffTime(results[0].value.cutoffTime);
-      } else setSettings(null);
+      if (!active || savingRef.current || requestGeneration !== generation.current) return;
+      if (requestSettingsGeneration === settingsGeneration.current) {
+        if (results[0].status === "fulfilled") {
+          setSettings(results[0].value);
+          setCutoffTime(results[0].value.cutoffTime);
+        } else setSettings(null);
+      }
       if (results[1].status === "fulfilled") setBoard(results[1].value);
       else setBoard(null);
       setError(results.some((result) => result.status === "rejected")
         ? "Bazı güncel bilgiler alınamadı; ilgili alanlar boş bırakıldı." : null);
     };
     void load();
-    const timer = window.setInterval(load, 30_000);
     window.addEventListener("focus", load);
     window.addEventListener("yepas:order-sync-changed", load);
+    // TopBar owns the single boundary timer. It publishes the confirmed response
+    // so the switch and badge update together without another polling loop.
+    const statusChanged = (event: Event) => {
+      const data = (event as CustomEvent<Partial<Settings> & { mode?: Mode }>).detail;
+      if (savingRef.current) return;
+      if (!data) { settingsGeneration.current++; setSettings(null); return; }
+      if (typeof data.isOpen !== "boolean") return;
+      settingsGeneration.current++;
+      setSettings(current => data.overrideMode ? data as Settings : current ? {
+        ...current, isOpen: data.isOpen!, effectiveMode: data.effectiveMode ?? data.mode ?? current.effectiveMode,
+      } : null);
+    };
+    window.addEventListener("yepas:settings-status", statusChanged);
     return () => {
       active = false;
-      window.clearInterval(timer);
       window.removeEventListener("focus", load);
       window.removeEventListener("yepas:order-sync-changed", load);
+      window.removeEventListener("yepas:settings-status", statusChanged);
     };
   }, []);
 
   const save = async (mode: Mode) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    generation.current++;
     setSaving(true);
     setError(null);
     try {
@@ -86,14 +110,16 @@ export default function OverviewPage() {
       const result = await response.json() as Settings;
       setSettings(result);
       setCutoffTime(result.cutoffTime);
-      window.dispatchEvent(new Event("yepas:settings-changed"));
+      window.dispatchEvent(new CustomEvent("yepas:settings-changed", { detail: result }));
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Ayarlar kaydedilemedi."); }
-    finally { setSaving(false); }
+    finally { savingRef.current = false; setSaving(false); }
   };
 
   const rows = board?.rows ?? [];
   const recent = rows.filter((row) => row.order).sort((a, b) =>
     (b.order?.updatedAtUtc ?? "").localeCompare(a.order?.updatedAtUtc ?? "")).slice(0, 8);
+  const recentActivity = rows.filter((row) => row.lastActionAtUtc).sort((a, b) =>
+    (b.lastActionAtUtc ?? "").localeCompare(a.lastActionAtUtc ?? "")).slice(0, 5);
   const ordered = rows.filter((row) => row.boardStatus === "SUBMITTED").length;
   const pending = rows.filter((row) => row.boardStatus === "PENDING").length;
 
@@ -108,10 +134,8 @@ export default function OverviewPage() {
     </div>
     <Panel className="mt-5" title="Genel Sipariş Yönetimi" description="Ayarlar doğrudan sunucuya kaydedilir.">
       <div className="divide-y divide-hairline">
-        <div className="flex items-center justify-between px-2 py-4 sm:px-4"><div><p className="text-sm font-medium text-ink">Müşteri sipariş sistemi</p><p className="text-xs text-ink-2">{settings ? `${settings.isOpen ? "Açık" : "Kapalı"} · ${settings.effectiveMode === "AUTO" ? "Otomatik" : "Manuel"}` : "Durum alınamıyor"}</p></div><Switch checked={settings?.isOpen ?? false} onChange={(open) => void save(open ? "OPEN" : "CLOSED")} label="Sipariş sistemini aç/kapat" disabled={!settings || saving} /></div>
-        <div className="flex items-center justify-between px-2 py-4 sm:px-4"><p className="text-sm font-medium text-ink">Çalışma biçimi</p><Button size="sm" disabled={!settings || saving || settings.overrideMode === "AUTO"} onClick={() => void save("AUTO")}>Otomatik moda dön</Button></div>
+        <div className="flex items-center justify-between gap-3 px-2 py-4 sm:px-4"><div><p className="text-sm font-medium text-ink">Müşteri sipariş sistemi</p><p className="text-xs text-ink-2">{settings ? `${settings.isOpen ? "Açık" : "Kapalı"} · ${settings.effectiveMode === "AUTO" ? "Saate göre" : "Manuel"}` : "Durum alınamıyor"}</p></div><div className="flex items-center gap-3">{settings?.overrideMode !== "AUTO" && <Button size="sm" disabled={saving} onClick={() => void save("AUTO")}>Saate göre yönet</Button>}<Switch checked={settings?.isOpen ?? false} onChange={(open) => void save(open ? "OPEN" : "CLOSED")} label="Sipariş sistemini aç/kapat" disabled={!settings || saving} /></div></div>
         <div className="flex items-center justify-between px-2 py-4 sm:px-4"><p className="text-sm font-medium text-ink">Kapanış saati</p><div className="flex gap-2"><input type="time" value={cutoffTime} onChange={(event) => setCutoffTime(event.target.value)} disabled={!settings || saving} aria-label="Kapanış saati" className="rounded-lg border border-hairline bg-surface px-3 py-1.5 text-sm text-ink" /><Button size="sm" disabled={!settings || saving || cutoffTime === settings.cutoffTime} onClick={() => void save(settings!.overrideMode)}>Saati kaydet</Button></div></div>
-        <div className="flex items-center justify-between px-2 py-4 sm:px-4"><p className="text-sm font-medium text-ink">Operasyon günü</p><span className="text-sm text-ink-2">{board ? date(board.localDate) : "—"}</span></div>
       </div>
     </Panel>
     <div className="mt-5 grid gap-5 xl:grid-cols-3">
@@ -119,7 +143,7 @@ export default function OverviewPage() {
         {recent.length === 0 ? <p className="text-sm text-ink-3">Henüz sipariş yok.</p> : recent.map((row) => <div key={row.legacyMbId} className="flex items-center justify-between gap-4 border-b border-hairline py-3 text-sm"><div><p className="font-medium text-ink">{row.customerName}</p><p className="text-xs text-ink-3">{row.departmentName} · {time(row.order!.updatedAtUtc)}</p></div><span className="text-ink-2">{row.boardStatus === "SUBMITTED" ? "Sipariş verdi" : row.boardStatus === "PENDING" ? "Bekliyor" : "Sipariş yok"}</span></div>)}
       </Panel>
       <Panel title="Son Etkinlik">
-        {recent.length === 0 ? <p className="text-sm text-ink-3">Henüz etkinlik yok.</p> : recent.slice(0, 5).map((row) => <div key={row.legacyMbId} className="border-b border-hairline py-3 text-sm"><p className="text-ink">{row.customerName} · {row.sourceRole === "ADMIN" ? "Yönetici" : "Müşteri"} güncelledi</p><p className="text-xs text-ink-3">{time(row.order!.updatedAtUtc)}</p></div>)}
+        {recentActivity.length === 0 ? <p className="text-sm text-ink-3">Henüz etkinlik yok.</p> : recentActivity.map((row) => <div key={row.legacyMbId} className="border-b border-hairline py-3 text-sm"><p className="text-ink">{row.customerName} · {row.sourceRole === "ADMIN" ? "Yönetici" : "Müşteri"} {row.boardStatus === "NO_PRODUCT" || row.boardStatus === "CANCELLED" ? "ürün istemedi" : "siparişi güncelledi"}</p><p className="text-xs text-ink-3">{time(row.lastActionAtUtc!)}</p></div>)}
       </Panel>
     </div>
   </div>;

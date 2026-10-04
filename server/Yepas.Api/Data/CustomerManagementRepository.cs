@@ -5,6 +5,7 @@ using System.Data.SqlClient;
 using System.Linq;
 using System.Security.Cryptography;
 using Yepas.Api.Models;
+using Yepas.Api.Domain;
 
 namespace Yepas.Api.Data
 {
@@ -59,6 +60,12 @@ JOIN dbo.UserRoles R ON R.UserId = U.UserId AND R.RoleCode = N'CUSTOMER'", conne
                     using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                     {
                         EnsureBranchesAvailable(connection, transaction, branches, null);
+                        using (var check = new SqlCommand("SELECT 1 FROM dbo.Users WITH (UPDLOCK, HOLDLOCK) WHERE LoginNameNormalized = @name", connection, transaction))
+                        {
+                            check.Parameters.Add("@name", SqlDbType.NVarChar, 100).Value = loginName.ToUpperInvariant();
+                            if (check.ExecuteScalar() != null)
+                                throw new AccountConflictException("LOGIN_NAME_IN_USE", "Bu kullanıcı adı zaten kullanılıyor.");
+                        }
                         int userId;
                         using (var command = new SqlCommand(@"
 INSERT INTO dbo.Users
@@ -215,7 +222,7 @@ WHERE LegacyMbId = @mbId", connection, transaction))
                     command.Parameters.Add("@mbId", SqlDbType.Int).Value = branch;
                     var found = command.ExecuteScalar();
                     if (found != null && (!allowedUserId.HasValue || (int)found != allowedUserId.Value))
-                        throw new InvalidOperationException("Şube başka bir hesaba bağlı: " + branch);
+                        throw new AccountConflictException("BRANCH_ALREADY_LINKED", "Bu bayi/şube başka bir hesaba bağlı: " + branch);
                 }
         }
 
@@ -278,10 +285,7 @@ VALUES (@mbId, @userId, @action, NULL, @actor)", connection, transaction))
 
         private static string ValidateLogin(string value)
         {
-            value = value == null ? null : value.Trim();
-            if (String.IsNullOrWhiteSpace(value) || value.Length < 3 || value.Length > 100)
-                throw new ArgumentException("Kullanıcı adı 3-100 karakter olmalıdır.");
-            return value;
+            return AccountNamePolicy.Validate(value);
         }
 
         private static void ValidatePassword(string value)

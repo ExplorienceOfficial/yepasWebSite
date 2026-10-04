@@ -188,10 +188,17 @@ Kurallar:
 - Son sipariş saati geçince sistem sonraki SG tarihine atlayarak açık kalmaz.
 - Yalnız `products` dizisindeki `uStokId + aStokId` ikilileri sipariş edilebilir.
 - `maxQuantity > 0` ise miktar bu sınırı aşamaz.
-- `packageSize` ürün adından türetilir ve 5'li paket ürünlerde `5` döner. Miktar
-  bu değerin katı olmalıdır; aksi hâlde API `400 INVALID_ORDER` döndürür. Mobil
-  arayüz adet sayacını `packageSize` kadar artırıp azaltmalı ve elle girilen
-  değeri en yakın kata yuvarlamalıdır (3 adet girilemez).
+- `packageSize`, ürün/varyant adındaki sayı + `lı/li/lu/lü` ifadesinden türetilir.
+  `3’lü`, `4 LÜ`, `6lı`, `10 lu` sırasıyla 3, 4, 6, 10 döndürür; ifade yoksa 1.
+  Gramaj (`100 GR`) veya koli ifadesi (`1 KOLİ`) paket adedi sayılmaz.
+  Miktar bu değerin katı olmalıdır; aksi hâlde API `400 INVALID_ORDER` döndürür.
+  Mobil arayüz adet sayacını `packageSize` kadar artırıp azaltmalı; elle girilen
+  uyumsuz miktarı açıklayıcı uyarıyla reddetmelidir, sessizce değiştirmemelidir.
+- `packageSizeIsAmbiguous=true` ise ürün/varyant adları çelişiyor veya paket sayısı
+  geçersizdir. Yalnız o ürünün miktar girişini kapatıp tanımın eski sistemden
+  düzeltilmesini belirtin; diğer ürünlere sipariş verilebilir. Bu durumda
+  uyumluluk için `packageSize=1` döner, ancak bu **tekli sipariş izni değildir**;
+  API bu ürünü içeren siparişi `400 INVALID_ORDER` ile reddeder.
 - Ürün adları kısaltılmadan gösterilmelidir; gerekirse alt satıra sarılır.
 - Fiyat alanı yoktur ve mobil uygulama fiyat göstermemelidir.
 - `window.isOpen=false` iken kayıt yapılmamalıdır.
@@ -365,3 +372,31 @@ Smoke betiğinin CUSTOMER ve DRIVER sözleşmelerine karşı kendi testi:
 ```powershell
 node .\docs\mobile-api\smoke.test.mjs
 ```
+
+## 5 Ekim müşteri notları — manuel saat gösterimi
+
+- `GET /api/v1/system/status`: `mode` ve `displayCutoffTime` eklendi.
+- `nextStatusChangeAtUtc`: SQL saatine göre sonraki otomatik durum sınırı;
+  süresiz manuel modda null. İstemci `serverNowUtc` ile farkını hesaplayarak
+  o anda durumu bir kez doğrulayabilir; bu alan sipariş kabul yetkisi değildir.
+- Müşteri sipariş bağlamındaki `window.displayCutoffTime` de aynı gösterimi sağlar.
+- Etkin mod OPEN/CLOSED ise mobil son sipariş saati **00:00** gösterir; AUTO ise tanımlı kapanış saati gösterilir. Uygulama bu alanı kullanmalıdır.
+- `cutoffTime` / `cutoffMinute` gerçek ayardır ve değiştirilmedi. Sipariş kabulü `isOpen` ve backend kontrolüne bağlıdır; 00:00 kapanış talimatı değildir.
+- Kullanıcı adlarında başta/sonda dahil Unicode boşluk kabul edilmez; parola boşlukları değiştirilmez.
+- Web girişleri ayrı: `/login/admin/` ve `/login/sofor/`; rolü sabitleyen uçlar `POST /api/v1/auth/admin/login` ve `POST /api/v1/auth/driver/login`.
+- Mobil mevcut `POST /api/v1/auth/login` sözleşmesini kullanmaya devam eder.
+
+## Teslim günü kapanışı (011 migration)
+
+Şoför hesabının geçici/kalıcı parolası tam 4 ASCII rakamdır (ör. `0456`).
+İlk girişte farklı bir 4 rakam belirlenir. Admin/müşteri için 12–128 karakter
+kuralı korunur. `auth/change-password` rolü etkin oturumdan doğrular.
+Eski şoför parolaları otomatik dönüştürülmez; admin yenilemelidir.
+
+00:01 otomatik aktarımı başarılı olduğunda o teslim günü kalıcı kapanır.
+Manuel aktarım gün içinde düzenlemeyi engellemez. Oluşturma, güncelleme,
+iptal ve ürün istemiyorum işlemleri kapanmış güne yazamaz: API `409`
+ve `ORDER_DAY_CLOSED` döndürür. Uygulama bağlamı yenileyip kullanıcıya
+bu günün kapandığını bildirmelidir; aynı isteği yeni gün için otomatik
+göndermemelidir. Yeni gün için yeni bağlam/revizyon ve istek anahtarı alınır.
+Eski idempotency anahtarının başarılı tekrarı salt yanıt olabilir; yeni yazma değildir.

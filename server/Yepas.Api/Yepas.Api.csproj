@@ -61,10 +61,12 @@
     <Compile Include="Data\ProductCatalogReader.cs" />
     <Compile Include="Data\AuthRepository.cs" />
     <Compile Include="Data\DatabaseConnections.cs" />
+    <Compile Include="Data\IstanbulTimestamp.cs" />
     <Compile Include="Data\LegacyCustomerScheduleReader.cs" />
     <Compile Include="Data\OrderRepository.cs" />
     <Compile Include="Data\OrderFinalizationRepository.cs" />
     <Compile Include="Data\LegacyOrderExporter.cs" />
+    <Compile Include="Data\AtomicOrderDaySynchronizer.cs" />
     <Compile Include="Data\AdminOrderBoardRepository.cs" />
     <Compile Include="Data\LegacyCustomerCatalogReader.cs" />
     <Compile Include="Data\LegacyCustomerProductReader.cs" />
@@ -75,9 +77,12 @@
     <Compile Include="Domain\CustomerOrderService.cs" />
     <Compile Include="Domain\OrderSubmissionPolicy.cs" />
     <Compile Include="Domain\OrderExportPolicy.cs" />
+    <Compile Include="Domain\OrderDaySyncPolicy.cs" />
     <Compile Include="Domain\OrderWindowPolicy.cs" />
     <Compile Include="Domain\OrderFinalizationService.cs" />
     <Compile Include="Domain\DriverAccountPolicy.cs" />
+    <Compile Include="Domain\AccountNamePolicy.cs" />
+    <Compile Include="Domain\DriverRoutePolicy.cs" />
     <Compile Include="Models\CatalogProduct.cs" />
     <Compile Include="Models\OrderModels.cs" />
     <Compile Include="Models\AdminOrderModels.cs" />

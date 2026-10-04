@@ -7,6 +7,7 @@ using System.Web;
 using System.Web.Http;
 using Yepas.Api.Data;
 using Yepas.Api.Models;
+using Yepas.Api.Domain;
 
 namespace Yepas.Api.Controllers
 {
@@ -49,11 +50,14 @@ namespace Yepas.Api.Controllers
             }
             catch (ArgumentException exception) { return Invalid(exception.Message); }
             catch (KeyNotFoundException exception) { return NotFoundMessage(exception.Message); }
+            catch (AccountConflictException exception) {
+                return Request.CreateResponse(HttpStatusCode.Conflict, new { code = exception.Code, message = exception.Message });
+            }
             catch (InvalidOperationException exception) { return Conflict(exception.Message); }
             catch (SqlException exception)
             {
                 if (exception.Number == 2601 || exception.Number == 2627)
-                    return Conflict("Kullanıcı adı veya seçilen şubeler zaten kullanılıyor.");
+                    return Conflict("Hesap eşleşmesi eşzamanlı başka bir işlemde değişti. Listeyi yenileyip tekrar deneyin.");
                 return Unavailable();
             }
             catch (Exception) { return Unavailable(); }
@@ -74,6 +78,9 @@ namespace Yepas.Api.Controllers
             }
             catch (ArgumentException exception) { return Invalid(exception.Message); }
             catch (KeyNotFoundException exception) { return NotFoundMessage(exception.Message); }
+            catch (AccountConflictException exception) {
+                return Request.CreateResponse(HttpStatusCode.Conflict, new { code = exception.Code, message = exception.Message });
+            }
             catch (InvalidOperationException exception) { return Conflict(exception.Message); }
             catch (Exception) { return Unavailable(); }
         }

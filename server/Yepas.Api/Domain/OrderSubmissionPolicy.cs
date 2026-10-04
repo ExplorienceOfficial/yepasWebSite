@@ -17,6 +17,11 @@ namespace Yepas.Api.Domain
 
     public static class OrderSubmissionPolicy
     {
+        public static bool RequiresProductCatalog(string status)
+        {
+            return status == "SUBMITTED";
+        }
+
         public static IList<PreparedOrderLine> Prepare(string status,
             IList<OrderLineInput> lines, IList<CatalogProduct> products)
         {
@@ -38,10 +43,14 @@ namespace Yepas.Api.Domain
                 CatalogProduct product;
                 if (!seen.Add(key) || !productMap.TryGetValue(key, out product))
                     throw new ArgumentException("Ürün müşteriye tanımlı değil veya tekrarlı gönderildi.");
+                if (product.PackageSizeIsAmbiguous)
+                    throw new ArgumentException("Ürünün paket adedi belirsiz: " + product.Name +
+                        ". Eski sistemdeki ürün/varyant tanımı düzeltilmelidir.");
                 if (product.MaxQuantity > 0 && line.Quantity > product.MaxQuantity)
                     throw new ArgumentException("Ürün miktarı müşteri limitini aşıyor.");
                 if (line.Quantity % product.PackageSize != 0)
-                    throw new ArgumentException("5'li paket ürünü yalnızca 5'in katlarıyla sipariş edilebilir.");
+                    throw new ArgumentException("Ürün miktarı " + product.PackageSize +
+                        " adetlik paketlerin katı olmalıdır: " + product.Name + ".");
                 prepared.Add(new PreparedOrderLine
                 {
                     UStokId = line.UStokId,

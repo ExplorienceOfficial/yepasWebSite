@@ -25,13 +25,22 @@ namespace Yepas.Api.Data
             public DateTime? RowLastExportedAtUtc { get; set; }
         }
 
+        private sealed class RemovedRecord
+        {
+            public string Status { get; set; }
+            public string SourceRole { get; set; }
+            public string IntegrationStatus { get; set; }
+            public DateTime OccurredAtUtc { get; set; }
+        }
+
         public AdminOrderBoardView Read(string scope)
         {
             scope = String.IsNullOrWhiteSpace(scope) ? "submitted" : scope.Trim().ToLowerInvariant();
             if (scope != "delivery" && scope != "submitted")
                 throw new ArgumentException("Kapsam delivery veya submitted olmalıdır.");
 
-            var localDate = DateTime.UtcNow.AddHours(3).Date;
+            DateTime generatedAtUtc;
+            var localDate = ReadDatabaseLocalDate(out generatedAtUtc);
             var expectedDelivery = scope == "delivery" ? localDate : localDate.AddDays(1);
             var warnings = new List<string>();
 
@@ -57,6 +66,14 @@ namespace Yepas.Api.Data
                 warnings.Add("Sipariş tablosuna erişilemedi; şubeler sipariş durumu olmadan listelendi.");
             }
 
+            IDictionary<int, RemovedRecord> removed;
+            try { removed = ReadRemovedOrders(scope, localDate, expectedDelivery); }
+            catch (Exception)
+            {
+                removed = new Dictionary<int, RemovedRecord>();
+                warnings.Add("Ürün istemeyen müşterilerin işlem geçmişi okunamadı.");
+            }
+
             var rows = new List<AdminOrderRowView>();
             var included = new HashSet<int>();
             var dayIndex = DayIndex(expectedDelivery.DayOfWeek);
@@ -65,8 +82,11 @@ namespace Yepas.Api.Data
             {
                 OrderRecord record;
                 var hasOrder = orders.TryGetValue(branch.Row.LegacyMbId, out record);
-                if (!branch.Days[dayIndex] && !hasOrder) continue;
+                RemovedRecord removal;
+                var hasRemoval = removed.TryGetValue(branch.Row.LegacyMbId, out removal);
+                if (!branch.Days[dayIndex] && !hasOrder && !hasRemoval) continue;
                 Attach(branch.Row, record);
+                if (!hasOrder && hasRemoval) AttachRemoval(branch.Row, removal);
                 rows.Add(branch.Row);
                 included.Add(branch.Row.LegacyMbId);
             }
@@ -87,6 +107,21 @@ namespace Yepas.Api.Data
                 };
                 Attach(row, record);
                 rows.Add(row);
+                included.Add(pair.Key);
+            }
+
+            foreach (var pair in removed)
+            {
+                if (included.Contains(pair.Key)) continue;
+                var row = new AdminOrderRowView {
+                    LegacyMbId = pair.Key,
+                    CustomerName = "Eski sistem kaydı bulunamadı",
+                    CustomerCode = String.Empty,
+                    DepartmentName = String.Empty,
+                    PersonnelName = String.Empty
+                };
+                AttachRemoval(row, pair.Value);
+                rows.Add(row);
             }
 
             rows.Sort((left, right) => {
@@ -101,13 +136,23 @@ namespace Yepas.Api.Data
                 warnings.Add("Aktarım durumu okunamadı; sipariş listesi etkilenmedi.");
             }
 
+            var pendingSyncCount = 0;
+            try { pendingSyncCount = ReadPendingSyncCount(expectedDelivery); }
+            catch (Exception)
+            {
+                pendingSyncCount = rows.FindAll(row => row.IntegrationStatus == "PENDING" ||
+                    row.IntegrationStatus == "FAILED").Count;
+                warnings.Add("Günlük aktarım sayısı okunamadı; görünen satırlar sayıldı.");
+            }
+
             return new AdminOrderBoardView {
                 Scope = scope,
                 LocalDate = localDate,
                 ExpectedDeliveryDate = expectedDelivery,
-                GeneratedAtUtc = DateTime.UtcNow,
+                GeneratedAtUtc = generatedAtUtc,
                 Rows = rows,
                 Finalization = finalization,
+                PendingSyncCount = pendingSyncCount,
                 Warnings = warnings
             };
         }
@@ -116,9 +161,20 @@ namespace Yepas.Api.Data
         {
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
             using (var command = new SqlCommand(@"
-SELECT ISNULL(SUM(CASE WHEN IntegrationStatus IN (N'PENDING',N'FAILED') THEN 1 ELSE 0 END),0),
-       MAX(LastExportedAtUtc), GETUTCDATE()
-FROM dbo.Orders", connection))
+SELECT (SELECT COUNT(*) FROM dbo.Orders
+        WHERE DeliveryDate>=DATEADD(day,DATEDIFF(day,0,GETDATE()),0)
+          AND DeliveryDate<DATEADD(day,2,DATEADD(day,DATEDIFF(day,0,GETDATE()),0))
+          AND IntegrationStatus IN (N'PENDING',N'FAILED')) +
+       (SELECT COUNT(*) FROM dbo.MobileReceiptRegistry R
+        WHERE R.DeliveryDate>=DATEADD(day,DATEDIFF(day,0,GETDATE()),0)
+          AND R.DeliveryDate<DATEADD(day,2,DATEADD(day,DATEDIFF(day,0,GETDATE()),0))
+          AND R.NeedsSync=1
+          AND NOT EXISTS (SELECT 1 FROM dbo.Orders O
+                          WHERE O.LegacyMbId=R.LegacyMbId
+                            AND O.DeliveryDate=R.DeliveryDate
+                            AND O.IntegrationStatus IN (N'PENDING',N'FAILED'))),
+       (SELECT MAX(FinalizedAt) FROM dbo.OrderFinalizations
+        WHERE State=N'FINALIZED'), GETUTCDATE()", connection))
             {
                 connection.Open();
                 using (var reader = command.ExecuteReader())
@@ -126,11 +182,82 @@ FROM dbo.Orders", connection))
                     reader.Read();
                     return new OrderSyncStatusView {
                         PendingCount = reader.GetInt32(0),
-                        LastExportedAtUtc = reader.IsDBNull(1) ? (DateTime?)null : reader.GetDateTime(1),
-                        GeneratedAtUtc = reader.GetDateTime(2)
+                        LastExportedAtUtc = reader.IsDBNull(1) ? (DateTime?)null : IstanbulTimestamp.ToUtc(reader.GetDateTime(1)),
+                        GeneratedAtUtc = DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc)
                     };
                 }
             }
+        }
+
+        private static DateTime ReadDatabaseLocalDate(out DateTime generatedAtUtc)
+        {
+            using (var connection = new SqlConnection(DatabaseConnections.Application()))
+            using (var command = new SqlCommand("SELECT GETDATE(), GETUTCDATE()", connection))
+            {
+                connection.Open();
+                using (var reader = command.ExecuteReader())
+                {
+                    if (!reader.Read()) throw new InvalidOperationException("SQL sunucu saati okunamadı.");
+                    generatedAtUtc = DateTime.SpecifyKind(reader.GetDateTime(1), DateTimeKind.Utc);
+                    return reader.GetDateTime(0).Date;
+                }
+            }
+        }
+
+        private static int ReadPendingSyncCount(DateTime deliveryDate)
+        {
+            using (var connection = new SqlConnection(DatabaseConnections.Application()))
+            using (var command = new SqlCommand(@"
+SELECT (SELECT COUNT(*) FROM dbo.Orders
+        WHERE DeliveryDate=@date AND IntegrationStatus IN (N'PENDING',N'FAILED')) +
+       (SELECT COUNT(*) FROM dbo.MobileReceiptRegistry R
+        WHERE R.DeliveryDate=@date AND R.NeedsSync=1
+          AND NOT EXISTS (SELECT 1 FROM dbo.Orders O
+                          WHERE O.LegacyMbId=R.LegacyMbId
+                            AND O.DeliveryDate=R.DeliveryDate
+                            AND O.IntegrationStatus IN (N'PENDING',N'FAILED')))", connection))
+            {
+                command.Parameters.Add("@date", SqlDbType.DateTime).Value = deliveryDate.Date;
+                connection.Open();
+                return Convert.ToInt32(command.ExecuteScalar());
+            }
+        }
+
+        private static IDictionary<int, RemovedRecord> ReadRemovedOrders(string scope,
+            DateTime localDate, DateTime deliveryDate)
+        {
+            var result = new Dictionary<int, RemovedRecord>();
+            using (var connection = new SqlConnection(DatabaseConnections.Application()))
+            using (var command = new SqlCommand(@"
+SELECT A.LegacyMbId,A.Status,A.ActorRole,R.NeedsSync,A.OccurredAt
+FROM dbo.OrderAudit A
+LEFT JOIN dbo.MobileReceiptRegistry R
+  ON R.LegacyMbId=A.LegacyMbId AND R.DeliveryDate=A.DeliveryDate
+WHERE A.DeliveryDate=@date AND A.ActionCode=N'REMOVED'
+  AND A.AuditId=(SELECT MAX(A2.AuditId) FROM dbo.OrderAudit A2
+                 WHERE A2.LegacyMbId=A.LegacyMbId AND A2.DeliveryDate=A.DeliveryDate)
+  AND (@scope=N'delivery' OR (A.OccurredAt>=@localStart AND A.OccurredAt<@localEnd))",
+                connection))
+            {
+                command.Parameters.Add("@date", SqlDbType.DateTime).Value = deliveryDate.Date;
+                command.Parameters.Add("@scope", SqlDbType.NVarChar, 10).Value = scope;
+                command.Parameters.Add("@localStart", SqlDbType.DateTime).Value = localDate;
+                command.Parameters.Add("@localEnd", SqlDbType.DateTime).Value = localDate.AddDays(1);
+                connection.Open();
+                using (var reader = command.ExecuteReader())
+                    while (reader.Read())
+                    {
+                        var mbId = reader.GetInt32(0);
+                        result.Add(mbId, new RemovedRecord {
+                            Status = reader.GetString(1),
+                            SourceRole = reader.GetString(2),
+                            IntegrationStatus = !reader.IsDBNull(3) && reader.GetBoolean(3)
+                                ? "PENDING" : "NOT_REQUIRED",
+                            OccurredAtUtc = IstanbulTimestamp.ToUtc(reader.GetDateTime(4))
+                        });
+                    }
+            }
+            return result;
         }
 
         private static IList<LegacyBranch> ReadBranches(out int skipped)
@@ -186,24 +313,23 @@ WHERE MB.SS = 12", connection))
             DateTime localDate, DateTime deliveryDate)
         {
             var records = new Dictionary<int, OrderRecord>();
-            var utcStart = localDate.AddHours(-3);
-            var utcEnd = utcStart.AddDays(1);
+            var localEnd = localDate.AddDays(1);
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
             using (var command = new SqlCommand(@"
 SELECT O.OrderId, O.LegacyMbId, O.LegacyCustomerId, O.LegacyDepartmentId,
        O.LegacyPersonnelId, O.DeliveryDate, O.Status, O.Revision, O.Note,
-       O.UpdatedAtUtc, O.IntegrationStatus, O.SourceRole, O.LastExportedAtUtc,
+       O.UpdatedAt, O.IntegrationStatus, O.SourceRole, O.LastExportedAt,
        L.UStokId, L.AStokId, L.Quantity, L.ProductCode, L.ProductName, L.VariantName
 FROM dbo.Orders O
 LEFT JOIN dbo.OrderLines L ON L.OrderId = O.OrderId
 WHERE (@scope = N'delivery' AND O.DeliveryDate = @deliveryDate)
-   OR (@scope = N'submitted' AND O.CreatedAtUtc >= @utcStart AND O.CreatedAtUtc < @utcEnd)
-ORDER BY O.UpdatedAtUtc DESC, O.OrderId, L.ProductName, L.VariantName", connection))
+   OR (@scope = N'submitted' AND O.CreatedAt >= @localStart AND O.CreatedAt < @localEnd)
+ORDER BY O.UpdatedAt DESC, O.OrderId, L.ProductName, L.VariantName", connection))
             {
                 command.Parameters.Add("@scope", SqlDbType.NVarChar, 10).Value = scope;
                 command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate;
-                command.Parameters.Add("@utcStart", SqlDbType.DateTime).Value = utcStart;
-                command.Parameters.Add("@utcEnd", SqlDbType.DateTime).Value = utcEnd;
+                command.Parameters.Add("@localStart", SqlDbType.DateTime).Value = localDate;
+                command.Parameters.Add("@localEnd", SqlDbType.DateTime).Value = localEnd;
                 connection.Open();
                 using (var reader = command.ExecuteReader())
                     while (reader.Read())
@@ -225,12 +351,12 @@ ORDER BY O.UpdatedAtUtc DESC, O.OrderId, L.ProductName, L.VariantName", connecti
                                     Status = reader.GetString(6),
                                     Revision = reader.GetInt32(7),
                                     Note = reader.IsDBNull(8) ? null : reader.GetString(8),
-                                    UpdatedAtUtc = reader.GetDateTime(9),
+                                    UpdatedAtUtc = IstanbulTimestamp.ToUtc(reader.GetDateTime(9)),
                                     Lines = new List<OrderLineView>()
                                 }
                             };
                             record.RowLastExportedAtUtc = reader.IsDBNull(12)
-                                ? (DateTime?)null : reader.GetDateTime(12);
+                                ? (DateTime?)null : IstanbulTimestamp.ToUtc(reader.GetDateTime(12));
                             records.Add(mbId, record);
                         }
                         if (!reader.IsDBNull(13) && record.Order.OrderId == reader.GetInt32(0))
@@ -258,6 +384,15 @@ ORDER BY O.UpdatedAtUtc DESC, O.OrderId, L.ProductName, L.VariantName", connecti
             row.IntegrationStatus = record.IntegrationStatus;
             row.SourceRole = record.SourceRole;
             row.LastExportedAtUtc = record.RowLastExportedAtUtc;
+            row.LastActionAtUtc = record.Order.UpdatedAtUtc;
+        }
+
+        private static void AttachRemoval(AdminOrderRowView row, RemovedRecord record)
+        {
+            row.BoardStatus = record.Status;
+            row.IntegrationStatus = record.IntegrationStatus;
+            row.SourceRole = record.SourceRole;
+            row.LastActionAtUtc = record.OccurredAtUtc;
         }
 
         private static int DayIndex(DayOfWeek day)

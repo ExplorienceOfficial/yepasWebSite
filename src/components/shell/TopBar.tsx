@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { CloudUpload, Loader2, Menu, Search } from "lucide-react";
+import { CheckCircle2, CircleAlert, CloudUpload, Loader2, Menu, Search, X } from "lucide-react";
 
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { invalidateSession, useAuth } from "@/context/AuthContext";
 import { localApiUrl } from "@/lib/api";
 import { cn, formatQty, initials } from "@/lib/format";
+import { scheduleStatusRefresh, type OrderStatusSnapshot } from "@/lib/orderStatusTimer";
 
 const routeMeta: Record<string, { crumb: string; title: string }> = {
   "/admin": { crumb: "Genel", title: "Kontrol Paneli" },
@@ -47,21 +48,54 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
 
   useEffect(() => {
     let active = true;
+    let generation = 0;
+    let cancelTimer = () => {};
+    const unknown = () => {
+      setOrderSystemOpen(null);
+      window.dispatchEvent(new CustomEvent("yepas:settings-status", { detail: null }));
+    };
+    const accept = (data: OrderStatusSnapshot) => {
+      cancelTimer();
+      setOrderSystemOpen(data.isOpen);
+      cancelTimer = scheduleStatusRefresh(data, () => { void load(); }, window);
+      window.dispatchEvent(new CustomEvent("yepas:settings-status", { detail: data }));
+    };
     const load = async () => {
+      const requestGeneration = ++generation;
+      cancelTimer();
       try {
-        const response = await fetch(localApiUrl("/api/v1/admin/order-settings"), { credentials: "include", cache: "no-store" });
-        if (response.status === 401) { invalidateSession(); return; }
-        if (!response.ok) { if (active) setOrderSystemOpen(null); return; }
-        const data = await response.json() as { isOpen: boolean };
-        if (active) setOrderSystemOpen(data.isOpen);
-      } catch { if (active) setOrderSystemOpen(null); }
+        let response: Response | null = null;
+        try {
+          response = await fetch(localApiUrl("/api/v1/admin/order-settings"), { credentials: "include", cache: "no-store" });
+        } catch { /* Durum bilgisi için genel uç aşağıda denenir. */ }
+        if (response?.status === 401) { invalidateSession(); return; }
+        // Genel durum ucu aynı ayarı okur; yönetici ucu geçici hata verirse rozet boş kalmasın.
+        const statusResponse = response?.ok ? response : await fetch(localApiUrl("/api/v1/system/status"), { cache: "no-store" });
+        if (!statusResponse.ok) { if (active && requestGeneration === generation) unknown(); return; }
+        const data = await statusResponse.json() as OrderStatusSnapshot;
+        if (active && requestGeneration === generation) accept(data);
+      } catch { if (active && requestGeneration === generation) unknown(); }
+    };
+    const settingsChanged = (event: Event) => {
+      const settings = (event as CustomEvent<OrderStatusSnapshot>).detail;
+      if (settings && typeof settings.isOpen === "boolean") {
+        generation++;
+        accept(settings);
+      } else void load();
     };
     void load();
-    const timer = window.setInterval(load, 15_000);
     window.addEventListener("focus", load);
-    window.addEventListener("yepas:settings-changed", load);
-    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", load); window.removeEventListener("yepas:settings-changed", load); };
+    window.addEventListener("yepas:settings-changed", settingsChanged);
+    const visible = () => { if (document.visibilityState === "visible") void load(); };
+    document.addEventListener("visibilitychange", visible);
+    return () => { active = false; cancelTimer(); window.removeEventListener("focus", load); window.removeEventListener("yepas:settings-changed", settingsChanged); document.removeEventListener("visibilitychange", visible); };
   }, []);
+
+  useEffect(() => {
+    if (!syncResult || syncResult.state === "FAILED") return;
+    const timer = window.setTimeout(() => setSyncResult(null), 6_000);
+    return () => window.clearTimeout(timer);
+  }, [syncResult]);
 
   const syncToErp = async () => {
     setSyncing(true);
@@ -149,34 +183,43 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         </div>
       </div>
 
-      {/* Aktarım sonucu — gerçek sunucu yanıtındaki sayılarla */}
+      {/* İşlem sonucu kısa süreli bildirimdir; güncel aktarım durumu sayfada gösterilir. */}
       {(syncError || syncResult) && (
         <div
-          role="status"
+          role={syncError || syncResult?.state === "FAILED" ? "alert" : "status"}
           className={cn(
-            "flex items-start justify-between gap-3 border-t border-hairline px-4 py-2.5 text-[13px] lg:px-6",
+            "fixed right-4 top-20 z-50 flex w-[380px] max-w-[calc(100vw-2rem)] items-start gap-3 rounded-xl border bg-surface p-4 text-sm text-ink shadow-[var(--shadow-lg)]",
             syncError || syncResult?.state === "FAILED"
-              ? "bg-[var(--bad-soft)] text-[var(--bad)]"
+              ? "border-[var(--bad)]/30"
               : syncResult?.state === "FINALIZED"
-                ? "bg-[var(--ok-soft)] text-[var(--ok)]"
-                : "bg-[var(--warn-soft)] text-[var(--warn)]",
+                ? "border-[var(--ok)]/30"
+                : "border-[var(--warn)]/30",
           )}
         >
-          <span>
-            {syncError
+          {syncError || syncResult?.state === "FAILED"
+            ? <CircleAlert className="mt-0.5 size-4 shrink-0 text-[var(--bad)]" />
+            : syncResult?.state === "FINALIZED"
+              ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[var(--ok)]" />
+              : <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-[var(--warn)]" />}
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">{syncError || syncResult?.state === "FAILED"
+              ? "Aktarım tamamlanamadı"
+              : syncResult?.state === "FINALIZED" ? "Aktarım işlemi tamamlandı" : "Aktarım sürüyor"}</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-2">{syncError
               ? syncError
-              : syncResult?.state === "FINALIZED"
-                ? `Aktarım tamamlandı · ${syncResult.orderCount} sipariş · ${syncResult.lineCount} kalem · ${formatQty(syncResult.totalQuantity)} adet eski sisteme yazıldı.`
-                : syncResult?.state === "FAILED"
-                  ? `Aktarım tamamlanamadı: ${syncResult.lastError ?? "bilinmeyen hata"}`
-                  : "Aktarım sürüyor; birazdan tekrar kontrol edin."}
-          </span>
+              : syncResult?.state === "FAILED"
+                ? syncResult.lastError ?? "Lütfen tekrar deneyin."
+                : syncResult?.state === "FINALIZED"
+                  ? `Gün kapsamı: ${syncResult.orderCount} sipariş · ${syncResult.lineCount} kalem · ${formatQty(syncResult.totalQuantity)} adet.`
+                  : "Güncel durumu birazdan kontrol edin."}</p>
+          </div>
           <button
             type="button"
             onClick={() => { setSyncError(null); setSyncResult(null); }}
-            className="shrink-0 text-[12px] font-semibold underline-offset-2 hover:underline"
+            aria-label="Bildirimi kapat"
+            className="-mr-1 -mt-1 flex size-7 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink"
           >
-            Kapat
+            <X className="size-4" />
           </button>
         </div>
       )}

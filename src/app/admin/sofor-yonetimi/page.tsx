@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { invalidateSession } from "@/context/AuthContext";
 import { localApiUrl } from "@/lib/api";
 import { initials } from "@/lib/format";
+import { isDriverPin } from "@/lib/driverPin";
 
 interface DriverAccount {
   userId: number;
@@ -172,12 +173,12 @@ export default function DriverManagementPage() {
           </div>}
       </Panel>
 
-      <Modal open={Boolean(createDriver)} onClose={() => !busy && setCreateDriver(null)} title="Şoför giriş hesabı aç" subtitle={createDriver ? `${createDriver.personnelName} · ${createDriver.personnelCode ? `Kod ${createDriver.personnelCode}` : `Şoför ID ${createDriver.legacyPersonnelId}`}` : undefined} width="max-w-md" footer={<><Button onClick={() => setCreateDriver(null)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void createAccount()} disabled={busy || loginName.trim().length < 2 || temporaryPassword.length < 12}>{busy ? "Kaydediliyor…" : "Hesabı oluştur"}</Button></>}>
-        <div className="space-y-4"><Field label="Kullanıcı adı" hint="Eski sistemdeki şoför kodu kullanılır ve değiştirilemez; kod tanımlı değilse şoför kimliğinden üretilir."><TextInput value={loginName} readOnly /></Field><Field label="Geçici parola" hint="12-128 karakter. Yedi gün geçerlidir; ilk girişte değiştirilir."><TextInput type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} autoComplete="new-password" maxLength={128} /></Field>{actionError && <p className="rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{actionError}</p>}</div>
+      <Modal open={Boolean(createDriver)} onClose={() => !busy && setCreateDriver(null)} title="Şoför giriş hesabı aç" subtitle={createDriver ? `${createDriver.personnelName} · ${createDriver.personnelCode ? `Kod ${createDriver.personnelCode}` : `Şoför ID ${createDriver.legacyPersonnelId}`}` : undefined} width="max-w-md" footer={<><Button onClick={() => setCreateDriver(null)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void createAccount()} disabled={busy || loginName.trim().length < 2 || !isDriverPin(temporaryPassword)}>{busy ? "Kaydediliyor…" : "Hesabı oluştur"}</Button></>}>
+        <div className="space-y-4"><Field label="Kullanıcı adı" hint="Eski sistemdeki şoför kodu kullanılır ve değiştirilemez; kod tanımlı değilse şoför kimliğinden üretilir."><TextInput value={loginName} readOnly /></Field><Field label="Geçici parola" hint="Tam 4 rakam. Yedi gün geçerlidir; ilk girişte değiştirilir."><TextInput type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} autoComplete="new-password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} /></Field>{actionError && <p className="rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{actionError}</p>}</div>
       </Modal>
 
-      <Modal open={Boolean(resetAccount)} onClose={() => !busy && setResetAccount(null)} title="Şoför parolasını yenile" subtitle={resetAccount ? `${resetAccount.loginName} hesabının açık oturumları kapatılacak.` : undefined} width="max-w-md" footer={<><Button onClick={() => setResetAccount(null)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void submitReset()} disabled={busy || temporaryPassword.length < 12}>{busy ? "Kaydediliyor…" : "Parolayı yenile"}</Button></>}>
-        <Field label="Yeni geçici parola" hint="Şoför sonraki girişte bu parolayı değiştirmek zorundadır."><TextInput type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} autoComplete="new-password" maxLength={128} /></Field>{actionError && <p className="mt-3 rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{actionError}</p>}
+      <Modal open={Boolean(resetAccount)} onClose={() => !busy && setResetAccount(null)} title="Şoför parolasını yenile" subtitle={resetAccount ? `${resetAccount.loginName} hesabının açık oturumları kapatılacak.` : undefined} width="max-w-md" footer={<><Button onClick={() => setResetAccount(null)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void submitReset()} disabled={busy || !isDriverPin(temporaryPassword)}>{busy ? "Kaydediliyor…" : "Parolayı yenile"}</Button></>}>
+        <Field label="Yeni geçici parola" hint="Tam 4 rakam. Şoför sonraki girişte bu parolayı değiştirmek zorundadır."><TextInput type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} autoComplete="new-password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} /></Field>{actionError && <p className="mt-3 rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{actionError}</p>}
       </Modal>
     </div>
   );

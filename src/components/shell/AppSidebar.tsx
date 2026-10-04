@@ -33,7 +33,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { session, logout } = useAuth();
 
   const handleLogout = async () => {
-    if (await logout()) router.replace("/");
+    if (await logout()) router.replace("/login/admin/");
   };
 
   return (

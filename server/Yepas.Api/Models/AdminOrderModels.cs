@@ -17,6 +17,7 @@ namespace Yepas.Api.Models
         public string IntegrationStatus { get; set; }
         public string SourceRole { get; set; }
         public DateTime? LastExportedAtUtc { get; set; }
+        public DateTime? LastActionAtUtc { get; set; }
         public OrderView Order { get; set; }
     }
 
@@ -28,6 +29,7 @@ namespace Yepas.Api.Models
         public DateTime GeneratedAtUtc { get; set; }
         public IList<AdminOrderRowView> Rows { get; set; }
         public OrderFinalizationView Finalization { get; set; }
+        public int PendingSyncCount { get; set; }
 
         /// <summary>
         /// Erişilemeyen kaynaklar. Bir tablo bozulduğunda ekran çökmez; eksik

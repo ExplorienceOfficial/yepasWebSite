@@ -9,6 +9,7 @@ import { Field, NumberInput, Select, TextInput } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { invalidateSession } from "@/context/AuthContext";
 import { localApiUrl } from "@/lib/api";
+import { separateProducts } from "@/lib/productGroups";
 import { cn, formatQty } from "@/lib/format";
 
 type BoardScope = "delivery" | "submitted";
@@ -48,6 +49,7 @@ interface AdminOrderRow {
   integrationStatus: string | null;
   sourceRole: string | null;
   lastExportedAtUtc: string | null;
+  lastActionAtUtc: string | null;
   order: OrderView | null;
 }
 
@@ -58,6 +60,7 @@ interface AdminOrderBoard {
   generatedAtUtc: string;
   rows: AdminOrderRow[];
   finalization: OrderFinalization | null;
+  pendingSyncCount: number;
   /** Sunucuda erişilemeyen kaynaklar; ekran yine de açılır. */
   warnings?: string[] | null;
 }
@@ -83,6 +86,7 @@ interface AssignedProduct {
   variantName: string | null;
   maxQuantity: number;
   packageSize: number;
+  packageSizeIsAmbiguous?: boolean;
 }
 
 interface AdminOrderContext {
@@ -181,6 +185,15 @@ export default function OrdersPage() {
     return () => controller.abort();
   }, [scope, reloadKey]);
 
+  useEffect(() => {
+    const refreshAfterSync = () => {
+      setLoading(true);
+      setReloadKey((value) => value + 1);
+    };
+    window.addEventListener("yepas:order-sync-changed", refreshAfterSync);
+    return () => window.removeEventListener("yepas:order-sync-changed", refreshAfterSync);
+  }, []);
+
   const filteredRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("tr-TR");
     if (!term) return board?.rows ?? [];
@@ -231,7 +244,8 @@ export default function OrdersPage() {
       setQuantities(nextQuantities);
       // Eski kayıtlarda kalan iptal durumu "ürün istemiyor" olarak açılır.
       setFormStatus(context.order?.status === "SUBMITTED" ? "SUBMITTED"
-        : context.order ? "NO_PRODUCT" : "SUBMITTED");
+        : context.order || row.boardStatus === "NO_PRODUCT" || row.boardStatus === "CANCELLED"
+          ? "NO_PRODUCT" : "SUBMITTED");
     } catch (cause) {
       setEditError(cause instanceof Error ? cause.message : "Sipariş düzenleme bilgisi alınamadı.");
     } finally {
@@ -252,11 +266,20 @@ export default function OrdersPage() {
       setEditError("Sipariş için en az bir ürün miktarı girin.");
       return;
     }
-    if (lines.some((line) => {
+    const ambiguousProduct = editContext.products.find((product) =>
+      product.packageSizeIsAmbiguous && lines.some((line) =>
+        line.uStokId === product.uStokId && line.aStokId === product.aStokId));
+    if (ambiguousProduct) {
+      setEditError(`${ambiguousProduct.name}: Paket adedi belirsiz; eski sistemdeki ürün/varyant tanımı düzeltilmeli.`);
+      return;
+    }
+    const invalidPackageLine = lines.find((line) => {
       const product = editContext.products.find((item) => item.uStokId === line.uStokId && item.aStokId === line.aStokId);
       return product && line.quantity % (product.packageSize || 1) !== 0;
-    })) {
-      setEditError("5'li paket ürünleri yalnızca 5'in katlarıyla girilebilir.");
+    });
+    if (invalidPackageLine) {
+      const product = editContext.products.find((item) => item.uStokId === invalidPackageLine.uStokId && item.aStokId === invalidPackageLine.aStokId)!;
+      setEditError(`${product.name}: Miktar ${product.packageSize} adetlik paketlerin katı olmalı.`);
       return;
     }
     setSaving(true);
@@ -288,7 +311,6 @@ export default function OrdersPage() {
       setEditRow(null);
       setEditContext(null);
       window.dispatchEvent(new Event("yepas:order-sync-changed"));
-      refresh();
     } catch (cause) {
       setEditError(cause instanceof Error ? cause.message : "Sipariş kaydedilemedi.");
     } finally {
@@ -302,9 +324,10 @@ export default function OrdersPage() {
     : 0;
 
   const finalization = board?.finalization ?? null;
-  const pendingSyncCount = useMemo(() => (board?.rows ?? []).filter((row) =>
-    row.integrationStatus === "PENDING" || row.integrationStatus === "FAILED").length, [board]);
+  const pendingSyncCount = board?.pendingSyncCount ?? 0;
   const hasPendingSync = pendingSyncCount > 0;
+  const syncFailed = finalization?.state === "FAILED";
+  const syncInProgress = finalization?.state === "FINALIZING";
   const isSynchronized = finalization?.state === "FINALIZED" && !hasPendingSync;
 
   return (
@@ -321,26 +344,6 @@ export default function OrdersPage() {
           <ul className="mt-1 list-inside list-disc text-xs opacity-80">
             {board!.warnings!.map((warning) => <li key={warning}>{warning}</li>)}
           </ul>
-        </div>
-      )}
-
-      {scope === "submitted" && finalization && (
-        <div className={cn("mb-4 rounded-[14px] px-4 py-3 ring-1", isSynchronized ? "bg-[var(--ok-soft)] text-[var(--ok)] ring-[var(--ok)]/20" : finalization.state === "FAILED" ? "bg-[var(--bad-soft)] text-[var(--bad)] ring-[var(--bad)]/20" : "bg-[var(--warn-soft)] text-[var(--warn)] ring-[var(--warn)]/20")}>
-          <div className="flex items-start gap-3">
-            {isSynchronized ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" /> : <LockKeyhole className="mt-0.5 size-5 shrink-0" />}
-            <div>
-              <p className="text-sm font-semibold">{isSynchronized ? "Siparişlerin son hali eski sistemle senkronize." : finalization.state === "FAILED" ? "Aktarım tamamlanamadı; güvenle tekrar deneyebilirsiniz." : hasPendingSync ? "Eski sisteme gönderilmeyi bekleyen değişiklikler var." : "Siparişler eski sisteme aktarılıyor."}</p>
-              <p className="mt-1 text-xs opacity-80">{finalization.orderCount} sipariş · {finalization.lineCount} kalem · {formatQty(finalization.totalQuantity)} adet{finalization.attemptCount > 1 ? ` · ${finalization.attemptCount}. deneme` : ""}</p>
-              {finalization.lastError && <p className="mt-1 text-xs">{finalization.lastError}</p>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {scope === "submitted" && hasPendingSync && (
-        <div className="mb-4 rounded-[14px] bg-[var(--warn-soft)] px-4 py-3 text-[var(--warn)] ring-1 ring-[var(--warn)]/20">
-          <p className="text-sm font-semibold">Eski sisteme aktarılmamış {pendingSyncCount} sipariş değişikliği var.</p>
-          <p className="mt-1 text-xs opacity-80">Yeni siparişler ve miktar değişiklikleri üst bardaki “Aktar” düğmesiyle aynı mobil fişlere yazılır.</p>
         </div>
       )}
 
@@ -362,11 +365,38 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {scope === "submitted" && !loading && (syncFailed || syncInProgress || hasPendingSync) && (
+        <div className={cn(
+          "mb-4 flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5",
+          syncFailed ? "border-[var(--bad)]/25 bg-[var(--bad-soft)]" : "border-[var(--warn)]/20 bg-[var(--warn-soft)]",
+        )}>
+          <LockKeyhole className={cn("mt-0.5 size-4 shrink-0", syncFailed ? "text-[var(--bad)]" : "text-[var(--warn)]")} />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-ink">{syncFailed
+              ? "Aktarım başarısız oldu"
+              : hasPendingSync
+                ? `${pendingSyncCount} değişiklik aktarılmayı bekliyor`
+                : "Aktarım sürüyor"}</p>
+            <p className="mt-0.5 text-xs text-ink-2">{syncFailed
+              ? finalization?.lastError ?? "Üstteki Aktar düğmesiyle yeniden deneyin."
+              : hasPendingSync
+                ? "Yarın teslim edilecek siparişleri Aktar düğmesiyle eski sisteme eşitleyin."
+                : "Güncel durum birazdan görünecek."}</p>
+          </div>
+        </div>
+      )}
+
       {board && !loading && (
-        <p className="mb-3 text-xs text-ink-3">
-          Teslim tarihi: <strong className="font-medium text-ink-2">{formatDate(board.expectedDeliveryDate)}</strong>
-          <span className="mx-2">·</span>{filteredRows.length} / {board.rows.length} şube gösteriliyor
-        </p>
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3">
+          <p>Teslim tarihi: <strong className="font-medium text-ink-2">{formatDate(board.expectedDeliveryDate)}</strong>
+            <span className="mx-2">·</span>{filteredRows.length} / {board.rows.length} şube gösteriliyor</p>
+          {scope === "submitted" && isSynchronized && (
+            <p className="inline-flex items-center gap-1.5 text-ink-2">
+              <CheckCircle2 className="size-3.5 text-[var(--ok)]" />
+              Eski sistemle güncel{finalization?.finalizedAtUtc ? ` · Son aktarım ${formatDateTime(finalization.finalizedAtUtc)}` : ""}
+            </p>
+          )}
+        </div>
       )}
 
       {loading ? <Panel><p className="py-8 text-sm text-ink-3">Siparişler yükleniyor…</p></Panel>
@@ -388,10 +418,14 @@ export default function OrdersPage() {
                       <p className="mt-1 text-xs text-ink-2">{row.personnelName || `Personel ${row.legacyPersonnelId}`}{row.order ? ` · ${row.order.lines.length} kalem` : ""}</p>
                     </summary>
                     <div className="mt-3 space-y-2 border-t border-hairline pt-3 text-xs text-ink-2">
-                      {row.order?.lines.map((line) => <p key={`${line.uStokId}-${line.aStokId}`} className="break-words">{line.productName}{line.variantName ? ` · ${line.variantName}` : ""}: <strong>{formatQty(line.quantity)} adet</strong></p>)}
+                      {separateProducts(row.order?.lines ?? []).map(line => <div key={productKey(line.uStokId, line.aStokId)} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 p-3">
+                        <div className="min-w-0"><p className="break-words font-semibold text-ink">{line.productName}</p>
+                          <p className="mt-1 break-words text-ink-2">{line.variantName || "Standart"}</p></div>
+                        <strong className="shrink-0 tabular-nums text-ink">{formatQty(line.quantity)} adet</strong>
+                      </div>)}
                       <p>Son değiştiren: {sourceLabels[row.sourceRole ?? ""] ?? "—"}</p>
-                      <p>Son işlem: {row.order ? formatDateTime(row.order.updatedAtUtc) : "—"}</p>
-                      <p>Son aktarım: {row.lastExportedAtUtc ? formatDateTime(row.lastExportedAtUtc) : "Henüz aktarılmadı"}</p>
+                      <p>Son işlem: {row.lastActionAtUtc ? formatDateTime(row.lastActionAtUtc) : "—"}</p>
+                      <p>Son aktarım: {row.lastExportedAtUtc ? formatDateTime(row.lastExportedAtUtc) : row.integrationStatus === "NOT_REQUIRED" ? "Gerekmiyor" : "Henüz aktarılmadı"}</p>
                       <p>Entegrasyon: {integrationLabels[row.integrationStatus ?? ""] ?? "—"}</p>
                       {scope === "submitted" && finalization?.state !== "FINALIZING" &&
                         <Button size="sm" variant="primary" onClick={() => void openEditor(row)}>{row.order ? "Siparişi düzenle" : "Müşteri adına sipariş gir"}</Button>}
@@ -429,9 +463,20 @@ export default function OrdersPage() {
                 <p className="text-[13px] font-medium text-ink-2">Müşteriye tanımlı ürünler</p>
                 {editContext.products.length === 0 ? <p className="mt-2 rounded-xl bg-[var(--warn-soft)] px-3 py-3 text-sm text-[var(--warn)]">Bu şubeye eski programda mobil sipariş ürünü tanımlanmamış.</p> :
                   <div className="mt-2 max-h-[360px] divide-y divide-hairline overflow-y-auto rounded-xl ring-1 ring-hairline">
-                    {editContext.products.map((product) => {
+                    {separateProducts(editContext.products).map((product) => {
                       const key = productKey(product.uStokId, product.aStokId);
-                      return <div key={key} className="grid gap-3 bg-surface px-4 py-3 sm:grid-cols-[1fr_130px] sm:items-center"><div className="min-w-0"><p className="text-sm font-medium break-words text-ink">{product.name}{product.variantName ? ` · ${product.variantName}` : ""}</p><p className="mt-0.5 text-xs text-ink-3">{product.code} · Limit {formatQty(product.maxQuantity)} adet{product.packageSize === 5 ? " · 5'in katları" : ""}</p></div><NumberInput min={0} max={product.maxQuantity > 0 ? product.maxQuantity : undefined} step={product.packageSize || 1} value={quantities[key] || ""} placeholder="0" onChange={(event) => setQuantities((current) => ({ ...current, [key]: Math.max(0, Number(event.target.value) || 0) }))} aria-label={`${product.name} miktarı`} /></div>;
+                      return <div key={key} className="grid gap-3 bg-surface px-4 py-3 sm:grid-cols-[1fr_130px] sm:items-center">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold break-words text-ink">{product.name}</p>
+                          <p className="mt-1 text-sm break-words text-ink-2">{product.variantName || "Standart"}</p>
+                          <p className="mt-0.5 text-xs text-ink-3">{product.code} · Limit {formatQty(product.maxQuantity)} adet{!product.packageSizeIsAmbiguous && product.packageSize > 1 ? ` · ${product.packageSize} adetlik paket` : ""}</p>
+                          {product.packageSizeIsAmbiguous && <div className="mt-1 text-xs text-[var(--warn)]">
+                            <p>Paket adedi belirsiz; eski sistemdeki ürün/varyant tanımı düzeltilmeli.</p>
+                            {(quantities[key] ?? 0) > 0 && <button type="button" className="mt-1 font-medium underline" onClick={() => setQuantities((current) => ({ ...current, [key]: 0 }))}>Bu ürünü siparişten çıkar</button>}
+                          </div>}
+                        </div>
+                        <NumberInput min={0} max={product.maxQuantity > 0 ? product.maxQuantity : undefined} step={product.packageSize || 1} disabled={product.packageSizeIsAmbiguous} value={quantities[key] || ""} placeholder="0" onChange={(event) => setQuantities((current) => ({ ...current, [key]: Math.max(0, Number(event.target.value) || 0) }))} aria-label={`${product.name} miktarı`} />
+                      </div>;
                     })}
                   </div>}
               </div>

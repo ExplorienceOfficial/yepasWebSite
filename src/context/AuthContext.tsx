@@ -97,8 +97,9 @@ function ensureLoaded(): Promise<void> {
 }
 
 async function login(loginName: string, password: string, role: "ADMIN" | "DRIVER"): Promise<LoginResult> {
+  if (/\s/.test(loginName)) return { ok: false, message: "Kullanıcı adı boşluk içeremez." };
   try {
-    const response = await fetch(apiUrl("login"), {
+    const response = await fetch(apiUrl(role === "ADMIN" ? "admin/login" : "driver/login"), {
       method: "POST",
       credentials: "include",
       cache: "no-store",

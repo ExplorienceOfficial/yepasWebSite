@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using Yepas.Api.Models;
+using Yepas.Api.Domain;
 
 namespace Yepas.Api.Data
 {
@@ -14,13 +15,30 @@ namespace Yepas.Api.Data
             if (scope != "delivery" && scope != "submitted")
                 throw new ArgumentException("Kapsam delivery veya submitted olmalıdır.");
 
-            var localDate = DateTime.UtcNow.AddHours(3).Date;
-            var deliveryDate = scope == "delivery" ? localDate : localDate.AddDays(1);
+            DateTime databaseUtcNow;
+            // Clock only: driver routes must not depend on the order-settings table.
+            using (var connection = new SqlConnection(DatabaseConnections.Catalog()))
+            using (var command = new SqlCommand("SELECT GETUTCDATE()", connection))
+            {
+                connection.Open();
+                databaseUtcNow = (DateTime)command.ExecuteScalar();
+            }
+            var localDate = IstanbulTimestamp.FromUtc(databaseUtcNow).Date;
+            var deliveryDate = DriverRoutePolicy.DeliveryDate(scope, databaseUtcNow);
             string personnelCode;
             string personnelName;
             ReadPersonnel(personnelId, out personnelCode, out personnelName);
             var stops = ReadStops(personnelId, deliveryDate);
-            var orders = ReadOrders(stops, scope, localDate, deliveryDate);
+            var warnings = new List<string>();
+            var ordersAvailable = true;
+            IDictionary<string, OrderView> orders;
+            try { orders = ReadOrders(stops, scope, localDate, deliveryDate); }
+            catch (Exception)
+            {
+                ordersAvailable = false;
+                orders = new Dictionary<string, OrderView>(StringComparer.Ordinal);
+                warnings.Add("Sipariş bilgilerine erişilemedi; duraklar listelendi ancak sipariş durumları bilinmiyor.");
+            }
             foreach (var stop in stops)
             {
                 OrderView order;
@@ -35,7 +53,9 @@ namespace Yepas.Api.Data
                 Scope = scope,
                 LocalDate = localDate,
                 DeliveryDate = deliveryDate,
-                GeneratedAtUtc = DateTime.UtcNow,
+                GeneratedAtUtc = DateTime.SpecifyKind(databaseUtcNow, DateTimeKind.Utc),
+                OrdersAvailable = ordersAvailable,
+                Warnings = warnings,
                 Stops = stops
             };
         }
@@ -125,23 +145,22 @@ ORDER BY M.MUST_KODU, M.MUST_ADI, B.BOLUM_ADI, MB.ID", connection))
             for (var index = 0; index < stops.Count; index++)
                 routeFilters.Add("(O.LegacyCustomerId = @customer" + index +
                     " AND O.LegacyDepartmentId = @department" + index + ")");
-            var utcStart = localDate.AddHours(-3);
-            var utcEnd = utcStart.AddDays(1);
+            var localEnd = localDate.AddDays(1);
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
             using (var command = new SqlCommand(@"
 SELECT O.LegacyCustomerId, O.LegacyDepartmentId,
        O.OrderId, O.LegacyMbId, O.DeliveryDate, O.Status, O.Revision,
-       O.Note, O.UpdatedAtUtc, L.UStokId, L.AStokId, L.Quantity,
+       O.Note, O.UpdatedAt, L.UStokId, L.AStokId, L.Quantity,
        L.ProductCode, L.ProductName, L.VariantName
 FROM dbo.Orders O
 LEFT JOIN dbo.OrderLines L ON L.OrderId = O.OrderId
 WHERE (" + String.Join(" OR ", routeFilters.ToArray()) + @")
   AND O.DeliveryDate = @deliveryDate
   AND ((@scope = N'delivery')
-       OR (@scope = N'submitted' AND O.CreatedAtUtc >= @utcStart
-                                  AND O.CreatedAtUtc < @utcEnd))
+       OR (@scope = N'submitted' AND O.CreatedAt >= @localStart
+                                  AND O.CreatedAt < @localEnd))
 ORDER BY O.LegacyCustomerId, O.LegacyDepartmentId,
-         O.UpdatedAtUtc DESC, O.OrderId, L.ProductName, L.VariantName", connection))
+         O.UpdatedAt DESC, O.OrderId, L.ProductName, L.VariantName", connection))
             {
                 for (var index = 0; index < stops.Count; index++)
                 {
@@ -152,8 +171,8 @@ ORDER BY O.LegacyCustomerId, O.LegacyDepartmentId,
                 }
                 command.Parameters.Add("@scope", SqlDbType.NVarChar, 10).Value = scope;
                 command.Parameters.Add("@deliveryDate", SqlDbType.DateTime).Value = deliveryDate;
-                command.Parameters.Add("@utcStart", SqlDbType.DateTime).Value = utcStart;
-                command.Parameters.Add("@utcEnd", SqlDbType.DateTime).Value = utcEnd;
+                command.Parameters.Add("@localStart", SqlDbType.DateTime).Value = localDate;
+                command.Parameters.Add("@localEnd", SqlDbType.DateTime).Value = localEnd;
                 connection.Open();
                 using (var reader = command.ExecuteReader())
                     while (reader.Read())
@@ -169,7 +188,7 @@ ORDER BY O.LegacyCustomerId, O.LegacyDepartmentId,
                                 Status = reader.GetString(5),
                                 Revision = reader.GetInt32(6),
                                 Note = reader.IsDBNull(7) ? null : reader.GetString(7),
-                                UpdatedAtUtc = reader.GetDateTime(8),
+                                UpdatedAtUtc = IstanbulTimestamp.ToUtc(reader.GetDateTime(8)),
                                 Lines = new List<OrderLineView>()
                             };
                             orders.Add(branchKey, order);
