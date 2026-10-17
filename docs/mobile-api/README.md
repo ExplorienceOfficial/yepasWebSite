@@ -4,6 +4,17 @@ Bu belge mobil uygulama geliştiricisinin kullanacağı kesin `v1` sözleşmesin
 Yönetici uçları bu paketin kapsamında değildir. Makine tarafından okunabilir sözleşme
 aynı klasördeki `openapi.yaml` dosyasındadır.
 
+2026-10-17 geliştirme notu: aşağıdaki yeni hesap kuralları yeni Windows paketiyle
+devreye alınacaktır; mevcut sunucuda kurulduğu henüz doğrulanmadı. Müşteri parolası
+tam 4, şoför parolası tam 2 ASCII rakamdır; PIN string tutulmalı, baştaki sıfırlar
+korunmalıdır. Müşteri ve şoför parolalarının süre sınırı yoktur. Müşterinin ilk
+giriş/parola sıfırlama sonrası değiştirme zorunluluğu devam eder, şoförünki kaldırıldı.
+Yeni müşteri kullanıcı adları vergi no/TCKN veya numara/şubeadı biçimindedir; yönetici
+değiştirebilir, mevcut adlar otomatik dönüştürülmez. Bir hesap aynı müşterinin birden
+çok şubesine erişebilir. Müşteri sipariş notu mevcut `note` alanıdır (en fazla 500
+karakter); şoför portalında gösterilir. Müşteri mobil liste görünümünü mobilci yapar;
+yardım/iletişim ekranı bu değişiklik paketinin kapsamında değildir.
+
 ## Ortamlar
 
 | Ortam | API kökü | Not |
@@ -65,7 +76,7 @@ hesaplandığı saattir.
 ```json
 {
   "loginName": "musteri-kullanici-adi",
-  "password": "gizli-parola",
+  "password": "0123",
   "role": "CUSTOMER"
 }
 ```
@@ -85,7 +96,9 @@ Başarılı `200` yanıtı:
 }
 ```
 
-Token sekiz saat geçerlidir. Güvenli cihaz deposunda saklanmalı ve uygulama loglarına
+CUSTOMER tokenı sekiz saat geçerlidir. DRIVER tokenında süre nedeniyle otomatik çıkış
+yoktur; açık çıkış, hesap kapatma, parola sıfırlama/yetki iptali geçersiz kılar.
+Token güvenli cihaz deposunda saklanmalı ve uygulama loglarına
 yazılmamalıdır. Beş başarısız girişten sonra hesap 15 dakika kilitlenir.
 
 `mustChangePassword=true` ise yalnız parola değiştirme ekranı gösterilmelidir. Diğer
@@ -106,12 +119,13 @@ veya süresi dolmuş olduğunu belirtir.
 
 ```json
 {
-  "currentPassword": "mevcut-parola",
-  "newPassword": "en-az-12-karakter-yeni-parola"
+  "currentPassword": "0123",
+  "newPassword": "0456"
 }
 ```
 
-Yeni parola 12-128 karakter olmalı ve mevcut paroladan farklı olmalıdır. Başarı yanıtı
+Yeni parola CUSTOMER için tam 4, DRIVER için tam 2 ASCII rakam olmalı ve mevcut
+paroladan farklı olmalıdır. ADMIN güçlü parola kuralı değişmez. Başarı yanıtı
 `204 No Content` olur. Mevcut oturum korunur; kullanıcının diğer açık oturumları iptal
 edilir.
 

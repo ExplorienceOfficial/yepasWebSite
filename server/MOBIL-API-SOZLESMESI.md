@@ -43,7 +43,7 @@ Authorization: Bearer {accessToken}
 
 - JSON alanları `camelCase` olarak döner.
 - Tarih/saatler ISO-8601 biçimindedir. Sonu `Z` ile biten değerler UTC'dir.
-- Token ömrü 8 saattir.
+- CUSTOMER token ömrü 8 saattir. DRIVER ve ADMIN oturumlarında süreye bağlı otomatik çıkış yoktur; açık çıkış/hesap kapatma/parola sıfırlama/yetki iptali korunur.
 - Token yalnızca işletim sisteminin güvenli anahtar deposunda saklanmalıdır. Düz metin tercihleri, loglar veya hata raporlarına yazılmamalıdır.
 - `401` alındığında yerel oturum temizlenip giriş ekranına dönülmelidir.
 - İlk beş hatalı parola denemesinden sonra hesap 15 dakika kilitlenir. Güvenlik nedeniyle giriş cevabı bunun ayrıntısını açıklamaz.
@@ -82,7 +82,7 @@ Yetkilendirme istemez.
 ```json
 {
   "loginName": "MUSTERI001",
-  "password": "gecici-parola",
+  "password": "0123",
   "role": "CUSTOMER"
 }
 ```
@@ -103,7 +103,7 @@ Başarılı cevap — `200 OK`:
 Olası cevaplar:
 
 - `400`: Eksik/geçersiz istek
-- `401 INVALID_LOGIN`: Kullanıcı adı/parola hatalı, hesap pasif, geçici parola süresi dolmuş veya hesap kilitli
+- `401 INVALID_LOGIN`: Kullanıcı adı/parola hatalı, hesap pasif veya hesap kilitli
 - `403`: HTTPS zorunluluğu ya da mobil istemci başlığı eksik
 - `503 AUTH_UNAVAILABLE`: Giriş hizmeti/veritabanı erişilemiyor
 
@@ -133,14 +133,15 @@ Olası cevaplar: `401`, `503 AUTH_UNAVAILABLE`.
 
 ```json
 {
-  "currentPassword": "gecici-parola",
-  "newPassword": "en-az-12-karakter"
+  "currentPassword": "0123",
+  "newPassword": "0456"
 }
 ```
 
 Kurallar:
 
-- Yeni parola 12-128 karakter olmalıdır.
+- Yeni parola CUSTOMER için tam 4, DRIVER için tam 2 ASCII rakam olmalıdır; ADMIN için 12-128 karakter kuralı korunur.
+- Müşteri/şoför parola süresi kaldırıldı; müşteri ilk değişim zorunluluğu sürer, şoförde zorunlu değişim yoktur. Bu kurallar yeni paket/migration 014 kurulunca devreye girer.
 - Yeni parola mevcut paroladan farklı olmalıdır.
 - Başarılı işlem mevcut token'ı açık bırakır, kullanıcının diğer açık oturumlarını kapatır.
 

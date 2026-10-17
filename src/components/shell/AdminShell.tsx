@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AppSidebar } from "@/components/shell/AppSidebar";
 import { TopBar } from "@/components/shell/TopBar";
 import { OrderSyncNotice } from "@/components/shell/OrderSyncNotice";
+import { OrderRealtime } from "@/components/shell/OrderRealtime";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -33,6 +34,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       {/* İçerik */}
       <div className="lg:pl-60">
         <TopBar onMenu={() => setOpen(true)} />
+        <OrderRealtime />
         <OrderSyncNotice />
         <main className="mx-auto max-w-[1200px] px-4 py-6 lg:px-8 lg:py-8">{children}</main>
       </div>

@@ -107,18 +107,19 @@ WHERE U.LoginNameNormalized = @name", connection))
                         var lockedUntil = reader.IsDBNull(9) ? (DateTime?)null : reader.GetDateTime(9);
                         var identity = new AuthIdentity {
                             UserId = userId, LoginName = reader.GetString(1), Role = role,
-                            MustChangePassword = mustChange
+                            MustChangePassword = role == "DRIVER" ? false : mustChange
                         };
                         reader.Close();
 
                         if (!enabled || storedHash == null || salt == null ||
                             algorithm != "PBKDF2-SHA256" || iterations < 100000 ||
                             (lockedUntil.HasValue && lockedUntil.Value > DateTime.UtcNow) ||
-                            (tempExpires.HasValue && tempExpires.Value <= DateTime.UtcNow)) return null;
+                            (role == "ADMIN" && tempExpires.HasValue && tempExpires.Value <= DateTime.UtcNow)) return null;
 
                         var actualHash = HashPassword(password, salt, iterations);
                         if (!Equal(storedHash, actualHash) ||
-                            (role == "DRIVER" && !DriverAccountPolicy.IsValidPassword(password)))
+                            (role == "DRIVER" && !DriverAccountPolicy.IsValidPassword(password)) ||
+                            (role == "CUSTOMER" && !CustomerAccountPolicy.IsValidPassword(password)))
                         {
                             using (var fail = new SqlCommand(@"
 UPDATE dbo.Users SET FailedLoginCount = FailedLoginCount + 1,
@@ -153,7 +154,8 @@ UPDATE dbo.Users SET FailedLoginCount = 0, LockoutUntilUtc = NULL WHERE UserId =
                         var hash = Sha256(secret);
                         using (var insert = new SqlCommand(@"
 INSERT INTO dbo.AuthSessions (UserId, RoleCode, TokenHash, ExpiresAtUtc)
-VALUES (@id, @role, @hash, DATEADD(hour, 8, GETUTCDATE()))", connection))
+VALUES (@id, @role, @hash,
+    CASE WHEN @role IN (N'ADMIN',N'DRIVER') THEN NULL ELSE DATEADD(hour, 8, GETUTCDATE()) END)", connection))
                         {
                             insert.Parameters.Add("@id", SqlDbType.Int).Value = userId;
                             insert.Parameters.Add("@role", SqlDbType.NVarChar, 20).Value = role;
@@ -189,7 +191,8 @@ FROM dbo.AuthSessions S
 JOIN dbo.Users U ON U.UserId = S.UserId
 JOIN dbo.UserRoles R ON R.UserId = U.UserId AND R.RoleCode = S.RoleCode
 WHERE S.TokenHash = @hash AND S.RevokedAtUtc IS NULL
-  AND S.ExpiresAtUtc > GETUTCDATE() AND U.IsActive = 1
+  AND (S.ExpiresAtUtc > GETUTCDATE() OR (S.ExpiresAtUtc IS NULL AND S.RoleCode IN (N'ADMIN',N'DRIVER')))
+  AND U.IsActive = 1
   AND (@role IS NULL OR S.RoleCode = @role)
 ORDER BY R.RoleCode", connection))
             {
@@ -202,7 +205,7 @@ ORDER BY R.RoleCode", connection))
                     if (!reader.Read()) return null;
                     var identity = new AuthIdentity {
                         UserId = reader.GetInt32(0), LoginName = reader.GetString(1),
-                        MustChangePassword = reader.GetBoolean(2), Role = reader.GetString(3)
+                        MustChangePassword = reader.GetString(3) == "DRIVER" ? false : reader.GetBoolean(2), Role = reader.GetString(3)
                     };
                     reader.Close();
                     if (identity.Role == "DRIVER")
@@ -328,26 +331,29 @@ SELECT LegacyPersonnelId FROM dbo.DriverAccounts WHERE UserId = @id", connection
                 {
                     // The active session and stored roles, never a client role field,
                     // determine whether the driver's PIN policy applies.
-                    bool driverOnly;
+                    string passwordRole;
                     using (var role = new SqlCommand(@"
-SELECT CASE WHEN S.RoleCode=N'DRIVER' AND NOT EXISTS
-    (SELECT 1 FROM dbo.UserRoles R WHERE R.UserId=S.UserId AND R.RoleCode<>N'DRIVER')
-    THEN 1 ELSE 0 END
+SELECT CASE WHEN S.RoleCode IN (N'DRIVER',N'CUSTOMER') AND NOT EXISTS
+    (SELECT 1 FROM dbo.UserRoles R WHERE R.UserId=S.UserId AND R.RoleCode<>S.RoleCode)
+    THEN S.RoleCode ELSE N'ADMIN' END
 FROM dbo.AuthSessions S
 WHERE S.UserId=@userId AND S.TokenHash=@tokenHash
-  AND S.RevokedAtUtc IS NULL AND S.ExpiresAtUtc>GETUTCDATE()
+  AND S.RevokedAtUtc IS NULL
+  AND (S.ExpiresAtUtc>GETUTCDATE() OR (S.ExpiresAtUtc IS NULL AND S.RoleCode IN (N'ADMIN',N'DRIVER')))
   AND EXISTS(SELECT 1 FROM dbo.UserRoles R WHERE R.UserId=S.UserId AND R.RoleCode=S.RoleCode)", connection, transaction))
                     {
                         role.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
                         role.Parameters.Add("@tokenHash", SqlDbType.VarBinary, 32).Value = Sha256(tokenBytes);
                         var value = role.ExecuteScalar();
                         if (value == null) { error = "Oturum geçersiz."; return false; }
-                        driverOnly = Convert.ToInt32(value) == 1;
+                        passwordRole = Convert.ToString(value);
                     }
-                    if (driverOnly ? !DriverAccountPolicy.IsValidPassword(newPassword) :
+                    if (passwordRole == "DRIVER" ? !DriverAccountPolicy.IsValidPassword(newPassword) :
+                        passwordRole == "CUSTOMER" ? !CustomerAccountPolicy.IsValidPassword(newPassword) :
                         String.IsNullOrEmpty(newPassword) || newPassword.Length < 12 || newPassword.Length > 128)
                     {
-                        error = driverOnly ? "Şoför parolası tam 4 rakamdan oluşmalıdır." :
+                        error = passwordRole == "DRIVER" ? "Şoför parolası tam 2 rakamdan oluşmalıdır." :
+                            passwordRole == "CUSTOMER" ? "Müşteri parolası tam 4 rakamdan oluşmalıdır." :
                             "Yeni parola 12-128 karakter olmalıdır.";
                         return false;
                     }

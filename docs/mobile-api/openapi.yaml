@@ -61,7 +61,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          description: Kullanıcı adı/parola hatalı, hesap kapalı, kilitli veya geçici parola süresi dolmuş
+          description: Kullanıcı adı/parola hatalı, hesap kapalı veya kilitli
           content:
             application/json:
               schema:
@@ -356,6 +356,7 @@ components:
         password:
           type: string
           format: password
+          description: CUSTOMER tam 4, DRIVER tam 2 ASCII rakam kullanır. Baştaki sıfırlar korunur. Mevcut uyumsuz parolalar yönetici tarafından sıfırlanmalıdır.
         role:
           type: string
           enum: [CUSTOMER, DRIVER]
@@ -383,7 +384,7 @@ components:
           properties:
             accessToken:
               type: string
-              description: Sekiz saatlik opaque bearer token.
+              description: CUSTOMER için sekiz saatlik opaque bearer token; DRIVER için süre nedeniyle otomatik iptal edilmez. Çıkış, hesap kapatma, parola sıfırlama veya yetki iptali tokenı geçersiz kılar.
           required: [accessToken]
     ChangePasswordRequest:
       type: object
@@ -394,8 +395,11 @@ components:
         newPassword:
           type: string
           format: password
-          description: Etkin DRIVER oturumunda tam 4 ASCII rakam; ADMIN ve CUSTOMER için 12-128 karakter. Rol sunucudaki oturumdan belirlenir, istemci seçemez.
+          description: Etkin DRIVER oturumunda tam 2, CUSTOMER için tam 4 ASCII rakam; ADMIN için 12-128 karakter. Rol sunucudaki oturumdan belirlenir, istemci seçemez. DRIVER için zorunlu değişim yoktur.
           oneOf:
+            - minLength: 2
+              maxLength: 2
+              pattern: '^[0-9]{2}$'
             - minLength: 4
               maxLength: 4
               pattern: '^[0-9]{4}$'

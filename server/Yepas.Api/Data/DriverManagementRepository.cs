@@ -105,8 +105,7 @@ INSERT INTO dbo.Users
     (LoginName, LoginNameNormalized, PasswordHash, PasswordSalt,
      PasswordIterations, PasswordAlgorithm, IsActive, MustChangePassword,
      TemporaryPasswordExpiresUtc)
-VALUES (@name, @normalized, @hash, @salt, @iterations, N'PBKDF2-SHA256', 1, 1,
-        DATEADD(day, 7, GETUTCDATE()));
+VALUES (@name, @normalized, @hash, @salt, @iterations, N'PBKDF2-SHA256', 1, 0, NULL);
 SELECT CAST(SCOPE_IDENTITY() AS INT);", connection, transaction))
                         {
                             command.Parameters.Add("@name", SqlDbType.NVarChar, 100).Value = loginName;
@@ -128,7 +127,7 @@ INSERT INTO dbo.DriverAccounts (UserId, LegacyPersonnelId) VALUES (@userId, @per
                         Audit(connection, transaction, actorUserId, personnelId, userId, "ACCOUNT_CREATED");
                         transaction.Commit();
                         return new DriverAccountSummary { UserId = userId, LoginName = loginName,
-                            IsActive = true, MustChangePassword = true };
+                            IsActive = true, MustChangePassword = false };
                     }
                 }
             }
@@ -178,7 +177,7 @@ IF @enabled = 0
                         using (var command = new SqlCommand(@"
 UPDATE dbo.Users SET PasswordHash = @hash, PasswordSalt = @salt,
     PasswordIterations = @iterations, PasswordAlgorithm = N'PBKDF2-SHA256',
-    MustChangePassword = 1, TemporaryPasswordExpiresUtc = DATEADD(day, 7, GETUTCDATE()),
+    MustChangePassword = 0, TemporaryPasswordExpiresUtc = NULL,
     FailedLoginCount = 0, LockoutUntilUtc = NULL, UpdatedAtUtc = GETUTCDATE()
 WHERE UserId = @userId;
 UPDATE dbo.AuthSessions SET RevokedAtUtc = GETUTCDATE()
@@ -287,7 +286,7 @@ VALUES (@personnel, @userId, @action, @actor)", connection, transaction))
         private static void ValidatePassword(string value)
         {
             if (!DriverAccountPolicy.IsValidPassword(value))
-                throw new ArgumentException("Şoför parolası tam 4 rakamdan oluşmalıdır.");
+                throw new ArgumentException("Şoför parolası tam 2 rakamdan oluşmalıdır.");
         }
     }
 }

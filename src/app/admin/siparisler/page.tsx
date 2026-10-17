@@ -296,7 +296,7 @@ export default function OrdersPage() {
         body: JSON.stringify({
           revision: editContext.order?.revision ?? 0,
           status: formStatus,
-          note: null,
+          note: editContext.order?.note ?? null,
           lines,
         }),
       });

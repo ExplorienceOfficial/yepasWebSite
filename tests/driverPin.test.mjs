@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isDriverPin } from '../src/lib/driverPin.ts';
 
-test('PIN is exactly four ASCII digits and preserves leading zeros', () => {
-  for (const value of ['0000','0123','9876']) assert.equal(isDriverPin(value), true);
-  for (const value of ['','123','12345','12a4','1234\n',' 1234','1234 ','１２３４','١٢٣٤'])
+test('PIN is exactly two ASCII digits and preserves leading zeros', () => {
+  for (const value of ['00','01','98']) assert.equal(isDriverPin(value), true);
+  for (const value of ['','1','123','0123','a1','12\n',' 12','12 ','１２','١٢'])
     assert.equal(isDriverPin(value), false, value);
 });

@@ -7,7 +7,12 @@ namespace Yepas.Api.Domain
     {
         public static bool IsValidPassword(string value)
         {
-            if (value == null || value.Length != 4) return false;
+            return IsNumericPin(value, 2);
+        }
+
+        private static bool IsNumericPin(string value, int length)
+        {
+            if (value == null || value.Length != length) return false;
             foreach (var digit in value) if (digit < '0' || digit > '9') return false;
             return true;
         }

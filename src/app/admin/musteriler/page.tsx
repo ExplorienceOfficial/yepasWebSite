@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { localApiUrl } from "@/lib/api";
+import { isCustomerPin, isCustomerLogin, suggestCustomerLogin } from "@/lib/customerAccount";
 
 interface CustomerAccount {
   userId: number;
@@ -24,6 +25,7 @@ interface CustomerBranch {
   customerCode: string;
   customerName: string;
   departmentName: string;
+  taxNumber: string;
   personnelName: string;
   distributionDays: string;
   productCount: number;
@@ -58,6 +60,8 @@ export default function CustomersPage() {
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [resetAccount, setResetAccount] = useState<CustomerAccount | null>(null);
   const [resetPassword, setResetPassword] = useState("");
+  const [renameAccount, setRenameAccount] = useState<CustomerAccount | null>(null);
+  const [newLoginName, setNewLoginName] = useState("");
   const [manageAccount, setManageAccount] = useState<CustomerAccount | null>(null);
   const [manageMbIds, setManageMbIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
@@ -106,8 +110,9 @@ export default function CustomersPage() {
     const group = customerGroups.find((item) => item.customerId === customerId) ??
       customerGroups.find((item) => item.branches.some((branch) => !branch.account));
     setSelectedCustomerId(group?.customerId ?? null);
-    setSelectedMbIds(group?.branches.filter((branch) => !branch.account).map((branch) => branch.legacyMbId) ?? []);
-    setLoginName("");
+    const ids = group?.branches.filter((branch) => !branch.account).map((branch) => branch.legacyMbId) ?? [];
+    setSelectedMbIds(ids);
+    setLoginName(suggestFor(group?.branches ?? [], ids));
     setTemporaryPassword("");
     setActionError(null);
     setCreateOpen(true);
@@ -116,11 +121,38 @@ export default function CustomersPage() {
   const chooseCustomer = (customerId: number) => {
     const group = customerGroups.find((item) => item.customerId === customerId);
     setSelectedCustomerId(customerId);
-    setSelectedMbIds(group?.branches.filter((branch) => !branch.account).map((branch) => branch.legacyMbId) ?? []);
+    const ids = group?.branches.filter((branch) => !branch.account).map((branch) => branch.legacyMbId) ?? [];
+    setSelectedMbIds(ids);
+    setLoginName(suggestFor(group?.branches ?? [], ids));
   };
 
   const toggleMb = (value: number, selected: number[], setSelected: (values: number[]) => void) => {
-    setSelected(selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value]);
+    const next = selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value];
+    if (setSelected === setSelectedMbIds) {
+      const branches = customerGroups.find(group => group.customerId === selectedCustomerId)?.branches ?? [];
+      if (!loginName || loginName === suggestFor(branches, selected)) setLoginName(suggestFor(branches, next));
+    }
+    setSelected(next);
+  };
+
+  function suggestFor(branches: CustomerBranch[], ids: number[]) {
+    const first = branches.find(branch => ids.includes(branch.legacyMbId));
+    return first ? suggestCustomerLogin(first.taxNumber ?? "",
+      ids.length === 1 && branches.length > 1 ? first.departmentName : undefined) : "";
+  }
+
+  const submitRename = async () => {
+    if (!renameAccount) return;
+    setBusy(true); setActionError(null);
+    try {
+      const response = await fetch(apiUrl(`/accounts/${renameAccount.userId}/login-name`), {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginName: newLoginName }),
+      });
+      if (!response.ok) throw new Error(await responseMessage(response, "Kullanıcı adı değiştirilemedi."));
+      setRenameAccount(null); setNotice("Kullanıcı adı değiştirildi. Müşterinin tekrar giriş yapması gerekiyor."); refresh();
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : "Kullanıcı adı değiştirilemedi."); }
+    finally { setBusy(false); }
   };
 
   const refresh = () => { setLoading(true); setReload((value) => value + 1); };
@@ -228,6 +260,7 @@ export default function CustomersPage() {
                 <div><p className="text-xs text-ink-3">Dağıtım</p><p className="mt-1 text-sm text-ink">{row.distributionDays || "SG günü tanımsız"}</p><p className="mt-0.5 text-xs text-ink-3">{row.personnelName || `Personel ${row.legacyPersonnelId}`}</p></div>
                 <div>
                   <p className="text-xs text-ink-3">Mobil hesap</p>
+                  {row.account && <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setRenameAccount(row.account); setNewLoginName(row.account!.loginName); setActionError(null); }}>Kullanıcı adını değiştir</Button>}
                   {row.account ? <><div className="mt-1 flex flex-wrap items-center gap-2"><span className="text-sm text-ink">{row.account.loginName}</span><Badge tone={row.account.isActive ? "green" : "red"}>{row.account.isActive ? "Aktif" : "Kapalı"}</Badge>{row.account.mustChangePassword && <Badge tone="amber">Parola değişecek</Badge>}</div><div className="mt-2 flex flex-wrap gap-1"><Button size="sm" variant="ghost" disabled={busy} onClick={() => openBranchManager(row.account!)}>Şubeler</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => { setResetAccount(row.account); setResetPassword(""); setActionError(null); }}><KeyRound className="size-3.5" />Parola</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => void setAccountStatus(row.account!)}><Power className="size-3.5" />{row.account.isActive ? "Kapat" : "Aç"}</Button></div></> : <div className="mt-1"><p className="text-sm text-ink-3">Hesap bağlı değil</p><Button size="sm" variant="ghost" className="mt-1" onClick={() => openCreate(row.legacyCustomerId)}><Plus className="size-3.5" />Hesap aç</Button></div>}
                 </div>
                 <div className="lg:text-right">
@@ -239,19 +272,24 @@ export default function CustomersPage() {
           </div>}
       </Panel>
 
-      <Modal open={createOpen} onClose={() => !busy && setCreateOpen(false)} title="Mobil müşteri hesabı aç" subtitle="Aynı müşterinin birden fazla şubesini tek hesaba bağlayabilirsiniz." width="max-w-xl" footer={<><Button onClick={() => setCreateOpen(false)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void createAccount()} disabled={busy || selectedMbIds.length === 0 || loginName.trim().length < 3 || temporaryPassword.length < 12}>{busy ? "Kaydediliyor…" : "Hesabı oluştur"}</Button></>}>
+      <Modal open={createOpen} onClose={() => !busy && setCreateOpen(false)} title="Mobil müşteri hesabı aç" subtitle="İşaretlenen şubelerin tamamına bu hesapla erişilir; her şubenin siparişi ayrıdır." width="max-w-xl" footer={<><Button onClick={() => setCreateOpen(false)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void createAccount()} disabled={busy || selectedMbIds.length === 0 || !isCustomerLogin(loginName) || !isCustomerPin(temporaryPassword)}>{busy ? "Kaydediliyor…" : "Hesabı oluştur"}</Button></>}>
         <div className="space-y-4">
           <Field label="Müşteri"><Select value={selectedCustomerId ?? ""} onChange={(event) => chooseCustomer(Number(event.target.value))}><option value="" disabled>Müşteri seçin</option>{customerGroups.filter((group) => group.branches.some((branch) => !branch.account)).map((group) => <option key={group.customerId} value={group.customerId}>{group.name} · {group.code}</option>)}</Select></Field>
           <div><p className="text-[13px] font-medium text-ink-2">Bağlanacak şubeler</p><div className="mt-2 max-h-52 space-y-2 overflow-y-auto rounded-xl bg-surface-2 p-3 ring-1 ring-hairline">{customerGroups.find((group) => group.customerId === selectedCustomerId)?.branches.map((branch) => <label key={branch.legacyMbId} className={`flex items-start gap-3 rounded-lg p-2 ${branch.account ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-surface"}`}><input type="checkbox" className="mt-0.5 size-4" disabled={Boolean(branch.account)} checked={selectedMbIds.includes(branch.legacyMbId)} onChange={() => toggleMb(branch.legacyMbId, selectedMbIds, setSelectedMbIds)} /><span className="text-sm text-ink"><strong>{branch.departmentName}</strong><span className="mt-0.5 block text-xs text-ink-3">MB ID {branch.legacyMbId} · {branch.distributionDays || "SG günü yok"}{branch.account ? ` · ${branch.account.loginName} hesabına bağlı` : ""}</span></span></label>) ?? <p className="text-sm text-ink-3">Önce müşteri seçin.</p>}</div></div>
-          <Field label="Kullanıcı adı"><TextInput value={loginName} onChange={(event) => setLoginName(event.target.value.replace(/\s/g, ""))} autoComplete="off" maxLength={100} /></Field>
-          <Field label="Geçici parola" hint="12-128 karakter. Yedi gün geçerlidir; müşteri ilk girişte değiştirmek zorundadır."><TextInput type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} autoComplete="new-password" maxLength={128} /></Field>
+          <Field label="Kullanıcı adı" hint="10 haneli vergi no veya 11 haneli TCKN; ayrı şube hesabında numara/şubeadı. Ortak hesapta yalnız numara kullanılabilir. Kaynak numara eksikse doğrulayarak girin."><TextInput value={loginName} onChange={(event) => setLoginName(event.target.value.replace(/\s/g, ""))} autoComplete="off" maxLength={100} /></Field>
+          <Field label="Müşteri parolası" hint="Tam 4 rakam. Süre sınırı yoktur; müşteri ilk girişte değiştirir."><TextInput type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} autoComplete="new-password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} /></Field>
           {actionError && <p className="rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{actionError}</p>}
         </div>
       </Modal>
 
-      <Modal open={Boolean(resetAccount)} onClose={() => !busy && setResetAccount(null)} title="Geçici parolayı yenile" subtitle={resetAccount ? `${resetAccount.loginName} hesabının açık oturumları kapatılacak.` : undefined} width="max-w-md" footer={<><Button onClick={() => setResetAccount(null)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void submitReset()} disabled={busy || resetPassword.length < 12}>{busy ? "Kaydediliyor…" : "Parolayı yenile"}</Button></>}>
-        <Field label="Yeni geçici parola" hint="Müşteri sonraki girişte bu parolayı değiştirmek zorundadır."><TextInput type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} autoComplete="new-password" maxLength={128} /></Field>
+      <Modal open={Boolean(resetAccount)} onClose={() => !busy && setResetAccount(null)} title="Müşteri parolasını yenile" subtitle={resetAccount ? `${resetAccount.loginName} hesabının açık oturumları kapatılacak.` : undefined} width="max-w-md" footer={<><Button onClick={() => setResetAccount(null)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void submitReset()} disabled={busy || !isCustomerPin(resetPassword)}>{busy ? "Kaydediliyor…" : "Parolayı yenile"}</Button></>}>
+        <Field label="Yeni parola" hint="Tam 4 rakam; süre sınırı yoktur. Müşteri sonraki girişte değiştirir."><TextInput type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} autoComplete="new-password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} /></Field>
         {actionError && <p className="mt-3 rounded-xl bg-[var(--bad-soft)] px-3 py-2 text-sm text-[var(--bad)]">{actionError}</p>}
+      </Modal>
+
+      <Modal open={Boolean(renameAccount)} onClose={() => !busy && setRenameAccount(null)} title="Müşteri kullanıcı adını değiştir" subtitle="Bu hesabın tüm şubeleri korunur; mevcut oturumları kapatılır." width="max-w-md" footer={<><Button disabled={busy} onClick={() => setRenameAccount(null)}>Vazgeç</Button><Button variant="primary" disabled={busy || !isCustomerLogin(newLoginName) || newLoginName === renameAccount?.loginName} onClick={() => void submitRename()}>{busy ? "Kaydediliyor…" : "Kullanıcı adını kaydet"}</Button></>}>
+        <Field label="Yeni kullanıcı adı" hint="Vergi no/TCKN veya numara/şubeadı; boşluk kullanmayın."><TextInput value={newLoginName} onChange={event => setNewLoginName(event.target.value)} maxLength={100} autoComplete="off" /></Field>
+        {actionError && <p role="alert" className="mt-3 text-sm text-[var(--bad)]">{actionError}</p>}
       </Modal>
 
       <Modal open={Boolean(manageAccount)} onClose={() => !busy && setManageAccount(null)} title="Hesabın şubelerini yönet" subtitle={manageAccount ? `${manageAccount.loginName} · yalnızca aynı müşterinin şubeleri` : undefined} width="max-w-lg" footer={<><Button onClick={() => setManageAccount(null)} disabled={busy}>Vazgeç</Button><Button variant="primary" onClick={() => void saveBranches()} disabled={busy || manageMbIds.length === 0}>{busy ? "Kaydediliyor…" : "Şubeleri kaydet"}</Button></>}>

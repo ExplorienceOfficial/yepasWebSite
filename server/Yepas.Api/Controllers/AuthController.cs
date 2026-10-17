@@ -43,7 +43,7 @@ namespace Yepas.Api.Controllers
             return PermittedOrigin(request) || IsMobileClient(request);
         }
 
-        private static void SetSessionCookie(string value, bool delete)
+        private static void SetSessionCookie(string value, bool delete, bool persistent = false)
         {
             var cookie = new HttpCookie(AuthRepository.SessionCookieName, value) {
                 HttpOnly = true,
@@ -54,6 +54,7 @@ namespace Yepas.Api.Controllers
                     : true
             };
             if (delete) cookie.Expires = DateTime.UtcNow.AddDays(-1);
+            else if (persistent) cookie.Expires = DateTime.UtcNow.AddDays(365);
             HttpContext.Current.Response.Cookies.Add(cookie);
         }
 
@@ -108,7 +109,7 @@ namespace Yepas.Api.Controllers
                     return Request.CreateResponse(HttpStatusCode.Unauthorized,
                         new { code = "INVALID_LOGIN", message = "Kullanıcı adı veya parola hatalı ya da hesap kapalı." });
                 var mobile = IsMobileClient(HttpContext.Current.Request);
-                if (!mobile) SetSessionCookie(token, false);
+                if (!mobile) SetSessionCookie(token, false, identity.Role == "ADMIN" || identity.Role == "DRIVER");
                 return Request.CreateResponse(HttpStatusCode.OK,
                     new { userId = identity.UserId, loginName = identity.LoginName,
                           role = identity.Role, legacyPersonnelId = identity.LegacyPersonnelId,
@@ -130,6 +131,8 @@ namespace Yepas.Api.Controllers
             {
                 var identity = new AuthRepository().Authenticate(CurrentToken(), null);
                 if (identity == null) return Request.CreateResponse(HttpStatusCode.Unauthorized);
+                if (!IsMobileClient(HttpContext.Current.Request) && (identity.Role == "ADMIN" || identity.Role == "DRIVER"))
+                    SetSessionCookie(CurrentToken(), false, true);
                 return Request.CreateResponse(HttpStatusCode.OK,
                     new { userId = identity.UserId, loginName = identity.LoginName,
                           role = identity.Role, legacyPersonnelId = identity.LegacyPersonnelId,

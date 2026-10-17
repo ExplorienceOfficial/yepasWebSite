@@ -12,7 +12,7 @@ SELECT MB.ID, MB.MUSTERI_ID, MB.BOLUM_ID, MB.PERSONEL_ID,
        M.MUST_KODU, M.MUST_ADI, B.BOLUM_ADI,
        ISNULL(P.PERSONEL_ADI, '') + ' ' + ISNULL(P.PERSONEL_SOYADI, ''),
        ISNULL(PC.PRODUCT_COUNT, 0),
-       MB.SG_1, MB.SG_2, MB.SG_3, MB.SG_4, MB.SG_5, MB.SG_6, MB.SG_7
+       MB.SG_1, MB.SG_2, MB.SG_3, MB.SG_4, MB.SG_5, MB.SG_6, MB.SG_7, M.VERGI_NO
 FROM D00013.RS_MUSTERI_BILGILERI MB
 INNER JOIN D00013.MUSTERILER M ON M.MUSTERI_ID = MB.MUSTERI_ID
 INNER JOIN D00013.BF_MUST_BOLUM B
@@ -55,6 +55,7 @@ ORDER BY M.MUST_ADI, B.BOLUM_ADI, MB.ID";
                             CustomerCode = Convert.ToString(reader.GetValue(4)).Trim(),
                             CustomerName = Convert.ToString(reader.GetValue(5)).Trim(),
                             DepartmentName = Convert.ToString(reader.GetValue(6)).Trim(),
+                            TaxNumber = Convert.ToString(reader.GetValue(16)).Trim(),
                             PersonnelName = Convert.ToString(reader.GetValue(7)).Trim(),
                             ProductCount = reader.GetInt32(8),
                             DistributionDays = String.Join(", ", days)

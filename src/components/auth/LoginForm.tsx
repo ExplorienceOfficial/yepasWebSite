@@ -30,7 +30,7 @@ export function LoginForm({ role }: { role: "admin" | "driver" }) {
     event.preventDefault();
     if (busy) return;
     if (/\s/.test(username)) { setError("Kullanıcı adı boşluk içeremez."); return; }
-    if (driver && !isDriverPin(password)) { setError("Şoför parolası tam 4 rakamdan oluşmalıdır."); return; }
+    if (driver && !isDriverPin(password)) { setError("Şoför parolası tam 2 rakamdan oluşmalıdır."); return; }
     setBusy(true);
     setError(null);
     // Do not replace a different role's active session without explicitly signing out.
@@ -56,8 +56,8 @@ export function LoginForm({ role }: { role: "admin" | "driver" }) {
         </Field>
         <Field label="Parola">
           <TextInput type="password" value={password} onChange={event => setPassword(event.target.value)}
-            required autoComplete="current-password" maxLength={driver ? 4 : 128}
-            inputMode={driver ? "numeric" : undefined} pattern={driver ? "[0-9]{4}" : undefined} />
+            required autoComplete="current-password" maxLength={driver ? 2 : 128}
+            inputMode={driver ? "numeric" : undefined} pattern={driver ? "[0-9]{2}" : undefined} />
         </Field>
         {error && <p role="alert" className="text-sm text-[var(--bad)]">{error}</p>}
         <Button type="submit" variant="primary" className="w-full" disabled={busy}>

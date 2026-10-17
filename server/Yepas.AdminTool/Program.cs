@@ -18,6 +18,24 @@ namespace Yepas.AdminTool
             try
             {
                 var sitePath = ReadArgument(args, "--site-path");
+                if (Array.IndexOf(args, "--configure-realtime") >= 0)
+                {
+                    var key = ReadPassword("Realtime shared key (hidden input): ");
+                    var pointer = IntPtr.Zero;
+                    try
+                    {
+                        pointer = Marshal.SecureStringToBSTR(key);
+                        RealtimeConfiguration.Save(sitePath, ReadArgument(args, "--hub-url"),
+                            ReadArgument(args, "--publish-url"), Marshal.PtrToStringBSTR(pointer));
+                    }
+                    finally
+                    {
+                        if (pointer != IntPtr.Zero) Marshal.ZeroFreeBSTR(pointer);
+                        key.Dispose();
+                    }
+                    Console.WriteLine("Realtime settings saved with machine-bound encryption. Connection strings preserved.");
+                    return 0;
+                }
                 var loginName = ReadArgument(args, "--login-name");
                 if (String.IsNullOrWhiteSpace(sitePath) || String.IsNullOrWhiteSpace(loginName))
                 {

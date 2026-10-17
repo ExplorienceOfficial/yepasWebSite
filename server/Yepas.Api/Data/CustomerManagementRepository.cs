@@ -73,7 +73,7 @@ INSERT INTO dbo.Users
      PasswordIterations, PasswordAlgorithm, IsActive, MustChangePassword,
      TemporaryPasswordExpiresUtc)
 VALUES (@name, @normalized, @hash, @salt, @iterations, N'PBKDF2-SHA256', 1, 1,
-        DATEADD(day, 7, GETUTCDATE()));
+        NULL);
 SELECT CAST(SCOPE_IDENTITY() AS INT);", connection, transaction))
                         {
                             command.Parameters.Add("@name", SqlDbType.NVarChar, 100).Value = loginName;
@@ -125,6 +125,40 @@ SELECT CAST(SCOPE_IDENTITY() AS INT);", connection, transaction))
             }
         }
 
+        public void UpdateLoginName(int actorUserId, int userId, string loginName)
+        {
+            loginName = ValidateLogin(loginName);
+            using (var connection = new SqlConnection(DatabaseConnections.Application()))
+            {
+                connection.Open();
+                using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
+                {
+                    var branches = ReadUserBranches(connection, transaction, userId);
+                    using (var check = new SqlCommand(@"
+SELECT 1 FROM dbo.Users WITH (UPDLOCK,HOLDLOCK)
+WHERE LoginNameNormalized=@name AND UserId<>@id", connection, transaction))
+                    {
+                        check.Parameters.Add("@name", SqlDbType.NVarChar, 100).Value = loginName.ToUpperInvariant();
+                        check.Parameters.Add("@id", SqlDbType.Int).Value = userId;
+                        if (check.ExecuteScalar() != null)
+                            throw new AccountConflictException("LOGIN_NAME_IN_USE", "Bu kullanıcı adı zaten kullanılıyor.");
+                    }
+                    using (var update = new SqlCommand(@"
+UPDATE dbo.Users SET LoginName=@name,LoginNameNormalized=@normalized,UpdatedAtUtc=GETUTCDATE()
+WHERE UserId=@id;
+UPDATE dbo.AuthSessions SET RevokedAtUtc=GETUTCDATE() WHERE UserId=@id AND RevokedAtUtc IS NULL;", connection, transaction))
+                    {
+                        update.Parameters.Add("@name", SqlDbType.NVarChar, 100).Value = loginName;
+                        update.Parameters.Add("@normalized", SqlDbType.NVarChar, 100).Value = loginName.ToUpperInvariant();
+                        update.Parameters.Add("@id", SqlDbType.Int).Value = userId;
+                        update.ExecuteNonQuery();
+                    }
+                    foreach (var branch in branches) Audit(connection, transaction, actorUserId, branch, userId, "LOGIN_NAME_CHANGED");
+                    transaction.Commit();
+                }
+            }
+        }
+
         public void SetStatus(int actorUserId, int userId, bool enabled)
         {
             using (var connection = new SqlConnection(DatabaseConnections.Application()))
@@ -168,7 +202,7 @@ IF @enabled = 0
                         using (var command = new SqlCommand(@"
 UPDATE dbo.Users SET PasswordHash = @hash, PasswordSalt = @salt,
     PasswordIterations = @iterations, PasswordAlgorithm = N'PBKDF2-SHA256',
-    MustChangePassword = 1, TemporaryPasswordExpiresUtc = DATEADD(day, 7, GETUTCDATE()),
+    MustChangePassword = 1, TemporaryPasswordExpiresUtc = NULL,
     FailedLoginCount = 0, LockoutUntilUtc = NULL, UpdatedAtUtc = GETUTCDATE()
 WHERE UserId = @userId;
 UPDATE dbo.AuthSessions SET RevokedAtUtc = GETUTCDATE()
@@ -229,7 +263,8 @@ WHERE LegacyMbId = @mbId", connection, transaction))
         private static void EnsureCustomerUser(SqlConnection connection, SqlTransaction transaction, int userId)
         {
             using (var command = new SqlCommand(@"
-SELECT 1 FROM dbo.UserRoles WHERE UserId = @userId AND RoleCode = N'CUSTOMER'",
+SELECT 1 FROM dbo.UserRoles WHERE UserId = @userId AND RoleCode = N'CUSTOMER'
+AND NOT EXISTS (SELECT 1 FROM dbo.UserRoles R WHERE R.UserId=@userId AND R.RoleCode<>N'CUSTOMER')",
                 connection, transaction))
             {
                 command.Parameters.Add("@userId", SqlDbType.Int).Value = userId;
@@ -285,13 +320,13 @@ VALUES (@mbId, @userId, @action, NULL, @actor)", connection, transaction))
 
         private static string ValidateLogin(string value)
         {
-            return AccountNamePolicy.Validate(value);
+            return AccountNamePolicy.ValidateCustomer(value);
         }
 
         private static void ValidatePassword(string value)
         {
-            if (String.IsNullOrEmpty(value) || value.Length < 12 || value.Length > 128)
-                throw new ArgumentException("Geçici parola 12-128 karakter olmalıdır.");
+            if (!CustomerAccountPolicy.IsValidPassword(value))
+                throw new ArgumentException("Müşteri parolası tam 4 rakamdan oluşmalıdır.");
         }
     }
 }

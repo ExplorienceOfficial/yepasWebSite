@@ -166,6 +166,7 @@ WHERE DeliveryDate=@date AND ClosedAt IS NULL", connection, transaction))
                     transaction.Commit();
                 }
             }
+            RealtimePublisher.NotifyCommitted();
             return new OrderFinalizationRepository().Read(deliveryDate);
         }
 

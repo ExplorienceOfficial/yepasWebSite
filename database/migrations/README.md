@@ -10,6 +10,16 @@ Bu betikler yalnızca yeni uygulama veritabanı içindir. `PrestoPlus` şemasın
 
 Migration betikleri aynı veritabanında yeniden çalıştırılabilir. SQL Server 2005'te gerçek uygulamadan önce ayrıca uyumluluk testi yapılacaktır; yerel SQL Server 2022 doğrulaması bunun yerine geçmez.
 
+## 012–014 canlı bağlantı ve hesap politikası
+
+11 mevcutsa sırayla 012, 013 ve 014 uygulanır. 012 kullanılmayan tarihsel bildirim
+tablosunu, 013 yalnız bildirim teslim checkpoint'ini ekler. 014 admin/şoför oturum
+süresini kaldırır (ExpiresAtUtc nullable), müşteri/şoför parola süresini kaldırır,
+şoför zorunlu parola değişimini kaldırır. İptal edilmiş veya süresi geçmiş oturumlar
+yeniden açılmaz. Parola hash'leri ve kullanıcı adları değiştirilmez; yeni PIN
+kurallarına uymayan hesaplar yönetici tarafından sıfırlanmalıdır. 014 ve yeni kod
+birlikte kurulur; eski yedek olmadan şema geri alma varsayılmamalıdır.
+
 ## 009 saat değişimi (mevcut kurulum)
 
 Bu bir **kırıcı şema değişikliğidir**. IIS sitesini ve `Yepas Daily Export` görevini durdurun; `EkmekSiparis` için doğrulanmış yedek alın. Ardından yalnız uygulama veritabanında 009'u çalıştırın, `SchemaMigrations` sürüm 9'u ve `Orders.UpdatedAt` gibi yeni sütunları doğrulayın. 009, eski **test** sipariş/işlem saatlerini bir kez 3 saat ileri alır; sütunları `CreatedAt`, `UpdatedAt`, `LastExportedAt` vb. olarak yeniden adlandırır. Yeni kayıtların saati SQL Server'ın `GETDATE()` fonksiyonundan gelir. Bu alanların sözleşmesi şudur: **`EkmekSiparis` içindeki sipariş/işlem `...At` ve `OverrideUntil` alanları SQL sunucusunun Türkiye yerel saatidir**; UTC ya da kullanıcının bilgisayar saati değildir. `Users`, `AuthSessions` ve `SchemaMigrations` içindeki `...Utc` alanları ise UTC kalır. SQL Server 2005'te saat dilimi türü bulunmadığı için yerel saatler `DATETIME` içinde ofset bilgisi olmadan saklanır. SQL ve API sunucularında Türkiye saat dilimi doğru yapılandırılmalı ve güncel tutulmalıdır.

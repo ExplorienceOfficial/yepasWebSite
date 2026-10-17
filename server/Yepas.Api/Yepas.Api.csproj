@@ -49,6 +49,10 @@
   <ItemGroup>
     <Compile Include="Global.asax.cs" />
     <Compile Include="RuntimeSettings.cs" />
+    <Compile Include="..\Shared\RealtimeTicket.cs"><Link>Security\RealtimeTicket.cs</Link></Compile>
+    <Compile Include="Controllers\RealtimeController.cs" />
+    <Compile Include="Data\RealtimePublisher.cs" />
+    <Compile Include="RealtimeDeliveryWorker.cs" />
     <Compile Include="Controllers\ProductsController.cs" />
     <Compile Include="Controllers\AuthController.cs" />
     <Compile Include="Controllers\DriverAccessController.cs" />

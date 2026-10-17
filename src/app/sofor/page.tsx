@@ -214,7 +214,7 @@ export default function DriverRoutePage() {
                   <p className="mt-1 break-words text-sm text-ink-2">{line.variantName || "Standart"}</p></div>
                 <span className="shrink-0 font-bold tabular-nums text-ink">{formatQty(line.quantity)} <span className="text-xs font-normal text-ink-3">adet</span></span>
               </div>)}</div>
-              {stop.order.note && <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-xs text-ink-2 ring-1 ring-hairline">Not: {stop.order.note}</p>}
+              {stop.order.note && <div className="mt-3 rounded-lg bg-surface px-3 py-2 ring-1 ring-hairline"><p className="text-xs font-semibold text-ink">Müşterinin sipariş notu</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink-2">{stop.order.note}</p></div>}
             </div>}
           </div>;
         })}

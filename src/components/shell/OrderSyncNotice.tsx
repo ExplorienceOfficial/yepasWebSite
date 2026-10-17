@@ -57,12 +57,10 @@ export function OrderSyncNotice() {
     };
 
     void load();
-    const timer = window.setInterval(load, 15_000);
     window.addEventListener("focus", load);
     window.addEventListener("yepas:order-sync-changed", load);
     return () => {
       active = false;
-      window.clearInterval(timer);
       window.removeEventListener("focus", load);
       window.removeEventListener("yepas:order-sync-changed", load);
     };

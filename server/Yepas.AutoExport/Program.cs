@@ -25,6 +25,10 @@ namespace Yepas.AutoExport
                 if (app == null || catalog == null)
                     throw new InvalidOperationException("Bağlantı yapılandırması eksik.");
                 DatabaseConnections.ConfigureForProcess(app.ConnectionString, catalog.ConnectionString);
+                var publish = configuration.AppSettings.Settings["YepasRealtimePublishUrl"];
+                var realtimeKey = configuration.AppSettings.Settings["YepasRealtimeKey"];
+                RealtimePublisher.ConfigureForProcess(publish == null ? "" : publish.Value,
+                    realtimeKey == null ? "" : realtimeKey.Value);
                 var result = new OrderFinalizationService().FinalizeDaily();
                 Console.WriteLine("Günlük aktarım tamamlandı: {0:yyyy-MM-dd}; durum={1}",
                     result.DeliveryDate, result.State);

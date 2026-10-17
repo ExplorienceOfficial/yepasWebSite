@@ -64,6 +64,7 @@ VALUES (@cutoff, @mode, @until, @reason, @userId);", connection, transaction))
                     transaction.Commit();
                 }
             }
+            RealtimePublisher.NotifyCommitted();
             return ReadSettingsView();
         }
 
@@ -171,6 +172,7 @@ DELETE FROM dbo.Orders WHERE OrderId=@orderId AND Revision=@revision",
                             requestHash, deletedOrderId, status, schedule.LegacyMbId, deliveryDate);
                         var removed = RemovedOrder(schedule.LegacyMbId, deliveryDate, status);
                         transaction.Commit();
+                        RealtimePublisher.NotifyCommitted();
                         return removed;
                     }
                     if (existingOrderId.HasValue)
@@ -230,6 +232,7 @@ SELECT CAST(SCOPE_IDENTITY() AS INT);", connection, transaction))
                         requestHash, orderId, null, schedule.LegacyMbId, deliveryDate);
                     var result = ReadOrderById(connection, transaction, orderId);
                     transaction.Commit();
+                    RealtimePublisher.NotifyCommitted();
                     return result;
                 }
             }
@@ -255,7 +258,10 @@ FROM dbo.OrderSettings" + hint + " WHERE SettingsId = 1", connection, transactio
                     OverrideReason = reader.IsDBNull(3) ? null : reader.GetString(3),
                     UpdatedAtUtc = IstanbulTimestamp.ToUtc(reader.GetDateTime(4))
                 };
-                databaseUtcNow = reader.GetDateTime(5);
+                // GETUTCDATE is UTC, but SQL DATETIME carries no DateTimeKind.
+                // Mark it explicitly; converting Unspecified would subtract the
+                // Windows local offset a second time when signing tickets.
+                databaseUtcNow = DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc);
                 return value;
             }
         }

@@ -16,6 +16,7 @@ namespace Yepas.Api
                 config.Formatters.JsonFormatter.SerializerSettings.ContractResolver =
                     new CamelCasePropertyNamesContractResolver();
             });
+            RealtimeDeliveryWorker.Start();
         }
     }
 }

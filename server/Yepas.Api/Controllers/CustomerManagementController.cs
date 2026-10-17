@@ -102,6 +102,31 @@ namespace Yepas.Api.Controllers
             catch (Exception) { return Unavailable(); }
         }
 
+        [HttpPut, Route("accounts/{userId:int}/login-name")]
+        public HttpResponseMessage UpdateLoginName(int userId, UpdateCustomerLoginNameRequest input)
+        {
+            HttpResponseMessage rejected;
+            var identity = WriteAdmin(out rejected);
+            if (identity == null) return rejected;
+            try
+            {
+                new CustomerManagementRepository().UpdateLoginName(identity.UserId, userId,
+                    input == null ? null : input.LoginName);
+                return Request.CreateResponse(HttpStatusCode.NoContent);
+            }
+            catch (ArgumentException exception) { return Invalid(exception.Message); }
+            catch (KeyNotFoundException exception) { return NotFoundMessage(exception.Message); }
+            catch (AccountConflictException exception) {
+                return Request.CreateResponse(HttpStatusCode.Conflict, new { code=exception.Code, message=exception.Message });
+            }
+            catch (SqlException exception) {
+                if (exception.Number == 2601 || exception.Number == 2627)
+                    return Conflict("Bu kullanıcı adı zaten kullanılıyor.");
+                return Unavailable();
+            }
+            catch (Exception) { return Unavailable(); }
+        }
+
         [HttpPost]
         [Route("accounts/{userId:int}/reset-password")]
         public HttpResponseMessage ResetPassword(int userId, ResetCustomerPasswordRequest input)

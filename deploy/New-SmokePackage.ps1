@@ -94,6 +94,8 @@ try {
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'server\Yepas.AdminTool\bin\Release\Yepas.AdminTool.exe') -Destination $toolsRoot
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'server\Yepas.AdminTool\bin\Release\Yepas.AdminTool.exe.config') -Destination $toolsRoot
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'deploy\INSTALL-SMOKE.md') -Destination $stageRoot
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'deploy\INSTALL-REALTIME.md') -Destination $stageRoot
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'docs\CUSTOMER-IMPROVEMENTS-20261017.md') -Destination $stageRoot
 
     @(
         'Version=' + $safeVersion

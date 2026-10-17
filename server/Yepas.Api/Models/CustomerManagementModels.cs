@@ -19,6 +19,7 @@ namespace Yepas.Api.Models
         public string CustomerCode { get; set; }
         public string CustomerName { get; set; }
         public string DepartmentName { get; set; }
+        public string TaxNumber { get; set; }
         public string PersonnelName { get; set; }
         public string DistributionDays { get; set; }
         public int ProductCount { get; set; }
@@ -36,6 +37,11 @@ namespace Yepas.Api.Models
     public sealed class SetCustomerAccountStatusRequest
     {
         public bool Enabled { get; set; }
+    }
+
+    public sealed class UpdateCustomerLoginNameRequest
+    {
+        public string LoginName { get; set; }
     }
 
     public sealed class ResetCustomerPasswordRequest
